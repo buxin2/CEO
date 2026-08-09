@@ -55,7 +55,10 @@
   }
 
   async function loadDashboard(dateIso) {
-    dashboardData = await apiRequest(`/api/planner/dashboard?date=${encodeURIComponent(dateIso)}`);
+    dashboardData = await apiRequest(`/api/planner/dashboard?date=${encodeURIComponent(dateIso)}`, {
+      retries: 12,
+      retryDelayMs: 2000,
+    });
     document.getElementById("personal-notes").value = dashboardData.personal_notes || "";
     document.getElementById("timetable-date-label").textContent = formatLongDate(dashboardData.date);
     renderGoalsInline(dashboardData.goals);
@@ -446,6 +449,10 @@
     try {
       await loadDashboard(isoDate(currentDate));
     } catch (ex) {
+      document.getElementById("timetable-date-label").textContent = "Could not load timetable";
+      document.getElementById("timetable-timeline").innerHTML =
+        `<div class="card"><p class="form-error visible">${escapeHtml(ex.message || "Failed to load")}</p>
+        <p class="text-muted">If this mentions a database column, redeploy the backend on Render and refresh.</p></div>`;
       showToast(ex.message || "Could not load timetable");
     }
   })();

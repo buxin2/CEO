@@ -95,6 +95,9 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        from services.schema_migrations import run_schema_migrations
+
+        run_schema_migrations()
         _ensure_admin_account(app)
         _ensure_company_groups(app)
         from services.opportunity_scheduler import start_opportunity_scheduler
