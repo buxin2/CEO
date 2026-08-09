@@ -92,9 +92,10 @@ _CHAT_PERSONAL_RE = re.compile(
 )
 
 _HISTORY_ERROR_PREFIX = "I couldn't complete that request:"
-_MAX_HISTORY_ITEMS = 8
-_MAX_HISTORY_CHARS = 1200
-_MAX_USER_MESSAGE_CHARS = 4000
+_MAX_HISTORY_CHARS = 50
+_MAX_HISTORY_ITEMS_CHAT = 0
+_MAX_HISTORY_ITEMS_MANAGE = 2
+_MAX_USER_MESSAGE_CHARS = 1000
 
 
 class _FunctionStub:
@@ -237,8 +238,45 @@ def _user_wants_action(text):
     return _user_wants_management_action(text)
 
 
+def _shorten_text(text, max_len):
+    t = (text or "").strip()
+    if len(t) <= max_len:
+        return t
+    return t[:max_len].rstrip() + "…"
+
+
+def _compress_messages_for_api(messages, mode):
+    """
+    Send only the current message plus tiny history snippets to Groq (free-tier friendly).
+  Chat mode: current message only. Manage mode: up to 2 prior lines at 50 chars each.
+    """
+    if not messages:
+        return messages
+
+    max_prior = _MAX_HISTORY_ITEMS_CHAT if mode == "chat" else _MAX_HISTORY_ITEMS_MANAGE
+    prior = list(messages[:-1])
+    current = messages[-1]
+
+    if max_prior > 0 and len(prior) > max_prior:
+        prior = prior[-max_prior:]
+
+    compressed = []
+    for item in prior:
+        role = item.get("role")
+        if role not in ("user", "assistant"):
+            continue
+        content = _shorten_text(item.get("content"), _MAX_HISTORY_CHARS)
+        if content:
+            compressed.append({"role": role, "content": content})
+
+    role = current.get("role") or "user"
+    content = _shorten_text(current.get("content"), _MAX_USER_MESSAGE_CHARS)
+    compressed.append({"role": role, "content": content})
+    return compressed
+
+
 def sanitize_chat_history(history):
-    """Trim history so old long prompts and errors do not blow up every API call."""
+    """Trim history from the browser before building the API payload."""
     cleaned = []
     for item in history:
         role = item.get("role")
@@ -247,12 +285,11 @@ def sanitize_chat_history(history):
             continue
         if content.startswith(_HISTORY_ERROR_PREFIX):
             continue
-        if len(content) > _MAX_HISTORY_CHARS:
-            content = content[:_MAX_HISTORY_CHARS] + "… [truncated for token limit]"
-        cleaned.append({"role": role, "content": content})
+        cleaned.append({"role": role, "content": _shorten_text(content, _MAX_HISTORY_CHARS)})
 
-    if len(cleaned) > _MAX_HISTORY_ITEMS:
-        cleaned = cleaned[-_MAX_HISTORY_ITEMS:]
+    max_items = _MAX_HISTORY_ITEMS_MANAGE
+    if len(cleaned) > max_items:
+        cleaned = cleaned[-max_items:]
 
     return cleaned
 
@@ -439,8 +476,8 @@ def run_agent(user_messages, context, mode="chat"):
         mode = "chat"
 
     current_message = _last_user_message(user_messages)
-    if len(current_message) > _MAX_USER_MESSAGE_CHARS:
-        current_message = current_message[:_MAX_USER_MESSAGE_CHARS] + "… [truncated]"
+    user_messages = _compress_messages_for_api(user_messages, mode)
+    current_message = _last_user_message(user_messages)
 
     # Chat mode: mentor conversation only — never use tools
     if mode == "chat":
