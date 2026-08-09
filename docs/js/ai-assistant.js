@@ -5,10 +5,14 @@
   const input = document.getElementById("ai-chat-input");
   const sendBtn = document.getElementById("ai-send-btn");
   const thinkingEl = document.getElementById("ai-thinking");
+  const thinkingTextEl = document.getElementById("ai-thinking-text");
+  const serverStatusEl = document.getElementById("ai-server-status");
   const configWarning = document.getElementById("ai-config-warning");
 
   let history = [];
   let processing = false;
+  let serverReady = false;
+  let wakePromise = null;
 
   function escapeHtml(text) {
     const div = document.createElement("div");
@@ -81,17 +85,73 @@
     });
   }
 
-  function setProcessing(active) {
+  function setProcessing(active, message) {
     processing = active;
-    sendBtn.disabled = active;
+    sendBtn.disabled = active || !serverReady;
     input.disabled = active;
     thinkingEl.classList.toggle("hidden", !active);
     thinkingEl.setAttribute("aria-hidden", active ? "false" : "true");
+    if (thinkingTextEl) {
+      thinkingTextEl.textContent = message || "AI is working...";
+    }
+  }
+
+  function setServerStatus(state, text) {
+    if (!serverStatusEl) return;
+    serverStatusEl.textContent = text;
+    serverStatusEl.className = "ai-server-status ai-server-status-" + state;
+  }
+
+  function startServerWake() {
+    if (wakePromise) return wakePromise;
+
+    serverReady = false;
+    sendBtn.disabled = true;
+    setServerStatus("waking", "Connecting to server… (Render may take up to a minute to wake up)");
+
+    wakePromise = wakeApiServer((attempt, total) => {
+      setServerStatus(
+        "waking",
+        "Waking up server… attempt " + attempt + " of " + total + " (free tier cold start)"
+      );
+    })
+      .then(() => {
+        serverReady = true;
+        setServerStatus("ready", "Server connected — you can chat now.");
+        if (!processing) {
+          sendBtn.disabled = false;
+        }
+        return checkStatus();
+      })
+      .catch(() => {
+        setServerStatus(
+          "error",
+          "Server is still starting. You can send a message — we will keep retrying automatically."
+        );
+        serverReady = true;
+        if (!processing) {
+          sendBtn.disabled = false;
+        }
+      });
+
+    return wakePromise;
+  }
+
+  async function ensureServerReady() {
+    if (serverReady) return;
+    if (wakePromise) {
+      await wakePromise;
+      return;
+    }
+    await startServerWake();
   }
 
   async function checkStatus() {
     try {
-      const status = await apiRequest("/api/ai/status");
+      const status = await apiRequest("/api/ai/status", {
+        retries: 8,
+        retryDelayMs: 2000,
+      });
       if (!status.configured) {
         configWarning.textContent =
           "AI is not configured. Add a Groq API key below or set GROQ_API_KEY on Render as a fallback.";
@@ -177,7 +237,10 @@
 
   async function loadGroqKeys() {
     try {
-      const data = await apiRequest("/api/ai/groq-keys");
+      const data = await apiRequest("/api/ai/groq-keys", {
+        retries: 8,
+        retryDelayMs: 2000,
+      });
       groqKeys = data.keys || [];
       renderGroqKeysList();
     } catch (e) {
@@ -295,15 +358,27 @@
     saveHistory();
 
     input.value = "";
-    setProcessing(true);
+    setProcessing(true, "Connecting to server...");
 
     try {
+      await ensureServerReady();
+      setProcessing(true, "AI is working...");
+
       const data = await apiRequest("/api/ai/chat", {
         method: "POST",
         body: JSON.stringify({
           message: text,
           history: history.slice(0, -1),
         }),
+        retries: 20,
+        retryDelayMs: 2500,
+        onRetry: (attempt, total, reason) => {
+          const label =
+            reason === "server_sleeping" || reason === "network"
+              ? "Waking up server…"
+              : "Retrying…";
+          setProcessing(true, label + " attempt " + attempt + " of " + total);
+        },
       });
 
       const reply = (data.reply || "").trim() || "Done.";
@@ -354,7 +429,6 @@
     renderHistory();
   }
 
-  checkStatus();
-  loadGroqKeys();
+  startServerWake().then(() => loadGroqKeys());
   input.focus();
 })();

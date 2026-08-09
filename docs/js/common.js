@@ -19,19 +19,31 @@ function getApiBaseUrl() {
   return base.replace(/\/$/, "");
 }
 
-async function fetchWithRetry(url, options, retries = 2) {
+async function fetchWithRetry(url, options, retryConfig = {}) {
+  const retries = typeof retryConfig.retries === "number" ? retryConfig.retries : 2;
+  const retryDelayMs = typeof retryConfig.retryDelayMs === "number" ? retryConfig.retryDelayMs : 1500;
+  const onRetry = retryConfig.onRetry;
+  const retryStatuses = retryConfig.retryStatuses || [502, 503, 504];
   let lastError;
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      return await fetch(url, options);
+      const response = await fetch(url, options);
+      if (retryStatuses.includes(response.status) && attempt < retries) {
+        if (onRetry) onRetry(attempt + 1, retries + 1, "server_sleeping");
+        await new Promise((r) => setTimeout(r, retryDelayMs));
+        continue;
+      }
+      return response;
     } catch (err) {
       lastError = err;
       if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        if (onRetry) onRetry(attempt + 1, retries + 1, "network");
+        await new Promise((r) => setTimeout(r, retryDelayMs));
       }
     }
   }
-  throw lastError;
+  throw lastError || new Error("Request failed");
 }
 
 function taskLinkForToken(token) {
@@ -52,7 +64,13 @@ function groupAdminPageUrl(token, companyId) {
 }
 
 async function groupApiRequest(url, employeeToken, options = {}) {
+  const retries = options.retries;
+  const retryDelayMs = options.retryDelayMs;
+  const onRetry = options.onRetry;
   const opts = Object.assign({ credentials: "include", headers: {} }, options);
+  delete opts.retries;
+  delete opts.retryDelayMs;
+  delete opts.onRetry;
   if (employeeToken) {
     opts.headers["X-Employee-Token"] = employeeToken;
   }
@@ -62,7 +80,7 @@ async function groupApiRequest(url, employeeToken, options = {}) {
 
   let response;
   try {
-    response = await fetchWithRetry(apiUrl(url), opts);
+    response = await fetchWithRetry(apiUrl(url), opts, { retries, retryDelayMs, onRetry });
   } catch (e) {
     throw new Error("Cannot reach the API server. Wait a moment and try again.");
   }
@@ -83,14 +101,20 @@ async function groupApiRequest(url, employeeToken, options = {}) {
 }
 
 async function apiRequest(url, options = {}) {
+  const retries = options.retries;
+  const retryDelayMs = options.retryDelayMs;
+  const onRetry = options.onRetry;
   const opts = Object.assign({ credentials: "include", headers: {} }, options);
+  delete opts.retries;
+  delete opts.retryDelayMs;
+  delete opts.onRetry;
   if (opts.body && !(opts.body instanceof FormData)) {
     opts.headers["Content-Type"] = "application/json";
   }
 
   let response;
   try {
-    response = await fetchWithRetry(apiUrl(url), opts);
+    response = await fetchWithRetry(apiUrl(url), opts, { retries, retryDelayMs, onRetry });
   } catch (e) {
     throw new Error(
       "Cannot reach the API server. If this is your first login, wait 30 seconds for Render to wake up, then try again."
@@ -115,6 +139,17 @@ async function apiRequest(url, options = {}) {
   }
 
   return data;
+}
+
+/** Ping Render until the API responds (free tier cold start can take ~60s). */
+async function wakeApiServer(onProgress) {
+  return apiRequest("/api/health", {
+    retries: 25,
+    retryDelayMs: 2500,
+    onRetry: (attempt, total) => {
+      if (onProgress) onProgress(attempt, total);
+    },
+  });
 }
 
 function showToast(message) {
