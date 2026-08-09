@@ -6,7 +6,7 @@ The project is split into two deployable parts:
 
 | Folder | Deploy to | Role |
 |--------|-----------|------|
-| `frontend/` | GitHub Pages | Static HTML/CSS/JS UI |
+| `docs/` | GitHub Pages | Static HTML/CSS/JS UI |
 | `backend/` | Render | Flask REST API + PostgreSQL |
 
 ---
@@ -15,7 +15,7 @@ The project is split into two deployable parts:
 
 ```
 my-management-system/
-├── frontend/          # GitHub Pages — static site
+├── docs/              # GitHub Pages — static site (GitHub only allows /docs or root)
 │   ├── index.html
 │   ├── login.html
 │   ├── dashboard.html
@@ -66,7 +66,7 @@ API runs at `http://localhost:5000`. Health check: `http://localhost:5000/api/he
 
 ### 2. Frontend (static site)
 
-Edit `frontend/js/config.js`:
+Edit `docs/js/config.js`:
 
 ```javascript
 window.APP_CONFIG = {
@@ -77,7 +77,7 @@ window.APP_CONFIG = {
 Serve the frontend folder:
 
 ```bash
-cd frontend
+cd docs
 python -m http.server 8080
 ```
 
@@ -110,7 +110,7 @@ FLASK_ENV=development
 | `DATABASE_URL` | Neon PostgreSQL connection string |
 | `ADMIN_EMAIL` | your admin email |
 | `ADMIN_PASSWORD` | your admin password |
-| `FRONTEND_URL` | `https://yourusername.github.io/my-management-system` |
+| `FRONTEND_URL` | `https://buxin2.github.io/CEO` |
 | `CORS_ORIGINS` | same as `FRONTEND_URL` |
 | `SESSION_COOKIE_SECURE` | `true` |
 | `SESSION_COOKIE_SAMESITE` | `None` |
@@ -122,7 +122,7 @@ FLASK_ENV=development
 
 ## Deploy Frontend to GitHub Pages
 
-1. Edit `frontend/js/config.js` and set your Render API URL:
+1. Edit `docs/js/config.js` and set your Render API URL:
 
 ```javascript
 window.APP_CONFIG = {
@@ -132,13 +132,13 @@ window.APP_CONFIG = {
 
 2. In your GitHub repo **Settings → Pages**, set:
    - **Source:** Deploy from a branch
-   - **Branch:** `main` (or your default branch)
-   - **Folder:** `/frontend`
+   - **Branch:** `main`
+   - **Folder:** `/docs` (GitHub Pages only supports `/` root or `/docs` — not `/frontend`)
 
 3. After deploy, your site will be at:
-   `https://yourusername.github.io/my-management-system/`
+   `https://buxin2.github.io/CEO/`
 
-4. Update Render `FRONTEND_URL` and `CORS_ORIGINS` to match that exact URL (no trailing slash).
+4. Update Render `FRONTEND_URL` and `CORS_ORIGINS` to `https://buxin2.github.io/CEO` (no trailing slash).
 
 ---
 
@@ -155,7 +155,7 @@ task.html?token=xxx ──fetch──►  GET /api/public/tasks/:token
 
 - All API calls use `credentials: "include"` so the admin session cookie is sent cross-origin.
 - CORS is enabled on the backend for your `FRONTEND_URL`.
-- Employee task links look like: `https://yourusername.github.io/my-management-system/task.html?token=AbC123...`
+- Employee task links look like: `https://buxin2.github.io/CEO/task.html?token=AbC123...`
 
 ---
 
