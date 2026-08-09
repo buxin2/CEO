@@ -15,6 +15,41 @@ function taskLinkForToken(token) {
   return new URL(pageUrl("task.html?token=" + encodeURIComponent(token)), window.location.href).href;
 }
 
+function groupLinkForToken(token) {
+  return new URL(pageUrl("group.html?token=" + encodeURIComponent(token)), window.location.href).href;
+}
+
+async function groupApiRequest(url, employeeToken, options = {}) {
+  const opts = Object.assign({ credentials: "include", headers: {} }, options);
+  if (employeeToken) {
+    opts.headers["X-Employee-Token"] = employeeToken;
+  }
+  if (opts.body && !(opts.body instanceof FormData)) {
+    opts.headers["Content-Type"] = "application/json";
+  }
+
+  let response;
+  try {
+    response = await fetch(apiUrl(url), opts);
+  } catch (e) {
+    throw new Error("Cannot reach the API server. Wait a moment and try again.");
+  }
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (e) {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const message = (data && data.error) ? data.error : "Something went wrong. Please try again.";
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 async function apiRequest(url, options = {}) {
   const opts = Object.assign({ credentials: "include", headers: {} }, options);
   if (opts.body && !(opts.body instanceof FormData)) {

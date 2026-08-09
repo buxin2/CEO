@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Company Group</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="group-page-body">
+  <div id="group-root" class="group-root">
+
+    <!-- Entry: select name -->
+    <section id="entry-screen" class="group-entry">
+      <div class="group-entry-card">
+        <h1 id="entry-title">Company Group</h1>
+        <p id="entry-subtitle" class="text-muted">Select your name to enter the group</p>
+
+        <div id="entry-body">
+          <div id="entry-form">
+            <div id="employee-select-list" class="employee-select-list"></div>
+            <button type="button" class="btn btn-primary btn-block" id="enter-group-btn">Enter Group</button>
+            <button type="button" class="btn btn-ghost btn-block" id="show-join-request-btn">I don't see my name</button>
+          </div>
+
+          <div id="join-request-form" class="hidden">
+            <div class="form-group">
+              <label class="form-label" for="join-name">Name</label>
+              <input class="form-control" id="join-name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="join-role">Role</label>
+              <input class="form-control" id="join-role" placeholder="e.g. Manager">
+            </div>
+            <button type="button" class="btn btn-primary btn-block" id="submit-join-request-btn">Request to Join</button>
+            <button type="button" class="btn btn-secondary btn-block" id="cancel-join-request-btn">Back</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chat -->
+    <section id="chat-screen" class="group-chat hidden">
+      <header class="group-chat-header">
+        <div>
+          <div class="group-chat-title" id="chat-company-name">COMPANY</div>
+          <div class="group-chat-meta" id="chat-group-label">Company Group</div>
+        </div>
+        <div class="group-chat-header-actions">
+          <span class="badge hidden" id="admin-badge">Admin</span>
+          <span class="badge" id="user-badge"></span>
+          <button type="button" class="btn btn-secondary btn-sm" id="open-members-btn">Members</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="leave-group-btn">Switch name</button>
+        </div>
+      </header>
+
+      <div class="group-chat-toolbar">
+        <button type="button" class="btn btn-primary btn-sm" id="open-my-tasks-btn">📋 My Tasks</button>
+      </div>
+
+      <div id="thread-banner" class="chat-banner hidden">
+        <span id="thread-banner-text">Viewing replies</span>
+        <button type="button" class="btn btn-ghost btn-sm" id="close-thread-btn">Back to all</button>
+      </div>
+
+      <div id="messages-scroll" class="group-messages-scroll">
+        <div id="messages-list" class="group-messages-list">
+          <div class="empty-state"><span class="spinner"></span></div>
+        </div>
+      </div>
+
+      <div id="reply-banner" class="chat-reply-banner hidden">
+        <span id="reply-banner-text"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="cancel-reply-btn">Cancel</button>
+      </div>
+
+      <footer class="group-composer">
+        <textarea id="message-input" class="form-control" rows="2" placeholder="Write a message..."></textarea>
+        <button type="button" class="btn btn-primary" id="send-message-btn">Send</button>
+      </footer>
+    </section>
+  </div>
+
+  <!-- Members modal -->
+  <div class="modal-overlay" id="members-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="members-count-label">Members</h3>
+        <button class="modal-close" onclick="closeModal('members-modal')">&times;</button>
+      </div>
+      <div id="members-list" class="members-list"></div>
+    </div>
+  </div>
+
+  <!-- My Tasks modal -->
+  <div class="modal-overlay" id="my-tasks-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>My Tasks</h3>
+        <button class="modal-close" onclick="closeModal('my-tasks-modal')">&times;</button>
+      </div>
+      <p class="text-muted" id="my-tasks-week"></p>
+      <p id="my-tasks-progress" class="my-tasks-progress"></p>
+      <div id="my-tasks-body" class="my-tasks-body"></div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/group.js"></script>
+</body>
+</html>

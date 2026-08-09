@@ -2,9 +2,9 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
-from models import db, Company, Employee, get_week_bounds
+from models import db, Company, Employee, get_week_bounds, GroupJoinRequest
 from routes.auth import login_required
-from utils import task_link_for_token
+from utils import task_link_for_token, create_group_for_company, group_link_for_token
 
 company_bp = Blueprint("company", __name__)
 
@@ -40,9 +40,17 @@ def api_create_company():
 
     company = Company(name=name, description=description)
     db.session.add(company)
+    db.session.flush()
+    group = create_group_for_company(company)
+    db.session.add(group)
     db.session.commit()
 
-    return jsonify(company.to_dict()), 201
+    result = company.to_dict()
+    result["group"] = {
+        "group_link": group_link_for_token(group.group_token),
+        "group_name": group.display_name(),
+    }
+    return jsonify(result), 201
 
 
 @company_bp.route("/api/companies/<int:company_id>", methods=["GET"])
@@ -67,7 +75,25 @@ def api_get_company(company_id):
             "week_start": week_start.isoformat(),
             "week_end": week_end.isoformat(),
         },
+        "group": _group_summary(company),
     })
+
+
+def _group_summary(company):
+    group = company.group
+    if not group:
+        group = create_group_for_company(company)
+        db.session.add(group)
+        db.session.commit()
+    return {
+        "group_name": group.display_name(),
+        "member_count": group.active_member_count(),
+        "group_link": group_link_for_token(group.group_token),
+        "group_token": group.group_token,
+        "pending_requests": GroupJoinRequest.query.filter_by(
+            group_id=group.id, status="pending"
+        ).count(),
+    }
 
 
 @company_bp.route("/api/companies/<int:company_id>", methods=["PUT"])

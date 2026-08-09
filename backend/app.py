@@ -7,7 +7,7 @@ load_dotenv()
 from flask import Flask, jsonify, request
 
 from config import config_by_name
-from models import db, Admin
+from models import db, Admin, Company, CompanyGroup
 
 
 def _origin_allowed(origin, allowed_origins):
@@ -62,12 +62,14 @@ def create_app():
     from routes.company import company_bp
     from routes.employee import employee_bp
     from routes.public import public_bp
+    from routes.group import group_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(company_bp)
     app.register_blueprint(employee_bp)
     app.register_blueprint(public_bp)
+    app.register_blueprint(group_bp)
 
     @app.route("/")
     def index():
@@ -86,8 +88,18 @@ def create_app():
     with app.app_context():
         db.create_all()
         _ensure_admin_account(app)
+        _ensure_company_groups(app)
 
     return app
+
+
+def _ensure_company_groups(app):
+    """Create groups for existing companies that don't have one yet."""
+    companies = Company.query.all()
+    for company in companies:
+        if not company.group:
+            db.session.add(CompanyGroup(company_id=company.id))
+    db.session.commit()
 
 
 def _ensure_admin_account(app):
