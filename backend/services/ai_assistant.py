@@ -207,6 +207,8 @@ def _is_small_talk(text):
         return True
     if _GREETING_RE.match(t):
         return True
+    if _MANAGEMENT_COMMAND_RE.search(t):
+        return False
     lower = t.lower()
     if len(t) < 48 and len(t.split()) <= 4:
         return not any(word in lower for word in _ACTION_WORDS)
