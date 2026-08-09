@@ -8,6 +8,9 @@
   const thinkingTextEl = document.getElementById("ai-thinking-text");
   const serverStatusEl = document.getElementById("ai-server-status");
   const configWarning = document.getElementById("ai-config-warning");
+  const speakBtn = document.getElementById("ai-speak-btn");
+  const speakDoneBtn = document.getElementById("ai-speak-done-btn");
+  const voiceStatusEl = document.getElementById("ai-voice-status");
 
   let history = [];
   let processing = false;
@@ -111,9 +114,17 @@
       "ai-chat-bubble " +
       (role === "user" ? "ai-chat-bubble-user" : "ai-chat-bubble-assistant");
 
+    const labelRow = document.createElement("div");
+    labelRow.className = "ai-chat-label-row";
+
     const label = document.createElement("div");
     label.className = "ai-chat-label";
     label.textContent = role === "user" ? "You" : "AI Assistant";
+    labelRow.appendChild(label);
+
+    if (role === "assistant" && window.AiVoice && AiVoice.speechSupported()) {
+      labelRow.appendChild(AiVoice.createPlayButton(content));
+    }
 
     const body = document.createElement("div");
     body.className = "ai-chat-body";
@@ -123,7 +134,7 @@
       body.innerHTML = formatAssistantHtml(content);
     }
 
-    wrap.appendChild(label);
+    wrap.appendChild(labelRow);
     wrap.appendChild(body);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -137,10 +148,33 @@
     });
   }
 
+  function setVoiceUiState(listening) {
+    if (!speakBtn || !speakDoneBtn || !voiceStatusEl) return;
+    speakBtn.classList.toggle("listening", listening);
+    speakBtn.textContent = listening ? "🎤 Listening…" : "🎤 Speak";
+    speakDoneBtn.classList.toggle("hidden", !listening);
+    voiceStatusEl.classList.toggle("hidden", !listening);
+    if (listening) {
+      sendBtn.disabled = true;
+    } else if (!processing && serverReady) {
+      sendBtn.disabled = false;
+    }
+  }
+
+  function setVoiceButtonsEnabled(enabled) {
+    if (speakBtn) speakBtn.disabled = !enabled || (window.AiVoice && AiVoice.isListening());
+    if (speakDoneBtn) speakDoneBtn.disabled = !enabled;
+  }
+
   function setProcessing(active, message) {
     processing = active;
     sendBtn.disabled = active || !serverReady;
     input.disabled = active;
+    setVoiceButtonsEnabled(!active && serverReady);
+    if (active && window.AiVoice) {
+      AiVoice.stopListening();
+      setVoiceUiState(false);
+    }
     thinkingEl.classList.toggle("hidden", !active);
     thinkingEl.setAttribute("aria-hidden", active ? "false" : "true");
     if (thinkingTextEl) {
@@ -170,6 +204,7 @@
       .then(() => {
         serverReady = true;
         setServerStatus("ready", "Server connected — you can chat now.");
+        setVoiceButtonsEnabled(true);
         if (!processing) {
           sendBtn.disabled = false;
         }
@@ -181,12 +216,52 @@
           "Server is still starting. You can send a message — we will keep retrying automatically."
         );
         serverReady = true;
+        setVoiceButtonsEnabled(true);
         if (!processing) {
           sendBtn.disabled = false;
         }
       });
 
     return wakePromise;
+  }
+
+  function startSpeak() {
+    if (processing || !serverReady) return;
+    if (!window.AiVoice) return;
+
+    if (!AiVoice.recognitionSupported()) {
+      showToast("Speech input is not supported in this browser. Try Chrome or Edge.");
+      return;
+    }
+
+    AiVoice.stopSpeaking();
+    setVoiceUiState(true);
+    input.focus();
+
+    const started = AiVoice.startListening(
+      input,
+      null,
+      (msg) => {
+        setVoiceUiState(false);
+        showToast(msg);
+      }
+    );
+
+    if (!started) {
+      setVoiceUiState(false);
+    }
+  }
+
+  function finishSpeakAndSend() {
+    if (!window.AiVoice) return;
+    AiVoice.stopListening();
+    setVoiceUiState(false);
+    const text = AiVoice.getTranscript(input);
+    if (text) {
+      sendMessage(text);
+    } else {
+      showToast("No speech detected. Try again.");
+    }
   }
 
   async function ensureServerReady() {
@@ -470,6 +545,19 @@
   });
 
   document.getElementById("clear-ai-chat-btn").addEventListener("click", clearChat);
+
+  if (speakBtn) {
+    speakBtn.addEventListener("click", () => {
+      if (window.AiVoice && AiVoice.isListening()) return;
+      startSpeak();
+    });
+  }
+
+  if (speakDoneBtn) {
+    speakDoneBtn.addEventListener("click", finishSpeakAndSend);
+  }
+
+  setVoiceButtonsEnabled(false);
 
   if (typeof initMobileNav === "function") {
     initMobileNav();

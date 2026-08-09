@@ -58,14 +58,39 @@
         </div>
 
         <form class="ai-chat-composer" id="ai-chat-form">
-          <label class="sr-only" for="ai-chat-input">Tell AI what you want to do</label>
-          <textarea
-            id="ai-chat-input"
-            rows="3"
-            placeholder="Tell AI what you want to do..."
-            autocomplete="off"
-          ></textarea>
-          <button type="submit" class="btn btn-primary" id="ai-send-btn">Send</button>
+          <div class="ai-chat-input-wrap">
+            <label class="sr-only" for="ai-chat-input">Tell AI what you want to do</label>
+            <textarea
+              id="ai-chat-input"
+              rows="3"
+              placeholder="Type or tap Speak to talk to the AI..."
+              autocomplete="off"
+            ></textarea>
+            <div id="ai-voice-status" class="ai-voice-status hidden" aria-live="polite">
+              Listening… speak now, then tap Done &amp; Send
+            </div>
+          </div>
+          <div class="ai-chat-composer-actions">
+            <button
+              type="button"
+              class="btn btn-secondary ai-voice-speak-btn"
+              id="ai-speak-btn"
+              title="Speak to AI"
+              aria-label="Speak to AI"
+            >
+              🎤 Speak
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary ai-voice-done-btn hidden"
+              id="ai-speak-done-btn"
+              title="Done and send"
+              aria-label="Done and send"
+            >
+              Done &amp; Send
+            </button>
+            <button type="submit" class="btn btn-primary" id="ai-send-btn">Send</button>
+          </div>
         </form>
       </div>
 
@@ -152,6 +177,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/ai-voice.js"></script>
   <script src="js/ai-assistant.js"></script>
 </body>
 </html>
