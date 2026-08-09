@@ -565,6 +565,39 @@
     }
   });
 
+  async function loadOwnerProfile() {
+    const nameEl = document.getElementById("ai-owner-name");
+    const profileEl = document.getElementById("ai-owner-profile");
+    if (!nameEl || !profileEl) return;
+    try {
+      const data = await apiRequest("/api/ai/profile");
+      nameEl.value = data.display_name || "";
+      profileEl.value = data.profile_text || "";
+    } catch (e) {
+      /* profile loads after login — ignore if server still waking */
+    }
+  }
+
+  document.getElementById("ai-owner-profile-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = document.getElementById("ai-owner-profile-error");
+    err.textContent = "";
+    err.classList.remove("visible");
+    try {
+      await apiRequest("/api/ai/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          display_name: document.getElementById("ai-owner-name").value.trim(),
+          profile_text: document.getElementById("ai-owner-profile").value.trim(),
+        }),
+      });
+      showToast("Profile saved — AI will know you on the next message");
+    } catch (ex) {
+      err.textContent = ex.message;
+      err.classList.add("visible");
+    }
+  });
+
   async function sendMessage(text) {
     if (!text || processing) return;
 
@@ -663,6 +696,9 @@
     renderHistory();
   }
 
-  startServerWake().then(() => loadGroqKeys());
+  startServerWake().then(() => {
+    loadGroqKeys();
+    loadOwnerProfile();
+  });
   input.focus();
 })();

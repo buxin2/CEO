@@ -22,6 +22,7 @@
         <a class="sidebar-link" href="dashboard.html">Companies</a>
         <a class="sidebar-link active" href="ai-assistant.html">&#129302; AI Assistant</a>
         <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
+        <a class="sidebar-link" href="news.html">&#128240; News</a>
       </nav>
       <button class="sidebar-link" id="logout-btn">Logout</button>
     </aside>
@@ -104,6 +105,35 @@
           </div>
         </form>
       </div>
+
+      <section class="card ai-owner-profile-section" id="ai-owner-profile-section">
+        <div class="page-header" style="margin-bottom:12px;">
+          <h2 class="section-title" style="margin:0;">About you — AI knows you</h2>
+        </div>
+        <p class="text-muted" style="margin-bottom:12px;font-size:14px;">
+          Only you use this AI. What you save here is sent with every message so the assistant knows you personally,
+          plus your live company data from the app.
+        </p>
+        <form id="ai-owner-profile-form">
+          <div class="form-group">
+            <label class="form-label" for="ai-owner-name">Your name (how the AI should call you)</label>
+            <input class="form-control" id="ai-owner-name" placeholder="e.g. BuXin" maxlength="120">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ai-owner-profile">About you — goals, style, background</label>
+            <textarea
+              class="form-control"
+              id="ai-owner-profile"
+              rows="6"
+              placeholder="I am the CEO running AiDoBot, BFA, and other companies. I want the AI to mentor me on growth, priorities, and team performance…"
+            ></textarea>
+          </div>
+          <div class="form-error" id="ai-owner-profile-error"></div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-sm">Save profile</button>
+          </div>
+        </form>
+      </section>
 
       <section class="card groq-keys-section" id="groq-keys-section">
         <div class="page-header" style="margin-bottom:12px;">
@@ -188,7 +218,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/ai-voice.js?v=6"></script>
-  <script src="js/ai-assistant.js?v=6"></script>
+  <script src="js/ai-voice.js?v=7"></script>
+  <script src="js/ai-assistant.js?v=7"></script>
 </body>
 </html>

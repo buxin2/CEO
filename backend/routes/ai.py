@@ -2,6 +2,7 @@ from flask import Blueprint, current_app, jsonify, request, session
 
 from routes.auth import login_required
 from services.ai_assistant import run_agent, sanitize_chat_history
+from services.owner_profile_service import get_owner_profile, update_owner_profile
 from services.ai_transcribe import transcribe_audio
 from services.groq_key_service import (
     is_groq_configured,
@@ -63,7 +64,12 @@ def ai_chat():
     user_messages.append({"role": "user", "content": message})
 
     try:
-        reply = run_agent(user_messages, context, mode=data.get("mode") or "chat")
+        reply = run_agent(
+            user_messages,
+            context,
+            mode=data.get("mode") or "chat",
+            admin_id=session.get("admin_id"),
+        )
     except Exception as exc:
         current_app.logger.exception("AI chat failed")
         err_text = str(exc)
@@ -75,6 +81,39 @@ def ai_chat():
     session.modified = True
 
     return jsonify({"reply": reply})
+
+
+@ai_bp.route("/api/ai/profile", methods=["GET"])
+@login_required
+def ai_get_profile():
+    admin_id = session.get("admin_id")
+    profile = get_owner_profile(admin_id)
+    if not profile:
+        return jsonify({"error": "No admin profile found."}), 404
+    data = profile.to_dict()
+    admin = profile.admin
+    if admin:
+        data["email"] = admin.email
+    return jsonify(data)
+
+
+@ai_bp.route("/api/ai/profile", methods=["PUT"])
+@login_required
+def ai_update_profile():
+    admin_id = session.get("admin_id")
+    data = request.get_json(silent=True) or {}
+    try:
+        profile = update_owner_profile(
+            admin_id,
+            display_name=data.get("display_name"),
+            profile_text=data.get("profile_text"),
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    result = profile.to_dict()
+    if profile.admin:
+        result["email"] = profile.admin.email
+    return jsonify(result)
 
 
 @ai_bp.route("/api/ai/transcribe", methods=["POST"])

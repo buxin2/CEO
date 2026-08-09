@@ -8,6 +8,7 @@ from datetime import date
 from models import get_week_bounds
 from services.ai_tools import TOOL_DEFINITIONS, execute_tool_call
 from services.app_knowledge import build_ai_app_knowledge_text
+from services.owner_profile_service import build_ai_owner_profile_text
 from services.groq_key_service import get_active_groq_config, mark_key_used
 
 _KNOWN_TOOL_NAMES = {t["function"]["name"] for t in TOOL_DEFINITIONS}
@@ -312,21 +313,23 @@ def sanitize_chat_history(history):
     return cleaned
 
 
-def _build_system_prompt(context, week_start, week_end, mode="chat"):
+def _build_system_prompt(context, week_start, week_end, mode="chat", admin_id=None):
     last_co = context.get("last_company_name") or "none"
     last_emp = context.get("last_employee_name") or "none"
     today = date.today().isoformat()
+    owner_profile = build_ai_owner_profile_text(admin_id)
     app_knowledge = build_ai_app_knowledge_text()
 
     if mode == "chat":
         return (
             "You are the admin's personal AI mentor and strategic advisor inside their management dashboard.\n\n"
             f"Today: {today}\n\n"
+            f"{owner_profile}\n\n"
             "LIVE APP DATABASE (refreshed every message — your source of truth for business facts):\n"
             f"{app_knowledge}\n\n"
             f"Recent AI context: last company in Manage actions: {last_co}; last employee: {last_emp}.\n\n"
             "CHAT MODE (advise and mentor — do not change the app):\n"
-            "- You ALREADY know every company, employee name, role, product, service, earnings, "
+            "- You ALREADY know this person and every company, employee name, role, product, service, earnings, "
             "and task progress listed above. Use it confidently.\n"
             "- NEVER say you cannot see products, services, or employees. NEVER say data is unavailable.\n"
             "- When asked to list companies or employees, answer from the LIVE APP DATABASE with names.\n"
@@ -340,6 +343,7 @@ def _build_system_prompt(context, week_start, week_end, mode="chat"):
         "You are the AI Management Assistant for an admin company/employee/task dashboard.\n\n"
         f"Today: {today}\n"
         f"Current application week (Monday–Sunday): {week_start.isoformat()} to {week_end.isoformat()}\n\n"
+        f"{owner_profile}\n\n"
         "LIVE APP DATABASE:\n"
         f"{app_knowledge}\n\n"
         f"Last company discussed: {last_co}; last employee: {last_emp}.\n\n"
@@ -474,10 +478,11 @@ def _groq_create(client, **kwargs):
     return client.chat.completions.create(**kwargs)
 
 
-def run_agent(user_messages, context, mode="chat"):
+def run_agent(user_messages, context, mode="chat", admin_id=None):
     """
     Run the agent loop. user_messages excludes system prompt.
     mode: 'chat' (mentor, no tools) or 'manage' (tools for explicit commands).
+    admin_id: logged-in admin — used for owner profile in the system prompt.
     Returns assistant reply text.
     """
     config = get_active_groq_config()
@@ -501,7 +506,7 @@ def run_agent(user_messages, context, mode="chat"):
 
     # Chat mode: mentor conversation only — never use tools
     if mode == "chat":
-        system = _build_system_prompt(context, week_start, week_end, mode="chat")
+        system = _build_system_prompt(context, week_start, week_end, mode="chat", admin_id=admin_id)
         try:
             reply = _run_mentor_chat(client, model, system, user_messages)
             mark_key_used(config.get("key_id"))
@@ -513,7 +518,7 @@ def run_agent(user_messages, context, mode="chat"):
 
     # Manage mode without explicit command: mentor-style reply, no tools
     if not _user_wants_management_action(current_message):
-        system = _build_system_prompt(context, week_start, week_end, mode="chat")
+        system = _build_system_prompt(context, week_start, week_end, mode="chat", admin_id=admin_id)
         system += (
             "\nThe user is in Manage mode but did not give a clear create/list/update command. "
             "Respond helpfully without using tools. "
@@ -530,7 +535,7 @@ def run_agent(user_messages, context, mode="chat"):
 
     # Manage mode with explicit command: tool loop
     if _is_small_talk(current_message):
-        system = _build_system_prompt(context, week_start, week_end, mode="chat")
+        system = _build_system_prompt(context, week_start, week_end, mode="chat", admin_id=admin_id)
         try:
             reply = _run_chat_only(client, model, system, current_message)
             mark_key_used(config.get("key_id"))
@@ -540,7 +545,7 @@ def run_agent(user_messages, context, mode="chat"):
                 raise RuntimeError(_friendly_api_error(exc))
             raise
 
-    system = _build_system_prompt(context, week_start, week_end, mode="manage")
+    system = _build_system_prompt(context, week_start, week_end, mode="manage", admin_id=admin_id)
     messages = [{"role": "system", "content": system}] + list(user_messages)
     tools = TOOL_DEFINITIONS
     max_iterations = 14

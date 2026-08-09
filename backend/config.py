@@ -101,6 +101,12 @@ class Config:
     ).strip()
     GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+    # Optional: Serper.dev for better web search in News (https://serper.dev)
+    SERPER_API_KEY = (os.environ.get("SERPER_API_KEY") or "").strip()
+
+    # Optional: secret for external cron hitting POST /api/news/cron at midnight
+    NEWS_CRON_SECRET = (os.environ.get("NEWS_CRON_SECRET") or "").strip()
+
     @property
     def APP_TIMEZONE(self):
         return timezone(timedelta(hours=self.APP_TZ_OFFSET_HOURS))

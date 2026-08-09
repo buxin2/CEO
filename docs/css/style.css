@@ -1855,3 +1855,202 @@ textarea.form-control {
 .ai-assistant-page .ai-chat-shell {
   max-height: min(520px, 55vh);
 }
+
+/* Daily Opportunity News */
+.news-page-header {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.news-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.news-status-banner {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.news-status-generating {
+  border-color: #ed6c02;
+  background: #fff8e6;
+}
+
+.news-status-error {
+  border-color: #c62828;
+  background: #ffebee;
+}
+
+.news-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  padding: 16px;
+}
+
+.news-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.news-filters .form-control,
+.news-date-nav .form-control {
+  min-width: 140px;
+}
+
+.news-view-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.news-summary-card h2 {
+  margin-top: 0;
+}
+
+.news-report-date {
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.news-venture-counts {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+
+.news-venture-counts li {
+  padding: 4px 0;
+}
+
+.news-recommendation-card {
+  margin-bottom: 20px;
+  border-left: 4px solid var(--color-primary);
+}
+
+.news-recommendation-text {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.news-venture-section {
+  margin-bottom: 20px;
+}
+
+.news-venture-heading {
+  margin-top: 0;
+}
+
+.news-opp-card {
+  margin-bottom: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.news-opp-highlight {
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.news-opp-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.news-opp-priority {
+  font-weight: 600;
+}
+
+.news-opp-type {
+  color: var(--color-text-muted);
+}
+
+.news-opp-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.news-why {
+  background: #f5f9ff;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  margin: 10px 0;
+}
+
+.news-deadline-urgent {
+  color: #c62828;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+.news-deadline-none {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.news-uncertain {
+  color: #ed6c02;
+  font-size: 13px;
+}
+
+.news-opp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.news-chat-section {
+  margin-top: 24px;
+}
+
+.news-chat-form textarea {
+  margin-bottom: 8px;
+}
+
+.news-chat-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.news-search-toggle {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.news-chat-reply {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.news-no-venture {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 700px) {
+  .news-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .news-filters {
+    flex-direction: column;
+  }
+}

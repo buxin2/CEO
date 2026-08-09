@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>News &middot; Daily Opportunities</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">My Management System</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="dashboard.html">Companies</a>
+        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
+        <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
+        <a class="sidebar-link active" href="news.html">&#128240; News</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content news-page">
+      <div class="page-header news-page-header">
+        <div>
+          <h1>&#128240; Daily Opportunity Report</h1>
+          <p class="page-subtitle">AI-powered intelligence for your ventures — funding, grants, competitions, and partnerships.</p>
+        </div>
+        <div class="news-header-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="news-refresh-btn">Regenerate today</button>
+        </div>
+      </div>
+
+      <div id="news-status-banner" class="news-status-banner hidden" aria-live="polite"></div>
+
+      <div class="news-toolbar card">
+        <div class="news-date-nav">
+          <label class="form-label" for="news-date-select">Report date</label>
+          <select id="news-date-select" class="form-control"></select>
+        </div>
+        <div class="news-filters">
+          <select id="filter-venture" class="form-control" title="Company">
+            <option value="all">All ventures</option>
+          </select>
+          <select id="filter-type" class="form-control" title="Type">
+            <option value="all">All types</option>
+          </select>
+          <select id="filter-priority" class="form-control" title="Priority">
+            <option value="all">All priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div class="news-view-tabs">
+          <button type="button" class="btn btn-secondary btn-sm active" data-view="report">Today&apos;s report</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-view="saved">Saved</button>
+        </div>
+      </div>
+
+      <section id="news-report-view">
+        <div id="news-summary" class="card news-summary-card hidden"></div>
+        <div id="news-recommendation" class="card news-recommendation-card hidden"></div>
+        <div id="news-ventures" class="news-ventures-list"></div>
+        <div id="news-empty" class="card news-empty-state hidden">
+          <p>No report yet for this date. The AI searches the web for real opportunities when you open this page or at midnight daily.</p>
+        </div>
+      </section>
+
+      <section id="news-saved-view" class="hidden">
+        <div id="news-saved-list" class="news-ventures-list"></div>
+      </section>
+
+      <section class="card news-chat-section">
+        <h2 class="section-title">Ask AI about opportunities</h2>
+        <p class="text-muted" style="font-size:14px;margin-bottom:12px;">
+          e.g. &quot;Which opportunity is best today?&quot; or &quot;Find EV grants for African startups&quot;
+        </p>
+        <form id="news-chat-form" class="news-chat-form">
+          <textarea id="news-chat-input" class="form-control" rows="2" placeholder="Ask about today's opportunities…"></textarea>
+          <div class="news-chat-actions">
+            <label class="news-search-toggle">
+              <input type="checkbox" id="news-chat-search"> Fresh web search
+            </label>
+            <button type="submit" class="btn btn-primary btn-sm">Ask</button>
+          </div>
+        </form>
+        <div id="news-chat-reply" class="news-chat-reply hidden"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/news.js?v=1"></script>
+</body>
+</html>

@@ -417,6 +417,145 @@ class PlannerGoal(db.Model):
         }
 
 
+class OpportunityReport(db.Model):
+    """Daily AI-generated opportunity intelligence report."""
+
+    __tablename__ = "opportunity_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    report_date = db.Column(db.Date, nullable=False, unique=True, index=True)
+    status = db.Column(db.String(20), default="pending", index=True)  # pending, generating, complete, failed
+    summary_json = db.Column(db.Text, default="{}")
+    ai_recommendation = db.Column(db.Text, default="")
+    error_message = db.Column(db.String(500), default="")
+    generated_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    opportunities = db.relationship(
+        "OpportunityItem", backref="report", cascade="all, delete-orphan", lazy="dynamic"
+    )
+
+    def to_dict(self, include_counts=False):
+        data = {
+            "id": self.id,
+            "report_date": self.report_date.isoformat() if self.report_date else None,
+            "status": self.status,
+            "ai_recommendation": self.ai_recommendation or "",
+            "error_message": self.error_message or "",
+            "generated_at": self.generated_at.isoformat() if self.generated_at else None,
+        }
+        try:
+            import json
+
+            data["summary"] = json.loads(self.summary_json or "{}")
+        except json.JSONDecodeError:
+            data["summary"] = {}
+        if include_counts:
+            data["total_count"] = self.opportunities.count()
+        return data
+
+
+class OpportunityItem(db.Model):
+    """A single verified opportunity discovered for a venture."""
+
+    __tablename__ = "opportunity_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.Integer, db.ForeignKey("opportunity_reports.id"), nullable=False, index=True)
+    venture_key = db.Column(db.String(40), nullable=False, index=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    title = db.Column(db.String(500), nullable=False)
+    summary = db.Column(db.Text, default="")
+    why_matters = db.Column(db.Text, default="")
+    opportunity_type = db.Column(db.String(40), default="other", index=True)
+    priority = db.Column(db.String(20), default="medium", index=True)
+    source_name = db.Column(db.String(255), default="")
+    source_url = db.Column(db.String(1000), default="")
+    apply_url = db.Column(db.String(1000), default="")
+    apply_label = db.Column(db.String(80), default="Learn More")
+    published_date = db.Column(db.Date, nullable=True)
+    deadline_date = db.Column(db.Date, nullable=True)
+    region = db.Column(db.String(255), default="")
+    eligibility = db.Column(db.Text, default="")
+    verified = db.Column(db.Boolean, default=True)
+    uncertain = db.Column(db.Boolean, default=False)
+    dedupe_key = db.Column(db.String(64), index=True)
+    posted_to_group = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    company = db.relationship("Company")
+    user_states = db.relationship(
+        "OpportunityUserState", backref="opportunity", cascade="all, delete-orphan", lazy="dynamic"
+    )
+
+    def to_dict(self, admin_id=None):
+        from services.opportunity_ventures import venture_meta
+
+        meta = venture_meta(self.venture_key)
+        state = None
+        if admin_id:
+            row = OpportunityUserState.query.filter_by(
+                opportunity_id=self.id, admin_id=admin_id
+            ).first()
+            state = row.status if row else "none"
+
+        days_left = None
+        urgent = False
+        if self.deadline_date:
+            days_left = (self.deadline_date - date.today()).days
+            urgent = days_left is not None and 0 <= days_left <= 7
+
+        return {
+            "id": self.id,
+            "report_id": self.report_id,
+            "venture_key": self.venture_key,
+            "venture_label": meta.get("label", self.venture_key),
+            "venture_emoji": meta.get("emoji", ""),
+            "company_id": self.company_id,
+            "company_name": self.company.name if self.company else None,
+            "title": self.title,
+            "summary": self.summary or "",
+            "why_matters": self.why_matters or "",
+            "opportunity_type": self.opportunity_type,
+            "opportunity_type_label": meta.get("type_labels", {}).get(
+                self.opportunity_type, self.opportunity_type
+            ),
+            "priority": self.priority,
+            "source_name": self.source_name or "",
+            "source_url": self.source_url or "",
+            "apply_url": self.apply_url or "",
+            "apply_label": self.apply_label or "Learn More",
+            "published_date": self.published_date.isoformat() if self.published_date else None,
+            "deadline_date": self.deadline_date.isoformat() if self.deadline_date else None,
+            "deadline_days_left": days_left,
+            "deadline_urgent": urgent,
+            "region": self.region or "",
+            "eligibility": self.eligibility or "",
+            "verified": self.verified,
+            "uncertain": self.uncertain,
+            "posted_to_group": self.posted_to_group,
+            "user_state": state,
+        }
+
+
+class OpportunityUserState(db.Model):
+    """Per-admin saved / applied / not-relevant state."""
+
+    __tablename__ = "opportunity_user_states"
+
+    id = db.Column(db.Integer, primary_key=True)
+    opportunity_id = db.Column(
+        db.Integer, db.ForeignKey("opportunity_items.id"), nullable=False, index=True
+    )
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False, index=True)
+    status = db.Column(db.String(20), default="saved")  # saved, applied, not_relevant
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("opportunity_id", "admin_id", name="uq_opportunity_admin_state"),
+    )
+
+
 class TimetableItem(db.Model):
     __tablename__ = "timetable_items"
 
@@ -430,6 +569,7 @@ class TimetableItem(db.Model):
     category = db.Column(db.String(50), default="work")
     link_type = db.Column(db.String(40), default="none")
     link_company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True)
+    link_opportunity_id = db.Column(db.Integer, db.ForeignKey("opportunity_items.id"), nullable=True)
     link_label = db.Column(db.String(120), default="")
     completed = db.Column(db.Boolean, default=False)
     position = db.Column(db.Integer, default=0)
@@ -437,6 +577,7 @@ class TimetableItem(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     link_company = db.relationship("Company")
+    link_opportunity = db.relationship("OpportunityItem", foreign_keys=[link_opportunity_id])
 
     def to_dict(self, include_link=False):
         data = {
@@ -450,6 +591,7 @@ class TimetableItem(db.Model):
             "category": self.category,
             "link_type": self.link_type or "none",
             "link_company_id": self.link_company_id,
+            "link_opportunity_id": self.link_opportunity_id,
             "link_label": self.link_label or "",
             "completed": self.completed,
             "position": self.position,
@@ -469,6 +611,27 @@ class PlannerSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     personal_notes = db.Column(db.Text, default="")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AiOwnerProfile(db.Model):
+    """Persistent profile for the sole admin user — included in every AI system prompt."""
+
+    __tablename__ = "ai_owner_profiles"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False, unique=True, index=True)
+    display_name = db.Column(db.String(120), default="")
+    profile_text = db.Column(db.Text, default="")
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    admin = db.relationship("Admin", backref=db.backref("ai_owner_profile", uselist=False))
+
+    def to_dict(self):
+        return {
+            "display_name": self.display_name or "",
+            "profile_text": self.profile_text or "",
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
 
 
 class GroqApiKey(db.Model):

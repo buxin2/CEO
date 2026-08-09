@@ -20,6 +20,7 @@ VALID_LINK_TYPES = (
     "company_earnings",
     "dashboard",
     "ai_assistant",
+    "news_opportunity",
 )
 VALID_CATEGORIES = (
     "work",
@@ -76,6 +77,8 @@ def build_item_link_url(item):
         return frontend_url("dashboard.html")
     if lt == "ai_assistant":
         return frontend_url("ai-assistant.html")
+    if lt == "news_opportunity" and item.link_opportunity_id:
+        return frontend_url(f"news.html?opportunity={item.link_opportunity_id}")
     return ""
 
 
@@ -183,6 +186,10 @@ def create_timetable_item(plan_date, data):
         if not Company.query.get(link_company_id):
             raise ValueError("Linked company not found.")
 
+    link_opportunity_id = data.get("link_opportunity_id")
+    if link_opportunity_id:
+        link_opportunity_id = int(link_opportunity_id)
+
     max_pos = db.session.query(func.max(TimetableItem.position)).filter_by(
         plan_date=plan_date
     ).scalar() or 0
@@ -196,7 +203,8 @@ def create_timetable_item(plan_date, data):
         priority=priority,
         category=category,
         link_type=link_type,
-        link_company_id=link_company_id if link_type != "none" else None,
+        link_company_id=link_company_id if link_type not in ("none", "news_opportunity") else None,
+        link_opportunity_id=link_opportunity_id if link_type == "news_opportunity" else None,
         link_label=(data.get("link_label") or "").strip(),
         position=max_pos + 1,
     )
