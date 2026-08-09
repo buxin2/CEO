@@ -112,9 +112,11 @@ async function initGroupPage() {
 async function showEntryScreen() {
   document.getElementById("entry-screen").classList.remove("hidden");
   document.getElementById("chat-screen").classList.add("hidden");
+  document.getElementById("entry-form").classList.remove("hidden");
+  document.getElementById("join-request-form").classList.add("hidden");
 
-  const body = document.getElementById("entry-body");
-  body.innerHTML = '<div class="empty-state"><span class="spinner"></span></div>';
+  const list = document.getElementById("employee-select-list");
+  list.innerHTML = '<div class="empty-state"><span class="spinner"></span></div>';
 
   try {
     const data = await groupApiRequest(`/api/public/group/${GROUP_TOKEN}`, "");
@@ -124,18 +126,20 @@ async function showEntryScreen() {
     document.getElementById("entry-title").textContent = data.company_name;
     document.getElementById("entry-subtitle").textContent = "Select your name to enter the group";
 
-    const list = document.getElementById("employee-select-list");
+    if (!data.employees.length) {
+      list.innerHTML = "<p class=\"text-muted\">No employees listed yet. Ask your admin to add you.</p>";
+      return;
+    }
+
     list.innerHTML = data.employees.map((e) => `
       <label class="employee-select-item">
         <input type="radio" name="employee-pick" value="${escapeHtml(e.unique_token)}">
         <span class="employee-select-name">${escapeHtml(e.name)}</span>
         ${e.position ? `<span class="employee-select-role">${escapeHtml(e.position)}</span>` : ""}
       </label>
-    `).join("") || "<p class=\"text-muted\">No employees listed yet. Ask your admin to add you.</p>";
-
-    body.innerHTML = "";
+    `).join("");
   } catch (err) {
-    body.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
+    list.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
