@@ -4,11 +4,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from flask import Flask, jsonify
-from flask_cors import CORS
+from flask import Flask, jsonify, request
 
 from config import config_by_name
 from models import db, Admin
+
+
+def _origin_allowed(origin, allowed_origins):
+    if not origin:
+        return False
+    normalized = origin.rstrip("/")
+    allowed = {o.rstrip("/") for o in allowed_origins}
+    return normalized in allowed
 
 
 def create_app():
@@ -17,11 +24,36 @@ def create_app():
     env_name = os.environ.get("FLASK_ENV", "production")
     app.config.from_object(config_by_name.get(env_name, config_by_name["production"]))
 
-    CORS(
-        app,
-        origins=app.config["CORS_ORIGINS"],
-        supports_credentials=True,
-    )
+    cors_origins = list(app.config["CORS_ORIGINS"])
+    app.logger.info("CORS allowed origins: %s", cors_origins)
+
+    @app.before_request
+    def cors_preflight():
+        if request.method != "OPTIONS":
+            return None
+
+        origin = request.headers.get("Origin")
+        if not _origin_allowed(origin, cors_origins):
+            app.logger.warning("CORS preflight rejected for origin: %s", origin)
+            return None
+
+        response = app.make_response("")
+        response.status_code = 204
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Vary"] = "Origin"
+        return response
+
+    @app.after_request
+    def cors_headers(response):
+        origin = request.headers.get("Origin")
+        if _origin_allowed(origin, cors_origins):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Vary"] = "Origin"
+        return response
 
     db.init_app(app)
 
@@ -44,6 +76,7 @@ def create_app():
             "message": "CEO API is running. Admin UI is on GitHub Pages.",
             "health": "/api/health",
             "frontend": app.config["FRONTEND_URL"],
+            "cors_origins": cors_origins,
         })
 
     @app.route("/api/health")
