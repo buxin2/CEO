@@ -20,7 +20,7 @@
 
   const MODE_PLACEHOLDERS = {
     chat: "Talk to your AI mentor — life, career, ideas… (no app changes in this mode)",
-    manage: "Create or update something: e.g. Create company AiDoBot, list my employees…",
+    manage: "Manage mode: Create timetable, company, tasks… e.g. Create my timetable for today",
   };
 
   function escapeHtml(text) {
@@ -58,7 +58,7 @@
     if (/^(hi|hello|hey|yo|good\s+(morning|afternoon|evening)|thanks|thank\s+you|ok|okay)[\s!.?]*$/i.test(t)) {
       return true;
     }
-    const actionWords = ["create", "add", "delete", "company", "employee", "task", "product", "service"];
+    const actionWords = ["create", "add", "delete", "company", "employee", "task", "product", "service", "timetable", "schedule", "generate"];
     if (t.length < 48 && t.split(/\s+/).length <= 4) {
       const lower = t.toLowerCase();
       return !actionWords.some((w) => lower.includes(w));

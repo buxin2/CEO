@@ -372,6 +372,8 @@
           replace: replace,
           confirmed: replace,
         }),
+        retries: 10,
+        retryDelayMs: 2000,
       });
       if (res.needs_confirmation) {
         if (confirm(res.message)) {
@@ -431,7 +433,20 @@
 
   (async function init() {
     if (typeof initMobileNav === "function") initMobileNav();
+    try {
+      if (typeof wakeApiServer === "function") {
+        await wakeApiServer();
+      }
+      await apiRequest("/api/me");
+    } catch (e) {
+      window.location.href = pageUrl("login.html");
+      return;
+    }
     await loadCompanies();
-    await loadDashboard(isoDate(currentDate));
+    try {
+      await loadDashboard(isoDate(currentDate));
+    } catch (ex) {
+      showToast(ex.message || "Could not load timetable");
+    }
   })();
 })();

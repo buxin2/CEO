@@ -72,13 +72,26 @@ _GREETING_RE = re.compile(
 
 _ACTION_WORDS = (
     "create", "add", "delete", "remove", "assign", "update", "build", "make", "set up", "setup",
+    "timetable", "schedule", "planner", "generate",
+)
+
+_TIMETABLE_COMMAND_RE = re.compile(
+    r"(?:"
+    r"\b(create|generate|build|make|add|set up|setup|plan)\b.{0,40}\b(time\s*table|timetable|schedule|planner|my\s+day|daily\s+plan)"
+    r"|"
+    r"\b(time\s*table|timetable|schedule|planner)\b.{0,20}\b(for me|please|now|today|tomorrow)"
+    r"|"
+    r"\b(generate|reset)\s+(?:my\s+)?(?:timetable|time\s*table|schedule|planner)"
+    r")",
+    re.I,
 )
 
 # Explicit management commands — casual mention of "company" in life talk must NOT match.
 _MANAGEMENT_COMMAND_RE = re.compile(
     r"(?:"
-    r"\b(create|add|make|set up|setup)\s+(?:a\s+|the\s+|my\s+|new\s+)*"
-    r"(company|companies|employee|employees|task|tasks|product|products|service|services|earning|earnings)"
+    r"\b(create|add|make|set up|setup|build|generate)\s+(?:a\s+|the\s+|my\s+|new\s+)*"
+    r"(company|companies|employee|employees|task|tasks|product|products|service|services|earning|earnings|"
+    r"timetable|time\s*table|schedule|planner)"
     r"|"
     r"\b(delete|remove)\s+(?:a\s+|the\s+|my\s+)*"
     r"(company|companies|employee|employees|task|tasks|product|products|service|services|earning|earnings)"
@@ -89,9 +102,9 @@ _MANAGEMENT_COMMAND_RE = re.compile(
     r"\b(assign|give)\s+.+\s+tasks?"
     r"|"
     r"\b(update|edit|change)\s+(?:a\s+|the\s+|my\s+)*"
-    r"(company|companies|employee|employees|task|tasks|product|products|service|services)"
+    r"(company|companies|employee|employees|task|tasks|product|products|service|services|timetable|schedule)"
     r"|"
-    r"\b(generate|reset)\s+(?:my\s+)?(?:timetable|schedule|planner)"
+    r"\b(generate|reset)\s+(?:my\s+)?(?:timetable|time\s*table|schedule|planner)"
     r"|"
     r"\b(what|which)\s+companies\b"
     r"|"
@@ -234,11 +247,20 @@ def _is_small_talk(text):
     return False
 
 
+def _is_timetable_request(text):
+    t = (text or "").strip()
+    if not t:
+        return False
+    return bool(_TIMETABLE_COMMAND_RE.search(t))
+
+
 def _user_wants_management_action(text):
     """True only for explicit app management commands, not casual conversation."""
     t = (text or "").strip()
     if not t or _is_small_talk(t):
         return False
+    if _TIMETABLE_COMMAND_RE.search(t):
+        return True
     if _CHAT_NEGATION_RE.search(t):
         return False
     if _CHAT_PERSONAL_RE.search(t) and not _MANAGEMENT_COMMAND_RE.search(t):
@@ -246,9 +268,63 @@ def _user_wants_management_action(text):
     if _MANAGEMENT_COMMAND_RE.search(t):
         return True
     lower = t.lower()
-    if re.match(r"^\s*(create|add|delete|remove|list|show|assign|update)\s+", lower):
+    if re.match(r"^\s*(create|add|delete|remove|list|show|assign|update|generate|build|make)\s+", lower):
+        return True
+    if re.search(r"\b(create|generate|build|make)\b", lower) and re.search(
+        r"\b(timetable|time\s*table|schedule|planner)\b", lower
+    ):
         return True
     return False
+
+
+def _parse_timetable_plan_date(text, default=None):
+    """Infer today/tomorrow from user message."""
+    ref = default or date.today()
+    lower = (text or "").lower()
+    if "tomorrow" in lower:
+        from datetime import timedelta
+
+        return ref + timedelta(days=1)
+    if "next week" in lower:
+        from datetime import timedelta
+
+        return ref + timedelta(days=7)
+    return ref
+
+
+def _run_timetable_generate_reply(user_text, admin_id=None):
+    """Direct timetable generation — avoids flaky tool-calling for common requests."""
+    from services.planner_ai import generate_timetable_with_ai
+    from services.planner_service import list_timetable_for_date, serialize_item, timetable_progress
+
+    plan_date = _parse_timetable_plan_date(user_text)
+    lower = (user_text or "").lower()
+    replace = any(w in lower for w in ("replace", "new schedule", "fresh", "regenerate", "redo"))
+
+    result = generate_timetable_with_ai(
+        plan_date,
+        replace_existing=replace,
+        extra_instructions=user_text,
+    )
+    items = list_timetable_for_date(plan_date)
+    prog = timetable_progress(items)
+    focus = result.get("today_focus") or []
+    focus_txt = ""
+    if focus:
+        focus_txt = "Today's focus: " + "; ".join(focus[:3]) + "\n\n"
+
+    lines = [f"Done — I created your timetable for **{plan_date.isoformat()}**.\n"]
+    lines.append(focus_txt)
+    lines.append(f"**{prog['total']} activities** scheduled ({prog['completed']} completed so far).\n")
+    preview = items[:8]
+    if preview:
+        lines.append("Preview:")
+        for item in preview:
+            lines.append(f"• {item.start_time}–{item.end_time}: {item.title}")
+        if len(items) > len(preview):
+            lines.append(f"… and {len(items) - len(preview)} more.")
+    lines.append("\nOpen **My Timetable** to view, edit, or mark items complete.")
+    return "\n".join(lines)
 
 
 def _user_wants_action(text):
@@ -349,6 +425,8 @@ def _build_system_prompt(context, week_start, week_end, mode="chat", admin_id=No
         f"Last company discussed: {last_co}; last employee: {last_emp}.\n\n"
         "MANAGE MODE:\n"
         "- Use tools only for clear management commands (create, add, list, update, delete).\n"
+        "- To create a personal timetable/schedule, use generate_timetable (or the user can say "
+        "'create my timetable' and you will generate it).\n"
         "- For personal chat or mentoring, reply in plain text WITHOUT tools.\n"
         "- Never create or change data unless the user clearly asked.\n\n"
     )
@@ -503,6 +581,16 @@ def run_agent(user_messages, context, mode="chat", admin_id=None):
     current_message = _last_user_message(user_messages)
     user_messages = _compress_messages_for_api(user_messages, mode)
     current_message = _last_user_message(user_messages)
+
+    # Manage mode — timetable requests: generate directly (reliable; no tool-call parsing)
+    if mode == "manage" and _is_timetable_request(current_message):
+        try:
+            reply = _run_timetable_generate_reply(current_message, admin_id)
+            return reply
+        except Exception as exc:
+            if _is_rate_limit_error(exc):
+                raise RuntimeError(_friendly_api_error(exc))
+            raise RuntimeError(f"Could not generate timetable: {exc}") from exc
 
     # Chat mode: mentor conversation only — never use tools
     if mode == "chat":
