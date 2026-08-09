@@ -1150,10 +1150,32 @@ def execute_tool(name, arguments, context):
 
 
 def execute_tool_call(tool_call, context):
-    name = tool_call.function.name
+    name, arguments = _normalize_tool_call(
+        tool_call.function.name,
+        tool_call.function.arguments or "{}",
+    )
     try:
-        args = json.loads(tool_call.function.arguments or "{}")
+        args = json.loads(arguments or "{}")
     except json.JSONDecodeError:
         args = {}
     result = execute_tool(name, args, context)
     return json.dumps(result)
+
+
+def _normalize_tool_call(name, arguments):
+    """Shared normalization for mangled Groq Llama tool names."""
+    args = arguments if arguments is not None else ""
+    if isinstance(args, str) and args.strip() in ("", "{}"):
+        if "=" in name:
+            tool_name, rest = name.split("=", 1)
+            rest = rest.strip()
+            if rest.startswith("{") or rest.startswith("["):
+                return tool_name.strip(), rest
+        if "," in name:
+            tool_name, rest = name.split(",", 1)
+            rest = rest.strip()
+            if rest.startswith("{") or rest.startswith("["):
+                return tool_name.strip(), rest
+    if not isinstance(args, str):
+        args = json.dumps(args)
+    return (name or "").strip(), args.strip() or "{}"
