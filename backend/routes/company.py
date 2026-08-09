@@ -85,14 +85,19 @@ def _group_summary(company):
         group = create_group_for_company(company)
         db.session.add(group)
         db.session.commit()
+    try:
+        pending = GroupJoinRequest.query.filter_by(
+            group_id=group.id, status="pending"
+        ).count()
+    except Exception:
+        pending = 0
+
     return {
         "group_name": group.display_name(),
         "member_count": group.active_member_count(),
         "group_link": group_link_for_token(group.group_token),
         "group_token": group.group_token,
-        "pending_requests": GroupJoinRequest.query.filter_by(
-            group_id=group.id, status="pending"
-        ).count(),
+        "pending_requests": pending,
     }
 
 

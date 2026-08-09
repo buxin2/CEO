@@ -19,6 +19,15 @@ function groupLinkForToken(token) {
   return new URL(pageUrl("group.html?token=" + encodeURIComponent(token)), window.location.href).href;
 }
 
+function groupAdminPageUrl(token, companyId) {
+  const query =
+    "group.html?token=" +
+    encodeURIComponent(token) +
+    "&company_id=" +
+    encodeURIComponent(companyId);
+  return new URL(pageUrl(query), window.location.href).href;
+}
+
 async function groupApiRequest(url, employeeToken, options = {}) {
   const opts = Object.assign({ credentials: "include", headers: {} }, options);
   if (employeeToken) {

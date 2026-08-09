@@ -52,12 +52,13 @@
             <h2 class="section-title" style="margin:0;">Company Group</h2>
             <div class="page-subtitle" id="group-member-label">Members: –</div>
           </div>
-          <div class="flex gap-8">
-            <a class="btn btn-secondary btn-sm" id="open-group-btn" href="#">Open Group</a>
-            <button class="btn btn-secondary btn-sm" id="copy-group-link-btn" type="button">Copy Group Link</button>
+          <div class="flex gap-8 flex-wrap">
+            <button type="button" class="btn btn-secondary btn-sm" id="open-group-btn">Open Group</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="copy-group-link-btn">Copy Group Link</button>
             <button class="btn btn-ghost btn-sm hidden" id="join-requests-btn" type="button">Join Requests</button>
           </div>
         </div>
+        <input class="form-control" id="group-link-input" readonly placeholder="Group link will appear here..." style="margin-top:12px;font-size:13px;">
       </div>
 
       <div class="modal-overlay" id="join-requests-modal">
@@ -190,6 +191,31 @@
     }
 
     let allEmployees = [];
+    let groupShareLink = "";
+    let groupAdminLink = "";
+
+    async function loadGroupInfo() {
+      const linkInput = document.getElementById("group-link-input");
+      try {
+        const g = await apiRequest(`/api/companies/${COMPANY_ID}/group`);
+        groupShareLink = g.group_link || groupLinkForToken(g.group_token);
+        groupAdminLink = groupAdminPageUrl(g.group_token, COMPANY_ID);
+        linkInput.value = groupShareLink;
+        document.getElementById("group-member-label").textContent =
+          `Members: ${g.member_count}`;
+        const jrBtn = document.getElementById("join-requests-btn");
+        if (g.pending_requests > 0) {
+          jrBtn.classList.remove("hidden");
+          jrBtn.textContent = `Join Requests (${g.pending_requests})`;
+        } else {
+          jrBtn.classList.add("hidden");
+        }
+      } catch (err) {
+        linkInput.value = "";
+        linkInput.placeholder = "Group link unavailable — wait for backend deploy, then refresh.";
+        showToast(err.message || "Could not load group link");
+      }
+    }
 
     async function loadCompany() {
       const container = document.getElementById("employees-container");
@@ -208,28 +234,10 @@
 
         allEmployees = data.employees;
         renderEmployees(allEmployees);
-
-        if (data.group) {
-          document.getElementById("group-member-label").textContent =
-            `Members: ${data.group.member_count}`;
-          const groupUrl = pageUrl(
-            `group.html?token=${encodeURIComponent(data.group.group_token)}&company_id=${COMPANY_ID}`
-          );
-          document.getElementById("open-group-btn").href = groupUrl;
-          document.getElementById("copy-group-link-btn").onclick = () => {
-            copyToClipboard(data.group.group_link).then(() => showToast("Group link copied!"));
-          };
-          const jrBtn = document.getElementById("join-requests-btn");
-          if (data.group.pending_requests > 0) {
-            jrBtn.classList.remove("hidden");
-            jrBtn.textContent = `Join Requests (${data.group.pending_requests})`;
-          } else {
-            jrBtn.classList.add("hidden");
-          }
-        }
       } catch (err) {
         container.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
       }
+      await loadGroupInfo();
     }
 
     function renderEmployees(employees) {
@@ -390,6 +398,23 @@
       } catch (err) {
         showToast(err.message);
       }
+    });
+
+    document.getElementById("open-group-btn").addEventListener("click", () => {
+      if (!groupAdminLink) {
+        showToast("Group link not ready — refresh the page in a moment");
+        return;
+      }
+      window.location.href = groupAdminLink;
+    });
+
+    document.getElementById("copy-group-link-btn").addEventListener("click", () => {
+      const link = groupShareLink || document.getElementById("group-link-input").value;
+      if (!link) {
+        showToast("Group link not available yet");
+        return;
+      }
+      copyToClipboard(link).then(() => showToast("Group link copied!"));
     });
 
     document.getElementById("join-requests-btn").addEventListener("click", async () => {
