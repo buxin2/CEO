@@ -237,14 +237,45 @@
     return wakePromise;
   }
 
+  function canRecordVoice() {
+    if (window.AiVoice && typeof AiVoice.recordingSupported === "function") {
+      return AiVoice.recordingSupported();
+    }
+    return !!(
+      navigator.mediaDevices &&
+      navigator.mediaDevices.getUserMedia &&
+      window.MediaRecorder
+    );
+  }
+
+  function patchAiVoiceApi() {
+    if (!window.AiVoice) return;
+    if (typeof AiVoice.recordingSupported !== "function") {
+      AiVoice.recordingSupported = function () {
+        return !!(
+          navigator.mediaDevices &&
+          navigator.mediaDevices.getUserMedia &&
+          window.MediaRecorder
+        );
+      };
+    }
+    if (typeof AiVoice.finishListening !== "function") {
+      AiVoice.finishListening = async function (inputEl) {
+        AiVoice.stopListening();
+        return (inputEl && inputEl.value || "").trim();
+      };
+    }
+  }
+
   async function startSpeak() {
     if (processing) return;
+    patchAiVoiceApi();
     if (!window.AiVoice) {
-      showToast("Voice module not loaded. Refresh the page.");
+      showToast("Voice module not loaded. Hard refresh the page (Ctrl+F5).");
       return;
     }
 
-    if (!AiVoice.recordingSupported()) {
+    if (!canRecordVoice()) {
       showToast("Voice recording is not supported in this browser. Try Chrome or Edge.");
       return;
     }
@@ -264,6 +295,7 @@
   }
 
   async function finishSpeakAndSend() {
+    patchAiVoiceApi();
     if (!window.AiVoice) return;
     if (processing) return;
 
@@ -576,9 +608,10 @@
   }
 
   if (speakDoneBtn) {
-    speakDoneBtn.addEventListener("click", finishSpeakAndSend);
+    speakDoneBtn.addEventListener("click", () => finishSpeakAndSend());
   }
 
+  patchAiVoiceApi();
   setVoiceButtonsEnabled(true);
 
   if (typeof initMobileNav === "function") {
