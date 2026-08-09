@@ -39,6 +39,58 @@
     }
   }
 
+  const HISTORY_ERROR_PREFIX = "I couldn't complete that request:";
+  const MAX_HISTORY_FOR_API = 8;
+  const MAX_HISTORY_CHARS = 1200;
+
+  function isSmallTalk(text) {
+    const t = (text || "").trim();
+    if (!t) return true;
+    if (/^(hi|hello|hey|yo|good\s+(morning|afternoon|evening)|thanks|thank\s+you|ok|okay)[\s!.?]*$/i.test(t)) {
+      return true;
+    }
+    const actionWords = ["create", "add", "delete", "company", "employee", "task", "product", "service"];
+    if (t.length < 48 && t.split(/\s+/).length <= 4) {
+      const lower = t.toLowerCase();
+      return !actionWords.some((w) => lower.includes(w));
+    }
+    return false;
+  }
+
+  function sanitizeHistoryForApi(items) {
+    const cleaned = [];
+    items.forEach((item) => {
+      if (item.role !== "user" && item.role !== "assistant") return;
+      let content = (item.content || "").trim();
+      if (!content) return;
+      if (content.startsWith(HISTORY_ERROR_PREFIX)) return;
+      if (content.length > MAX_HISTORY_CHARS) {
+        content = content.slice(0, MAX_HISTORY_CHARS) + "… [truncated]";
+      }
+      cleaned.push({ role: item.role, content });
+    });
+    if (cleaned.length > MAX_HISTORY_FOR_API) {
+      return cleaned.slice(-MAX_HISTORY_FOR_API);
+    }
+    return cleaned;
+  }
+
+  function clearChat() {
+    history = [];
+    sessionStorage.removeItem(STORAGE_KEY);
+    messagesEl.innerHTML = `
+      <div class="ai-chat-welcome">
+        <p>Examples you can type naturally:</p>
+        <ul>
+          <li>Create a company called BuXin Healthcare with John as manager and Sarah in marketing.</li>
+          <li>Give John three tasks this week: contact hospitals, prepare the report, follow up with suppliers.</li>
+          <li>What companies do I have? Who hasn't completed their tasks this week?</li>
+        </ul>
+      </div>`;
+    showToast("Chat cleared");
+    input.focus();
+  }
+
   function saveHistory() {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
@@ -368,7 +420,7 @@
         method: "POST",
         body: JSON.stringify({
           message: text,
-          history: history.slice(0, -1),
+          history: isSmallTalk(text) ? [] : sanitizeHistoryForApi(history.slice(0, -1)),
         }),
         retries: 20,
         retryDelayMs: 2500,
@@ -388,10 +440,7 @@
     } catch (err) {
       const errText = err.message || "Something went wrong.";
       appendMessage("assistant", "I couldn't complete that request: " + errText);
-      history.push({
-        role: "assistant",
-        content: "I couldn't complete that request: " + errText,
-      });
+      /* Do not save errors to history — they waste Groq tokens on the next message */
       saveHistory();
     } finally {
       setProcessing(false);
@@ -420,11 +469,13 @@
     window.location.href = pageUrl("login.html");
   });
 
+  document.getElementById("clear-ai-chat-btn").addEventListener("click", clearChat);
+
   if (typeof initMobileNav === "function") {
     initMobileNav();
   }
 
-  history = loadHistory();
+  history = sanitizeHistoryForApi(loadHistory());
   if (history.length) {
     renderHistory();
   }

@@ -27,9 +27,13 @@
     </aside>
 
     <main class="main-content ai-assistant-page">
-      <div class="ai-assistant-header">
+        <div class="ai-assistant-header">
         <h1>AI Management Assistant</h1>
         <p class="page-subtitle">Tell me what you want to do, and I'll handle it for you.</p>
+        <p class="page-subtitle text-muted" style="margin-top:4px;font-size:13px;">
+          Short messages like &quot;hi&quot; are cheap chat only. Long action requests use more Groq tokens.
+          <button type="button" class="btn btn-secondary btn-sm" id="clear-ai-chat-btn" style="margin-left:8px;">Clear chat</button>
+        </p>
         <div id="ai-server-status" class="ai-server-status ai-server-status-waking" aria-live="polite">
           Connecting to server…
         </div>

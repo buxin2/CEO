@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, jsonify, request, session
 
 from routes.auth import login_required
-from services.ai_assistant import run_agent
+from services.ai_assistant import run_agent, sanitize_chat_history
 from services.groq_key_service import (
     is_groq_configured,
     get_active_groq_config,
@@ -55,12 +55,7 @@ def ai_chat():
     if not isinstance(history, list):
         history = []
 
-    trimmed_history = []
-    for item in history[-24:]:
-        role = item.get("role")
-        content = (item.get("content") or "").strip()
-        if role in ("user", "assistant") and content:
-            trimmed_history.append({"role": role, "content": content})
+    trimmed_history = sanitize_chat_history(history)
 
     context = dict(session.get("ai_context") or {})
     user_messages = list(trimmed_history)
@@ -70,7 +65,10 @@ def ai_chat():
         reply = run_agent(user_messages, context)
     except Exception as exc:
         current_app.logger.exception("AI chat failed")
-        return jsonify({"error": f"AI request failed: {exc}"}), 500
+        err_text = str(exc)
+        if err_text.startswith("Groq API rate limit"):
+            return jsonify({"error": err_text}), 429
+        return jsonify({"error": f"AI request failed: {err_text}"}), 500
 
     session["ai_context"] = context
     session.modified = True

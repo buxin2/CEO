@@ -602,6 +602,18 @@ def execute_tool(name, arguments, context):
         name_val = (args.get("name") or "").strip()
         if not name_val:
             return _err("Company name is required.")
+        existing = Company.query.filter(Company.name.ilike(name_val)).first()
+        if existing:
+            context["last_company_id"] = existing.id
+            context["last_company_name"] = existing.name
+            group = existing.group
+            return _ok({
+                "company_id": existing.id,
+                "name": existing.name,
+                "already_exists": True,
+                "group_link": group_link_for_token(group.group_token) if group else None,
+                "message": f"Company \"{existing.name}\" already exists — no duplicate created.",
+            })
         company = Company(name=name_val, description=(args.get("description") or "").strip())
         db.session.add(company)
         db.session.flush()

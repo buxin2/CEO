@@ -11,6 +11,33 @@ from services.groq_key_service import get_active_groq_config, mark_key_used
 
 _KNOWN_TOOL_NAMES = {t["function"]["name"] for t in TOOL_DEFINITIONS}
 
+_WRITE_TOOL_NAMES = {
+    "create_company",
+    "update_company",
+    "delete_company",
+    "create_employee",
+    "update_employee",
+    "delete_employee",
+    "create_tasks",
+    "update_task",
+    "delete_task",
+    "create_product",
+    "update_product",
+    "delete_product",
+    "create_service",
+    "update_service",
+    "delete_service",
+    "create_earning",
+    "delete_earning",
+    "create_timetable_item",
+    "update_timetable_item",
+    "delete_timetable_item",
+    "reset_timetable",
+    "generate_timetable",
+    "create_planner_goal",
+    "update_planner_notes",
+}
+
 _FAILED_GEN_PATTERNS = [
     re.compile(r"<function=(\w+)=(\{.*?\})(?:\s*/?>|</function>|$)", re.DOTALL),
     re.compile(r"<function=(\w+)\s*(\{.*?\})(?:\s*/?>|</function>|$)", re.DOTALL),
@@ -25,7 +52,13 @@ _GREETING_RE = re.compile(
 _ACTION_WORDS = (
     "create", "add", "delete", "remove", "list", "show", "assign", "task",
     "company", "employee", "product", "service", "earning", "timetable", "planner",
+    "remember", "update", "build", "make", "set up", "setup",
 )
+
+_HISTORY_ERROR_PREFIX = "I couldn't complete that request:"
+_MAX_HISTORY_ITEMS = 8
+_MAX_HISTORY_CHARS = 1200
+_MAX_USER_MESSAGE_CHARS = 4000
 
 
 class _FunctionStub:
@@ -105,6 +138,26 @@ def _is_tool_use_failed(exc):
     return "tool_use_failed" in str(exc)
 
 
+def _is_rate_limit_error(exc):
+    text = str(exc).lower()
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        code = body.get("error", {}).get("code", "")
+        if code == "rate_limit_exceeded":
+            return True
+    return "rate_limit" in text or "rate limit" in text or "error code: 429" in text or "error code: 413" in text
+
+
+def _friendly_api_error(exc):
+    if _is_rate_limit_error(exc):
+        return (
+            "Groq API rate limit reached (too many tokens or requests). "
+            "Short messages like \"hi\" use fewer tokens — try clearing chat history. "
+            "Wait a few minutes or switch to another saved Groq API key."
+        )
+    return str(exc)
+
+
 def _last_user_message(messages):
     for item in reversed(messages):
         if item.get("role") == "user":
@@ -124,12 +177,43 @@ def _is_small_talk(text):
     return False
 
 
-def _build_system_prompt(context, week_start, week_end):
+def _user_wants_action(text):
+    """True when the user is asking the assistant to do something, not just chat."""
+    t = (text or "").strip()
+    if not t or _is_small_talk(t):
+        return False
+    lower = t.lower()
+    if any(word in lower for word in _ACTION_WORDS):
+        return True
+    return len(t) > 80
+
+
+def sanitize_chat_history(history):
+    """Trim history so old long prompts and errors do not blow up every API call."""
+    cleaned = []
+    for item in history:
+        role = item.get("role")
+        content = (item.get("content") or "").strip()
+        if role not in ("user", "assistant") or not content:
+            continue
+        if content.startswith(_HISTORY_ERROR_PREFIX):
+            continue
+        if len(content) > _MAX_HISTORY_CHARS:
+            content = content[:_MAX_HISTORY_CHARS] + "… [truncated for token limit]"
+        cleaned.append({"role": role, "content": content})
+
+    if len(cleaned) > _MAX_HISTORY_ITEMS:
+        cleaned = cleaned[-_MAX_HISTORY_ITEMS:]
+
+    return cleaned
+
+
+def _build_system_prompt(context, week_start, week_end, chat_only=False):
     last_co = context.get("last_company_name") or "none"
     last_emp = context.get("last_employee_name") or "none"
     today = date.today().isoformat()
 
-    return (
+    base = (
         "You are the AI Management Assistant for an admin company/employee/task dashboard. "
         "You help the admin manage companies, employees, and weekly tasks using natural language.\n\n"
         f"Today: {today}\n"
@@ -137,10 +221,24 @@ def _build_system_prompt(context, week_start, week_end):
         "When the user says 'this week', assign tasks for this week using create_tasks (week is automatic).\n\n"
         f"Conversation context — last company discussed: {last_co}; last employee: {last_emp}. "
         "Use these when the user says 'it', 'them', 'him', 'her', or 'that company' without repeating names.\n\n"
-        "TOOL CALLING (required):\n"
+    )
+
+    if chat_only:
+        return base + (
+            "CHAT MODE:\n"
+            "- The user is greeting you or having a casual conversation.\n"
+            "- Reply briefly and naturally. Do NOT create, update, or delete anything.\n"
+            "- Do NOT describe companies, employees, or tasks as if you just created them.\n"
+            "- Offer to help when they want to manage companies, employees, tasks, products, or services.\n"
+        )
+
+    return base + (
+        "TOOL CALLING (required for actions):\n"
         "- Use the native tool/function calling API only.\n"
         "- Put the tool name in the function name field and arguments as a JSON object string.\n"
-        "- Do NOT use XML formats like <function=...> and do NOT put JSON inside the tool name.\n\n"
+        "- Do NOT use XML formats like <function=...> and do NOT put JSON inside the tool name.\n"
+        "- Only call tools when the user asks you to DO something (create, add, list, update, delete, remember).\n"
+        "- For greetings or small talk, reply in plain text WITHOUT calling any tools.\n\n"
         "RULES:\n"
         "- You MUST use the provided tools to read or change data. Never invent companies, employees, or tasks.\n"
         "- Never claim an action succeeded unless the tool returned success.\n"
@@ -158,7 +256,6 @@ def _build_system_prompt(context, week_start, week_end):
         "- After completing actions, summarize clearly: what was created/updated/deleted, with names and roles.\n"
         "- Keep responses concise but complete. Use bullet lists for employees and tasks when helpful.\n"
         "- You only operate for the authenticated admin; all tools are already authorized.\n"
-        "- For greetings or small talk, reply briefly without calling tools unless the user asks for action.\n"
     )
 
 
@@ -183,6 +280,11 @@ def _assistant_message_dict(message):
 
 
 def _recover_tool_calls_from_error(exc, context, messages):
+    """Execute a mangled tool call only when the user explicitly asked for an action."""
+    last_user = _last_user_message(messages)
+    if not _user_wants_action(last_user):
+        return False
+
     failed = _extract_failed_generation(exc)
     if not failed:
         return False
@@ -225,14 +327,27 @@ def _recover_tool_calls_from_error(exc, context, messages):
     return True
 
 
-def _chat_without_tools(client, model, messages):
+def _chat_without_tools(client, model, messages, max_tokens=512):
     response = client.chat.completions.create(
         model=model,
         messages=messages,
-        temperature=0.3,
-        max_tokens=1024,
+        temperature=0.4,
+        max_tokens=max_tokens,
     )
     return (response.choices[0].message.content or "").strip()
+
+
+def _run_chat_only(client, model, system, user_text):
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user_text},
+    ]
+    text = _chat_without_tools(client, model, messages, max_tokens=256)
+    return text or "Hello! How can I help you manage your companies, employees, or tasks today?"
+
+
+def _groq_create(client, **kwargs):
+    return client.chat.completions.create(**kwargs)
 
 
 def run_agent(user_messages, context):
@@ -251,15 +366,32 @@ def run_agent(user_messages, context):
 
     client = Groq(api_key=api_key)
     week_start, week_end = get_week_bounds()
-    system = _build_system_prompt(context, week_start, week_end)
 
+    current_message = _last_user_message(user_messages)
+    if len(current_message) > _MAX_USER_MESSAGE_CHARS:
+        current_message = current_message[:_MAX_USER_MESSAGE_CHARS] + "… [truncated]"
+
+    # Greetings / small talk: no tools, no history — saves tokens and prevents accidental actions
+    if _is_small_talk(current_message):
+        system = _build_system_prompt(context, week_start, week_end, chat_only=True)
+        try:
+            reply = _run_chat_only(client, model, system, current_message)
+            mark_key_used(config.get("key_id"))
+            return reply
+        except Exception as exc:
+            if _is_rate_limit_error(exc):
+                raise RuntimeError(_friendly_api_error(exc))
+            raise
+
+    system = _build_system_prompt(context, week_start, week_end, chat_only=False)
     messages = [{"role": "system", "content": system}] + list(user_messages)
     tools = TOOL_DEFINITIONS
     max_iterations = 14
 
     for _ in range(max_iterations):
         try:
-            response = client.chat.completions.create(
+            response = _groq_create(
+                client,
                 model=model,
                 messages=messages,
                 tools=tools,
@@ -268,26 +400,38 @@ def run_agent(user_messages, context):
                 max_tokens=2048,
             )
         except Exception as exc:
+            if _is_rate_limit_error(exc):
+                raise RuntimeError(_friendly_api_error(exc))
             if _is_tool_use_failed(exc):
-                last_user = _last_user_message(messages)
-                if _is_small_talk(last_user):
-                    text = _chat_without_tools(client, model, messages)
-                    mark_key_used(config.get("key_id"))
-                    return text or "Hello! How can I help you manage your companies, employees, or tasks today?"
                 if _recover_tool_calls_from_error(exc, context, messages):
                     continue
+                # Malformed tool output but user did not ask for an action — plain chat reply
+                trimmed = [
+                    messages[0],
+                    {"role": "user", "content": current_message},
+                ]
+                text = _chat_without_tools(client, model, trimmed, max_tokens=512)
+                mark_key_used(config.get("key_id"))
+                return text or "How can I help you today?"
             raise
 
         message = response.choices[0].message
 
         if message.tool_calls:
-            # Normalize before follow-up turns so Groq validates tool names correctly
             messages.append(_assistant_message_dict(message))
             for tc in message.tool_calls:
                 name, args = _normalize_tool_call(tc.function.name, tc.function.arguments or "{}")
                 tool_id = tc.id or f"call_{uuid.uuid4().hex[:12]}"
-                stub = _ToolCallStub(tool_id, name, args)
-                tool_result = execute_tool_call(stub, context)
+
+                if name in _WRITE_TOOL_NAMES and not _user_wants_action(current_message):
+                    tool_result = json.dumps({
+                        "success": False,
+                        "error": "Skipped: user did not request a data change. Reply in plain text only.",
+                    })
+                else:
+                    stub = _ToolCallStub(tool_id, name, args)
+                    tool_result = execute_tool_call(stub, context)
+
                 messages.append(
                     {
                         "role": "tool",
