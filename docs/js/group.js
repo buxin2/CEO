@@ -158,18 +158,29 @@ async function enterGroup(employeeToken) {
 async function initAdminGroup() {
   const companyId = getQueryParam("company_id");
   if (!companyId) {
-    await showEntryScreen();
+    document.getElementById("group-root").innerHTML = `
+      <div class="empty-state" style="padding:40px 20px;">
+        <p><strong>Admin group link incomplete.</strong></p>
+        <p class="text-muted">Open the group from the company page using <strong>Open Group</strong> (not only the employee share link).</p>
+        <a class="btn btn-primary" href="${pageUrl("dashboard.html")}">Go to Dashboard</a>
+      </div>`;
     return;
   }
   state.companyId = companyId;
-  const g = await apiRequest(`/api/companies/${companyId}/group`);
-  if (g.group_token !== GROUP_TOKEN) {
-    await showEntryScreen();
-    return;
+  try {
+    const g = await apiRequest(`/api/companies/${companyId}/group`);
+    if (g.group_token !== GROUP_TOKEN) {
+      await showEntryScreen();
+      return;
+    }
+    state.companyName = g.company_name;
+    state.groupName = g.group_name;
+    showChatScreen(g.company_name, g.group_name);
+  } catch (err) {
+    document.getElementById("group-root").innerHTML = `
+      <div class="empty-state"><p>${escapeHtml(err.message)}</p>
+      <button type="button" class="btn btn-primary" onclick="location.reload()">Retry</button></div>`;
   }
-  state.companyName = g.company_name;
-  state.groupName = g.group_name;
-  showChatScreen(g.company_name, g.group_name);
 }
 
 function showChatScreen(companyName, groupName) {
@@ -219,7 +230,8 @@ async function loadMessages(initial) {
   } catch (e) {
     if (initial) {
       document.getElementById("messages-list").innerHTML =
-        `<div class="empty-state"><p>${escapeHtml(e.message)}</p></div>`;
+        `<div class="empty-state"><p>${escapeHtml(e.message)}</p>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="loadMessages(true)">Retry</button></div>`;
     }
   }
 }
@@ -394,29 +406,48 @@ async function confirmDeleteMessage(id) {
   }
 }
 
+async function fetchGroupMembers() {
+  if (state.isAdmin && state.companyId) {
+    try {
+      return await apiRequest(`/api/companies/${state.companyId}/group/members`);
+    } catch (adminErr) {
+      try {
+        return await groupApiRequest(`/api/public/group/${GROUP_TOKEN}/members`, "");
+      } catch (publicErr) {
+        throw adminErr;
+      }
+    }
+  }
+  return await groupApiRequest(
+    `/api/public/group/${GROUP_TOKEN}/members?employee_token=${encodeURIComponent(state.employeeToken)}`,
+    state.employeeToken
+  );
+}
+
+function renderMembersList(data) {
+  const body = document.getElementById("members-list");
+  const members = data.members || [];
+  document.getElementById("members-count-label").textContent = `${data.count ?? members.length} Members`;
+  body.innerHTML = members.map((m) => `
+    <div class="member-row">
+      <span><strong>${escapeHtml(m.name)}</strong> — ${escapeHtml(m.position || "Team member")}</span>
+      ${state.isAdmin && state.companyId ? `<button class="btn btn-danger btn-sm" onclick="removeMember(${m.employee_id})">Remove</button>` : ""}
+    </div>
+  `).join("") || "<p>No members yet.</p>";
+}
+
 async function openMembersModal() {
   openModal("members-modal");
   const body = document.getElementById("members-list");
   body.innerHTML = '<span class="spinner"></span>';
+  document.getElementById("members-count-label").textContent = "Members";
   try {
-    let data;
-    if (state.isAdmin && state.companyId) {
-      data = await apiRequest(`/api/companies/${state.companyId}/group/members`);
-    } else {
-      data = await groupApiRequest(
-        `/api/public/group/${GROUP_TOKEN}/members?employee_token=${encodeURIComponent(state.employeeToken)}`,
-        state.employeeToken
-      );
-    }
-    document.getElementById("members-count-label").textContent = `${data.count} Members`;
-    body.innerHTML = data.members.map((m) => `
-      <div class="member-row">
-        <span><strong>${escapeHtml(m.name)}</strong> — ${escapeHtml(m.position)}</span>
-        ${state.isAdmin ? `<button class="btn btn-danger btn-sm" onclick="removeMember(${m.employee_id})">Remove</button>` : ""}
-      </div>
-    `).join("") || "<p>No members yet.</p>";
+    const data = await fetchGroupMembers();
+    renderMembersList(data);
   } catch (e) {
-    body.innerHTML = `<p>${escapeHtml(e.message)}</p>`;
+    document.getElementById("members-count-label").textContent = "Members";
+    body.innerHTML = `<p>${escapeHtml(e.message)}</p>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="openMembersModal()">Retry</button>`;
   }
 }
 

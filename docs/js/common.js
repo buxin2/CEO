@@ -1,14 +1,37 @@
 /* Shared helpers used across admin pages */
 
 function apiUrl(path) {
-  const base = (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || "";
+  const base = getApiBaseUrl();
   const normalized = path.startsWith("/") ? path : "/" + path;
-  return base.replace(/\/$/, "") + normalized;
+  return base + normalized;
 }
 
 function pageUrl(path) {
   const normalized = path.startsWith("/") ? path.slice(1) : path;
   return normalized;
+}
+
+function getApiBaseUrl() {
+  const base = (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || "";
+  if (!base) {
+    console.error("APP_CONFIG.API_BASE_URL is missing. Check js/config.js on GitHub Pages.");
+  }
+  return base.replace(/\/$/, "");
+}
+
+async function fetchWithRetry(url, options, retries = 2) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
 }
 
 function taskLinkForToken(token) {
@@ -39,7 +62,7 @@ async function groupApiRequest(url, employeeToken, options = {}) {
 
   let response;
   try {
-    response = await fetch(apiUrl(url), opts);
+    response = await fetchWithRetry(apiUrl(url), opts);
   } catch (e) {
     throw new Error("Cannot reach the API server. Wait a moment and try again.");
   }
@@ -67,7 +90,7 @@ async function apiRequest(url, options = {}) {
 
   let response;
   try {
-    response = await fetch(apiUrl(url), opts);
+    response = await fetchWithRetry(apiUrl(url), opts);
   } catch (e) {
     throw new Error(
       "Cannot reach the API server. If this is your first login, wait 30 seconds for Render to wake up, then try again."
