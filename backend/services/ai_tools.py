@@ -573,7 +573,15 @@ def execute_tool(name, arguments, context):
         companies = Company.query.order_by(Company.name.asc()).all()
         return _ok({
             "companies": [
-                {"id": c.id, "name": c.name, "employees": c.employees.count()}
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "employee_count": c.employees.count(),
+                    "employees": [
+                        {"name": e.name, "position": e.position or ""}
+                        for e in c.employees.order_by(Employee.name.asc()).all()
+                    ],
+                }
                 for c in companies
             ],
         })

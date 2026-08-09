@@ -7,9 +7,29 @@ from datetime import date
 
 from models import get_week_bounds
 from services.ai_tools import TOOL_DEFINITIONS, execute_tool_call
+from services.app_knowledge import build_ai_app_knowledge_text
 from services.groq_key_service import get_active_groq_config, mark_key_used
 
 _KNOWN_TOOL_NAMES = {t["function"]["name"] for t in TOOL_DEFINITIONS}
+
+_READ_ONLY_TOOL_NAMES = {
+    "list_companies",
+    "get_company",
+    "list_employees",
+    "list_tasks",
+    "get_dashboard_summary",
+    "get_pending_work",
+    "list_products",
+    "list_services",
+    "get_earnings_summary",
+    "get_planner_snapshot",
+    "list_timetable",
+}
+
+_READ_ONLY_TOOL_DEFINITIONS = [
+    t for t in TOOL_DEFINITIONS
+    if t.get("function", {}).get("name") in _READ_ONLY_TOOL_NAMES
+]
 
 _WRITE_TOOL_NAMES = {
     "create_company",
@@ -242,46 +262,6 @@ def _shorten_text(text, max_len):
     return t[:max_len].rstrip() + "…"
 
 
-def _build_app_summary_text():
-    """Compact live app overview for the system prompt (no extra Groq tool round-trips)."""
-    try:
-        from models import Company, Employee, get_week_bounds
-
-        week_start, week_end = get_week_bounds()
-        companies = Company.query.order_by(Company.name.asc()).all()
-        total_employees = Employee.query.count()
-        pending_week = 0
-        lines = [
-            f"You know this admin dashboard app. Today: {date.today().isoformat()}.",
-            f"Week: {week_start.isoformat()} to {week_end.isoformat()}.",
-            f"Companies: {len(companies)} · Total employees: {total_employees}.",
-        ]
-        for company in companies[:15]:
-            stats = company.get_week_stats(week_start, week_end)
-            pending = stats.get("pending", 0) or 0
-            pending_week += pending
-            total = stats.get("total", 0) or 0
-            done = stats.get("completed", 0) or 0
-            ec = company.employees.count()
-            lines.append(
-                f"· {company.name}: {ec} employees, "
-                f"{done}/{total} tasks done this week"
-            )
-        if len(companies) > 15:
-            lines.append(f"· …plus {len(companies) - 15} more companies")
-        lines.append(f"This week pending tasks across app: {pending_week}.")
-        lines.append(
-            "Pages in this app: Dashboard, Companies, AI Assistant (Chat/Manage), "
-            "My Timetable, per-company Products/Services/Earnings/Employees/Group chat."
-        )
-        return "\n".join(lines)
-    except Exception:
-        return (
-            "You assist inside the My Management System admin app "
-            "(companies, employees, weekly tasks, products, services, earnings, timetable)."
-        )
-
-
 def _compress_messages_for_api(messages, mode):
     """
     Send the current message (full length) plus the last 2 chat lines for continuity.
@@ -336,30 +316,32 @@ def _build_system_prompt(context, week_start, week_end, mode="chat"):
     last_co = context.get("last_company_name") or "none"
     last_emp = context.get("last_employee_name") or "none"
     today = date.today().isoformat()
-    app_summary = _build_app_summary_text()
+    app_knowledge = build_ai_app_knowledge_text()
 
     if mode == "chat":
         return (
-            "You are the admin's personal AI mentor and thoughtful friend inside their management dashboard app.\n\n"
+            "You are the admin's personal AI mentor and strategic advisor inside their management dashboard.\n\n"
             f"Today: {today}\n\n"
-            "APP KNOWLEDGE (live overview — use when relevant, do not invent data):\n"
-            f"{app_summary}\n\n"
-            f"Last company discussed in AI Manage actions: {last_co}. Last employee: {last_emp}.\n\n"
-            "CHAT MODE (no app changes):\n"
-            "- Continue the conversation naturally — you receive the last couple of messages for context.\n"
-            "- Listen, empathize, and give honest practical advice about life, career, money, education, and goals.\n"
-            "- You CANNOT create, update, or delete anything in the app in this mode.\n"
-            "- Never claim you created a company, employee, task, or product. Never invent app actions.\n"
-            "- If the user mentions companies casually, respond as a mentor — not as a database command.\n"
-            "- If they want app changes, tell them to switch to **Manage** mode and say clearly what to create.\n"
+            "LIVE APP DATABASE (refreshed every message — your source of truth for business facts):\n"
+            f"{app_knowledge}\n\n"
+            f"Recent AI context: last company in Manage actions: {last_co}; last employee: {last_emp}.\n\n"
+            "CHAT MODE (advise and mentor — do not change the app):\n"
+            "- You ALREADY know every company, employee name, role, product, service, earnings, "
+            "and task progress listed above. Use it confidently.\n"
+            "- NEVER say you cannot see products, services, or employees. NEVER say data is unavailable.\n"
+            "- When asked to list companies or employees, answer from the LIVE APP DATABASE with names.\n"
+            "- Give practical advice on making money, priorities, and who is performing well or needs help.\n"
+            "- Continue the conversation naturally (you also receive the last couple of chat messages).\n"
+            "- You cannot create, update, or delete app data in this mode.\n"
+            "- For app changes, tell the user to switch to **Manage** mode and state a clear command.\n"
         )
 
     base = (
         "You are the AI Management Assistant for an admin company/employee/task dashboard.\n\n"
         f"Today: {today}\n"
         f"Current application week (Monday–Sunday): {week_start.isoformat()} to {week_end.isoformat()}\n\n"
-        "APP KNOWLEDGE (live overview):\n"
-        f"{app_summary}\n\n"
+        "LIVE APP DATABASE:\n"
+        f"{app_knowledge}\n\n"
         f"Last company discussed: {last_co}; last employee: {last_emp}.\n\n"
         "MANAGE MODE:\n"
         "- Use tools only for clear management commands (create, add, list, update, delete).\n"
