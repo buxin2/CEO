@@ -6,6 +6,10 @@ from datetime import datetime
 from models import Company
 from services.app_knowledge import build_ai_app_knowledge_text
 from services.opportunity_search import build_url_allowlist, url_is_verified
+from services.opportunity_ventures import OPPORTUNITY_TYPES, venture_meta
+
+
+def _parse_json(content):
     text = (content or "").strip()
     if text.startswith("```"):
         parts = text.split("```")
