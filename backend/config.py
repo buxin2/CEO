@@ -1,7 +1,30 @@
 import os
+import re
 from datetime import timezone, timedelta
 
-basedir = os.path.abspath(os.path.dirname(__file__))
+basedir = os.path.abspath(os.path.dirname(__file__)
+
+
+def normalize_database_url(raw_value):
+    """Clean common Neon/Render copy-paste mistakes before SQLAlchemy parses the URL."""
+    if not raw_value:
+        return ""
+
+    url = raw_value.strip()
+
+    # Neon sometimes shows: psql 'postgresql://...'
+    if url.lower().startswith("psql "):
+        url = url[5:].strip()
+
+    # Strip wrapping quotes from copy-paste
+    if len(url) >= 2 and url[0] == url[-1] and url[0] in ("'", '"'):
+        url = url[1:-1].strip()
+
+    # SQLAlchemy expects postgresql:// not postgres://
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    return url
 
 
 class Config:
@@ -9,10 +32,12 @@ class Config:
 
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-    # Render/Neon provide DATABASE_URL like postgres://... -- SQLAlchemy needs postgresql://
-    _raw_db_url = os.environ.get("DATABASE_URL", "")
-    if _raw_db_url.startswith("postgres://"):
-        _raw_db_url = _raw_db_url.replace("postgres://", "postgresql://", 1)
+    _raw_db_url = normalize_database_url(os.environ.get("DATABASE_URL", ""))
+    if _raw_db_url and not re.match(r"^postgresql://", _raw_db_url):
+        raise ValueError(
+            "DATABASE_URL must start with postgresql:// (not psql, no quotes). "
+            "Example: postgresql://user:pass@host/db?sslmode=require"
+        )
 
     SQLALCHEMY_DATABASE_URI = _raw_db_url or "sqlite:///" + os.path.join(basedir, "app.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
