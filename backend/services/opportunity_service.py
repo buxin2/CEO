@@ -76,9 +76,27 @@ def list_report_dates(limit=60):
     return [r.report_date.isoformat() for r in rows]
 
 
+def maybe_recover_stuck_report(report):
+    """If a report is stuck in generating (worker died), mark failed so user can retry."""
+    if not report or report.status != "generating":
+        return report
+    if _is_generating:
+        return report
+    age = datetime.utcnow() - report.created_at
+    if age > timedelta(minutes=3):
+        report.status = "failed"
+        report.error_message = (
+            "Previous generation did not finish. Click Regenerate today's report."
+        )
+        db.session.commit()
+    return report
+
+
 def generation_status():
     today = app_today()
     report = get_report_for_date(today)
+    if report:
+        report = maybe_recover_stuck_report(report)
     return {
         "today": today.isoformat(),
         "is_generating": _is_generating,
@@ -294,8 +312,8 @@ def trigger_generate_async(report_date=None, admin_id=None, force=False):
         with app.app_context():
             try:
                 generate_daily_report(report_date, admin_id=admin_id, force=force)
-            except Exception:
-                pass
+            except Exception as exc:
+                current_app.logger.exception("Background opportunity report failed: %s", exc)
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
@@ -423,19 +441,38 @@ def add_opportunity_to_timetable(opportunity_id, admin_id, plan_date=None, start
 
 
 def news_chat(message, admin_id, do_search=False):
+    import re
+
     today = app_today()
     report = get_report_for_date(today)
+    if report:
+        report = maybe_recover_stuck_report(report)
     context_items = []
     if report and report.status == "complete":
         for item in report.opportunities.limit(40):
             context_items.append(item.to_dict(admin_id=admin_id))
 
     extra = None
-    if do_search:
-        extra = search_web(message, max_results=8)
+    wants_search = do_search or not context_items
+    if not wants_search and re.search(
+        r"\b(find|search|grant|funding|competition|tender|opportunit)",
+        message,
+        re.I,
+    ):
+        wants_search = True
+    if wants_search:
+        extra = search_web(message, max_results=10)
 
     context = json.dumps(context_items, ensure_ascii=False, default=str)
-    return chat_about_opportunities(message, context, extra_search_results=extra)
+    try:
+        return chat_about_opportunities(message, context, extra_search_results=extra)
+    except Exception as exc:
+        if extra:
+            return (
+                f"I found web results but could not complete the AI reply ({exc}). "
+                "Check your Groq API key in Admin → AI."
+            )
+        raise
 
 
 def serialize_report(report, admin_id=None, venture=None, opp_type=None, priority=None):

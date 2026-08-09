@@ -2040,6 +2040,11 @@ textarea.form-control {
   line-height: 1.5;
 }
 
+.news-chat-reply.news-chat-error {
+  border: 1px solid #c62828;
+  background: #ffebee;
+}
+
 .news-no-venture {
   color: var(--color-text-muted);
   font-style: italic;

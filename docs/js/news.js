@@ -265,6 +265,7 @@
   }
 
   async function loadReport() {
+    try {
     const params = new URLSearchParams({
       date: currentDate || dateSelect.value,
       venture: filterVenture.value,
@@ -300,6 +301,9 @@
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.add("news-opp-highlight");
       }
+    }
+    } catch (err) {
+      showStatus(err.message || "Could not load report", "error");
     }
   }
 
@@ -353,29 +357,45 @@
   });
 
   document.getElementById("news-refresh-btn").addEventListener("click", async () => {
-    showStatus("Regenerating today's report…", "generating");
-    await apiRequest("/api/news/generate", { method: "POST", body: JSON.stringify({ async: true, force: true }) });
-    startPoll();
-    await loadReport();
+    try {
+      showStatus("Regenerating today's report… This may take 2–5 minutes.", "generating");
+      await apiRequest("/api/news/generate", {
+        method: "POST",
+        body: JSON.stringify({ async: true, force: true }),
+        retries: 15,
+        retryDelayMs: 2500,
+        onRetry: (a, t) => showStatus("Waking server… attempt " + a + " of " + t, "generating"),
+      });
+      startPoll();
+      await loadReport();
+    } catch (err) {
+      showStatus(err.message || "Could not start generation", "error");
+    }
   });
 
   chatForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const message = chatInput.value.trim();
     if (!message) return;
-    chatReply.classList.remove("hidden");
+    chatReply.classList.remove("hidden", "news-chat-error");
     chatReply.textContent = "Thinking…";
     try {
+      if (typeof wakeApiServer === "function") {
+        await wakeApiServer();
+      }
       const data = await apiRequest("/api/news/chat", {
         method: "POST",
         body: JSON.stringify({
           message,
           search: document.getElementById("news-chat-search").checked,
         }),
+        retries: 10,
+        retryDelayMs: 2000,
       });
-      chatReply.textContent = data.reply || "";
+      chatReply.textContent = data.reply || "No reply from AI.";
     } catch (err) {
-      chatReply.textContent = err.message || "Failed";
+      chatReply.textContent = err.message || "Failed to get a reply.";
+      chatReply.classList.add("news-chat-error");
     }
   });
 
@@ -392,15 +412,22 @@
 
   (async function init() {
     try {
+      if (typeof wakeApiServer === "function") {
+        await wakeApiServer();
+      }
       await apiRequest("/api/me");
     } catch (e) {
       window.location.href = pageUrl("login.html");
       return;
     }
-    await loadMeta();
-    await loadDates();
-    await apiRequest("/api/news/status");
-    currentDate = dateSelect.value;
-    await loadReport();
+    try {
+      await loadMeta();
+      await loadDates();
+      await apiRequest("/api/news/status", { retries: 10, retryDelayMs: 2000 });
+      currentDate = dateSelect.value;
+      await loadReport();
+    } catch (err) {
+      showStatus(err.message || "Could not load News page", "error");
+    }
   })();
 })();

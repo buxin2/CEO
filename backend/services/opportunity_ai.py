@@ -5,10 +5,7 @@ from datetime import datetime
 
 from models import Company
 from services.app_knowledge import build_ai_app_knowledge_text
-from services.opportunity_ventures import OPPORTUNITY_TYPES, venture_meta
-
-
-def _parse_json(content):
+from services.opportunity_search import build_url_allowlist, url_is_verified
     text = (content or "").strip()
     if text.startswith("```"):
         parts = text.split("```")
@@ -19,15 +16,6 @@ def _parse_json(content):
     return json.loads(text)
 
 
-def _allowed_urls(search_results):
-    urls = set()
-    for row in search_results:
-        u = (row.get("url") or "").strip().lower().rstrip("/")
-        if u:
-            urls.add(u)
-    return urls
-
-
 def extract_opportunities_for_venture(venture_key, search_results, company_context=""):
     from services.groq_key_service import get_active_groq_config, mark_key_used
 
@@ -36,7 +24,7 @@ def extract_opportunities_for_venture(venture_key, search_results, company_conte
         raise RuntimeError("No Groq API key configured.")
 
     meta = venture_meta(venture_key)
-    allowed = _allowed_urls(search_results)
+    allowed_urls, allowed_domains = build_url_allowlist(search_results)
     if not search_results:
         return {"opportunities": [], "no_new_note": "No search results to analyze."}
 
@@ -96,15 +84,15 @@ def extract_opportunities_for_venture(venture_key, search_results, company_conte
 
     cleaned = []
     for item in data.get("opportunities") or []:
-        src = (item.get("source_url") or "").strip().lower().rstrip("/")
-        apply = (item.get("apply_url") or "").strip().lower().rstrip("/")
-        if not src or src not in allowed:
-            if apply and apply in allowed:
-                item["source_url"] = item.get("apply_url")
+        src = (item.get("source_url") or "").strip()
+        apply = (item.get("apply_url") or "").strip()
+        if not url_is_verified(src, allowed_urls, allowed_domains):
+            if apply and url_is_verified(apply, allowed_urls, allowed_domains):
+                item["source_url"] = apply
                 src = apply
             else:
                 continue
-        if apply and apply not in allowed:
+        if apply and not url_is_verified(apply, allowed_urls, allowed_domains):
             item["apply_url"] = ""
         if not item.get("title"):
             continue
@@ -162,12 +150,13 @@ def build_ai_recommendation(report_date, opportunities, app_knowledge):
 
 
 def chat_about_opportunities(message, opportunities_context, extra_search_results=None):
-    from services.groq_key_service import get_active_groq_config, mark_key_used
+    from services.groq_key_service import get_active_groq_config, mark_key_used, is_groq_configured
 
+    if not is_groq_configured():
+        return (
+            "AI is not configured. Add a Groq API key in Admin → AI Assistant, then try again."
+        )
     config = get_active_groq_config()
-    if not config:
-        raise RuntimeError("No Groq API key configured.")
-
     app_knowledge = build_ai_app_knowledge_text()
     extra = ""
     if extra_search_results:

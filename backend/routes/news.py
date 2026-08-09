@@ -14,6 +14,7 @@ from services.opportunity_service import (
     list_report_dates,
     list_saved_opportunities,
     news_chat,
+    maybe_recover_stuck_report,
     serialize_report,
     set_opportunity_state,
     trigger_generate_async,
@@ -65,6 +66,8 @@ def api_news_report():
     priority = request.args.get("priority") or "all"
 
     report = get_report_for_date(report_date)
+    if report:
+        report = maybe_recover_stuck_report(report)
     if not report:
         if report_date == app_today():
             ensure_today_report(admin_id=admin_id)
