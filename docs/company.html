@@ -55,7 +55,18 @@
           <div class="flex gap-8">
             <a class="btn btn-secondary btn-sm" id="open-group-btn" href="#">Open Group</a>
             <button class="btn btn-secondary btn-sm" id="copy-group-link-btn" type="button">Copy Group Link</button>
+            <button class="btn btn-ghost btn-sm hidden" id="join-requests-btn" type="button">Join Requests</button>
           </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="join-requests-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Join Requests</h3>
+            <button class="modal-close" onclick="closeModal('join-requests-modal')">&times;</button>
+          </div>
+          <div id="join-requests-list"></div>
         </div>
       </div>
 
@@ -208,6 +219,13 @@
           document.getElementById("copy-group-link-btn").onclick = () => {
             copyToClipboard(data.group.group_link).then(() => showToast("Group link copied!"));
           };
+          const jrBtn = document.getElementById("join-requests-btn");
+          if (data.group.pending_requests > 0) {
+            jrBtn.classList.remove("hidden");
+            jrBtn.textContent = `Join Requests (${data.group.pending_requests})`;
+          } else {
+            jrBtn.classList.add("hidden");
+          }
         }
       } catch (err) {
         container.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
