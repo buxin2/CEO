@@ -24,6 +24,10 @@ def normalize_database_url(raw_value):
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
 
+    # Use psycopg v3 driver (works on Python 3.12+ including 3.14 on Render)
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+
     return url
 
 
@@ -33,7 +37,7 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
     _raw_db_url = normalize_database_url(os.environ.get("DATABASE_URL", ""))
-    if _raw_db_url and not re.match(r"^postgresql://", _raw_db_url):
+    if _raw_db_url and not re.match(r"^postgresql(\+psycopg)?://", _raw_db_url):
         raise ValueError(
             "DATABASE_URL must start with postgresql:// (not psql, no quotes). "
             "Example: postgresql://user:pass@host/db?sslmode=require"
