@@ -6,5 +6,5 @@
  *   Local dev:  http://localhost:5000
  */
 window.APP_CONFIG = {
-  API_BASE_URL: "http://localhost:5000",
+  API_BASE_URL: "https://ceo-wt07.onrender.com",
 };

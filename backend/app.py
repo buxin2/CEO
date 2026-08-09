@@ -37,6 +37,15 @@ def create_app():
     app.register_blueprint(employee_bp)
     app.register_blueprint(public_bp)
 
+    @app.route("/")
+    def index():
+        return jsonify({
+            "status": "ok",
+            "message": "CEO API is running. Admin UI is on GitHub Pages.",
+            "health": "/api/health",
+            "frontend": app.config["FRONTEND_URL"],
+        })
+
     @app.route("/api/health")
     def health():
         return jsonify({"status": "ok"})
