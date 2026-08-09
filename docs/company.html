@@ -392,6 +392,52 @@
       }
     });
 
+    document.getElementById("join-requests-btn").addEventListener("click", async () => {
+      openModal("join-requests-modal");
+      const list = document.getElementById("join-requests-list");
+      list.innerHTML = '<span class="spinner"></span>';
+      try {
+        const reqs = await apiRequest(`/api/companies/${COMPANY_ID}/group/join-requests`);
+        if (!reqs.length) {
+          list.innerHTML = "<p>No pending requests.</p>";
+          return;
+        }
+        list.innerHTML = reqs.map((r) => `
+          <div class="member-row">
+            <span><strong>${escapeHtml(r.name)}</strong> — ${escapeHtml(r.role || "No role")}</span>
+            <div class="flex gap-8">
+              <button class="btn btn-primary btn-sm" onclick="approveJoinRequest(${r.id})">Approve</button>
+              <button class="btn btn-secondary btn-sm" onclick="rejectJoinRequest(${r.id})">Reject</button>
+            </div>
+          </div>
+        `).join("");
+      } catch (e) {
+        list.innerHTML = `<p>${escapeHtml(e.message)}</p>`;
+      }
+    });
+
+    async function approveJoinRequest(id) {
+      try {
+        await apiRequest(`/api/companies/${COMPANY_ID}/group/join-requests/${id}/approve`, { method: "POST" });
+        showToast("Request approved — employee added");
+        closeModal("join-requests-modal");
+        loadCompany();
+      } catch (e) {
+        showToast(e.message);
+      }
+    }
+
+    async function rejectJoinRequest(id) {
+      try {
+        await apiRequest(`/api/companies/${COMPANY_ID}/group/join-requests/${id}/reject`, { method: "POST" });
+        showToast("Request rejected");
+        closeModal("join-requests-modal");
+        loadCompany();
+      } catch (e) {
+        showToast(e.message);
+      }
+    }
+
     loadCompany();
   </script>
 </body>
