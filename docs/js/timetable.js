@@ -20,6 +20,12 @@
     { value: "ai_assistant", label: "AI Assistant" },
   ];
 
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text || "";
+    return div.innerHTML;
+  }
+
   function isoDate(d) {
     return d.toISOString().slice(0, 10);
   }
