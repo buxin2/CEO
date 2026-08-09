@@ -20,7 +20,15 @@ async function apiRequest(url, options = {}) {
   if (opts.body && !(opts.body instanceof FormData)) {
     opts.headers["Content-Type"] = "application/json";
   }
-  const response = await fetch(apiUrl(url), opts);
+
+  let response;
+  try {
+    response = await fetch(apiUrl(url), opts);
+  } catch (e) {
+    throw new Error(
+      "Cannot reach the API server. If this is your first login, wait 30 seconds for Render to wake up, then try again."
+    );
+  }
 
   if (response.status === 401) {
     window.location.href = pageUrl("login.html");

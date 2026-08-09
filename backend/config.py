@@ -1,6 +1,7 @@
 import os
 import re
 from datetime import timezone, timedelta
+from urllib.parse import urlparse
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -31,6 +32,29 @@ def normalize_database_url(raw_value):
     return url
 
 
+def cors_origin_variants(url):
+    """Expand CORS origins for GitHub Pages project sites (Origin is host only, no /CEO path)."""
+    url = url.rstrip("/")
+    variants = [url]
+    parsed = urlparse(url)
+    if parsed.hostname and parsed.hostname.endswith("github.io") and parsed.path and parsed.path != "/":
+        variants.append(f"{parsed.scheme}://{parsed.hostname}")
+    return variants
+
+
+def build_cors_origins():
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:8080").rstrip("/")
+    cors_raw = os.environ.get("CORS_ORIGINS", "")
+    seeds = [o.strip().rstrip("/") for o in cors_raw.split(",") if o.strip()] or [frontend_url]
+
+    origins = []
+    for seed in seeds:
+        for origin in cors_origin_variants(seed):
+            if origin not in origins:
+                origins.append(origin)
+    return origins
+
+
 class Config:
     """Base configuration loaded from environment variables."""
 
@@ -58,8 +82,8 @@ class Config:
     FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8080").rstrip("/")
 
     # Allowed CORS origins (comma-separated). Defaults to FRONTEND_URL.
-    _cors_raw = os.environ.get("CORS_ORIGINS", "")
-    CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()] or [FRONTEND_URL]
+    # GitHub Pages project sites also need https://user.github.io (no repo path).
+    CORS_ORIGINS = build_cors_origins()
 
     # Session / cookie security (cross-origin frontend requires SameSite=None + Secure)
     SESSION_COOKIE_HTTPONLY = True
