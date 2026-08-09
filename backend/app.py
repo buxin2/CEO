@@ -65,6 +65,7 @@ def create_app():
     from routes.group import group_bp
     from routes.ai import ai_bp
     from routes.catalog import catalog_bp
+    from routes.planner import planner_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -74,6 +75,7 @@ def create_app():
     app.register_blueprint(group_bp)
     app.register_blueprint(ai_bp)
     app.register_blueprint(catalog_bp)
+    app.register_blueprint(planner_bp)
 
     @app.route("/")
     def index():

@@ -409,6 +409,159 @@ TOOL_DEFINITIONS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_planner_snapshot",
+            "description": "Get app snapshot for personal timetable planning (companies, tasks, earnings, goals).",
+            "parameters": {
+                "type": "object",
+                "properties": {"date": {"type": "string", "description": "YYYY-MM-DD"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_timetable",
+            "description": "AI-generate admin personal timetable for a date. replace=true clears existing items first (needs confirmed).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string"},
+                    "replace": {"type": "boolean"},
+                    "confirmed": {"type": "boolean"},
+                    "instructions": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_timetable",
+            "description": "List personal timetable items for a date.",
+            "parameters": {
+                "type": "object",
+                "properties": {"date": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_timetable_item",
+            "description": "Add a personal timetable item.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string"},
+                    "start_time": {"type": "string"},
+                    "end_time": {"type": "string"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "priority": {"type": "string"},
+                    "category": {"type": "string"},
+                    "link_type": {"type": "string"},
+                    "link_company_name": {"type": "string"},
+                    "link_label": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_timetable_item",
+            "description": "Update a timetable item (time, title, move, complete, etc.).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_id": {"type": "integer"},
+                    "start_time": {"type": "string"},
+                    "end_time": {"type": "string"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "priority": {"type": "string"},
+                    "completed": {"type": "boolean"},
+                    "plan_date": {"type": "string"},
+                },
+                "required": ["item_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_timetable_item",
+            "description": "Delete a timetable item. Requires confirmed=true after user approval.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_id": {"type": "integer"},
+                    "confirmed": {"type": "boolean"},
+                },
+                "required": ["item_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reset_timetable",
+            "description": "Clear all timetable items for a date. Requires confirmed=true.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string"},
+                    "confirmed": {"type": "boolean"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "planner_what_next",
+            "description": "Suggest what the admin should do now based on timetable and app state.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string"},
+                    "current_time": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_planner_goal",
+            "description": "Add monthly, weekly, or daily personal goal.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "scope": {"type": "string", "enum": ["monthly", "weekly", "daily"]},
+                    "title": {"type": "string"},
+                    "date": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_planner_notes",
+            "description": "Update personal planning notes for AI (focus areas, meetings, etc.).",
+            "parameters": {
+                "type": "object",
+                "properties": {"personal_notes": {"type": "string"}},
+                "required": ["personal_notes"],
+            },
+        },
+    },
 ]
 
 
@@ -836,6 +989,162 @@ def execute_tool(name, arguments, context):
             "company": company.name,
             "summary": _earnings_summary(company.id),
         })
+
+    if name == "get_planner_snapshot":
+        ref = date.today()
+        if args.get("date"):
+            try:
+                ref = datetime.strptime(args["date"], "%Y-%m-%d").date()
+            except ValueError:
+                return _err("date must be YYYY-MM-DD.")
+        from services.planner_snapshot import build_planner_snapshot
+
+        return _ok({"snapshot": build_planner_snapshot(ref)})
+
+    if name == "generate_timetable":
+        replace = bool(args.get("replace"))
+        if replace and not args.get("confirmed"):
+            return _needs_confirm(
+                "This will replace existing timetable items for that day. "
+                "Ask the user to confirm, then call with confirmed=true."
+            )
+        plan_date = date.today()
+        if args.get("date"):
+            try:
+                plan_date = datetime.strptime(args["date"], "%Y-%m-%d").date()
+            except ValueError:
+                return _err("date must be YYYY-MM-DD.")
+        from services.planner_ai import generate_timetable_with_ai
+        from services.planner_service import list_timetable_for_date, serialize_item, timetable_progress
+
+        try:
+            result = generate_timetable_with_ai(
+                plan_date,
+                replace_existing=replace,
+                extra_instructions=args.get("instructions") or "",
+            )
+            items = list_timetable_for_date(plan_date)
+            result["items"] = [serialize_item(i) for i in items]
+            result["progress"] = timetable_progress(items)
+            return _ok(result)
+        except Exception as exc:
+            return _err(str(exc))
+
+    if name == "list_timetable":
+        plan_date = date.today()
+        if args.get("date"):
+            try:
+                plan_date = datetime.strptime(args["date"], "%Y-%m-%d").date()
+            except ValueError:
+                return _err("date must be YYYY-MM-DD.")
+        from services.planner_service import list_timetable_for_date, serialize_item, timetable_progress, daily_summary
+
+        items = list_timetable_for_date(plan_date)
+        return _ok({
+            "date": plan_date.isoformat(),
+            "items": [serialize_item(i) for i in items],
+            "progress": timetable_progress(items),
+            "summary": daily_summary(plan_date),
+        })
+
+    if name == "create_timetable_item":
+        from services.planner_service import create_timetable_item, serialize_item, resolve_company_id
+
+        plan_date = date.today()
+        if args.get("date"):
+            try:
+                plan_date = datetime.strptime(args["date"], "%Y-%m-%d").date()
+            except ValueError:
+                return _err("date must be YYYY-MM-DD.")
+        link_company_id = resolve_company_id(args.get("link_company_name"))
+        try:
+            item = create_timetable_item(plan_date, {
+                **args,
+                "link_company_id": link_company_id,
+            })
+            return _ok({"item": serialize_item(item)})
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "update_timetable_item":
+        from services.planner_service import update_timetable_item, serialize_item
+
+        if not args.get("item_id"):
+            return _err("item_id is required.")
+        try:
+            item = update_timetable_item(int(args["item_id"]), args)
+            return _ok({"item": serialize_item(item)})
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "delete_timetable_item":
+        if not args.get("confirmed"):
+            return _needs_confirm("Ask the user to confirm deletion, then call with confirmed=true.")
+        from services.planner_service import delete_timetable_item
+
+        if not args.get("item_id"):
+            return _err("item_id is required.")
+        try:
+            delete_timetable_item(int(args["item_id"]))
+            return _ok({"message": "Timetable item deleted."})
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "reset_timetable":
+        if not args.get("confirmed"):
+            return _needs_confirm("Ask the user to confirm reset, then call with confirmed=true.")
+        from services.planner_service import reset_timetable_for_date
+
+        plan_date = date.today()
+        if args.get("date"):
+            try:
+                plan_date = datetime.strptime(args["date"], "%Y-%m-%d").date()
+            except ValueError:
+                return _err("date must be YYYY-MM-DD.")
+        reset_timetable_for_date(plan_date)
+        return _ok({"message": f"Timetable cleared for {plan_date.isoformat()}."})
+
+    if name == "planner_what_next":
+        from services.planner_ai import suggest_next_activity
+
+        plan_date = date.today()
+        if args.get("date"):
+            try:
+                plan_date = datetime.strptime(args["date"], "%Y-%m-%d").date()
+            except ValueError:
+                return _err("date must be YYYY-MM-DD.")
+        try:
+            suggestion = suggest_next_activity(plan_date, args.get("current_time"))
+            return _ok({"suggestion": suggestion})
+        except Exception as exc:
+            return _err(str(exc))
+
+    if name == "create_planner_goal":
+        from services.planner_snapshot import period_keys_for
+        from services.planner_service import create_goal
+
+        scope = (args.get("scope") or "daily").lower()
+        keys = period_keys_for()
+        if args.get("date"):
+            try:
+                ref = datetime.strptime(args["date"], "%Y-%m-%d").date()
+                keys = period_keys_for(ref)
+            except ValueError:
+                return _err("date must be YYYY-MM-DD.")
+        period_key = keys.get(scope, keys["daily"])
+        try:
+            goal = create_goal(scope, period_key, args.get("title"))
+            return _ok(goal.to_dict())
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "update_planner_notes":
+        from services.planner_service import get_planner_settings
+
+        settings = get_planner_settings()
+        settings.personal_notes = (args.get("personal_notes") or "").strip()
+        db.session.commit()
+        return _ok({"message": "Personal planning notes updated."})
 
     return _err(f"Unknown tool: {name}")
 

@@ -393,3 +393,79 @@ class Earning(db.Model):
         if include_employee and self.employee:
             data["employee_name"] = self.employee.name
         return data
+
+
+class PlannerGoal(db.Model):
+    __tablename__ = "planner_goals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    scope = db.Column(db.String(20), nullable=False, index=True)  # monthly, weekly, daily
+    period_key = db.Column(db.String(32), nullable=False, index=True)
+    title = db.Column(db.String(500), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    position = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "scope": self.scope,
+            "period_key": self.period_key,
+            "title": self.title,
+            "completed": self.completed,
+            "position": self.position,
+        }
+
+
+class TimetableItem(db.Model):
+    __tablename__ = "timetable_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    plan_date = db.Column(db.Date, nullable=False, index=True)
+    start_time = db.Column(db.String(5), nullable=False, default="09:00")
+    end_time = db.Column(db.String(5), nullable=False, default="10:00")
+    title = db.Column(db.String(500), nullable=False)
+    description = db.Column(db.Text, default="")
+    priority = db.Column(db.String(20), default="medium")  # high, medium, low
+    category = db.Column(db.String(50), default="work")
+    link_type = db.Column(db.String(40), default="none")
+    link_company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True)
+    link_label = db.Column(db.String(120), default="")
+    completed = db.Column(db.Boolean, default=False)
+    position = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    link_company = db.relationship("Company")
+
+    def to_dict(self, include_link=False):
+        data = {
+            "id": self.id,
+            "plan_date": self.plan_date.isoformat() if self.plan_date else None,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "title": self.title,
+            "description": self.description,
+            "priority": self.priority,
+            "category": self.category,
+            "link_type": self.link_type or "none",
+            "link_company_id": self.link_company_id,
+            "link_label": self.link_label or "",
+            "completed": self.completed,
+            "position": self.position,
+        }
+        if include_link:
+            from services.planner_service import build_item_link_url
+
+            data["link_url"] = build_item_link_url(self)
+            if self.link_company:
+                data["link_company_name"] = self.link_company.name
+        return data
+
+
+class PlannerSettings(db.Model):
+    __tablename__ = "planner_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    personal_notes = db.Column(db.Text, default="")
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Timetable &middot; My Management System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">My Management System</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="dashboard.html">Companies</a>
+        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
+        <a class="sidebar-link active" href="timetable.html">&#128197; My Timetable</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content timetable-page">
+      <div class="page-header">
+        <div>
+          <h1>My Timetable</h1>
+          <div class="page-subtitle" id="timetable-date-label">Loading...</div>
+        </div>
+        <div class="flex gap-8 flex-wrap">
+          <button type="button" class="btn btn-primary btn-sm" id="ai-generate-btn">AI: Create Schedule</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="what-next-btn">What should I do next?</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="reset-timetable-btn">Reset Timetable</button>
+        </div>
+      </div>
+
+      <div class="timetable-tabs">
+        <button type="button" class="timetable-tab active" data-view="today">Today</button>
+        <button type="button" class="timetable-tab" data-view="tomorrow">Tomorrow</button>
+        <button type="button" class="timetable-tab" data-view="week">This Week</button>
+        <button type="button" class="timetable-tab" data-view="goals">Goals</button>
+      </div>
+
+      <div id="view-today" class="timetable-view">
+        <div class="card planner-notes-card">
+          <label class="form-label" for="personal-notes">Notes for AI (focus, meetings, priorities)</label>
+          <textarea class="form-control" id="personal-notes" rows="2" placeholder="e.g. This month focus on AiDoBot and revenue growth"></textarea>
+          <button type="button" class="btn btn-secondary btn-sm" id="save-notes-btn" style="margin-top:8px;">Save Notes</button>
+        </div>
+
+        <div class="goals-inline-grid" id="goals-inline"></div>
+
+        <div class="timetable-progress-card card">
+          <div class="progress-label">
+            <span>Today's Progress</span>
+            <span id="progress-label">0 / 0</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div id="ai-suggestion-box" class="card hidden">
+          <h3 class="section-title">AI Suggestion</h3>
+          <p id="ai-suggestion-text"></p>
+        </div>
+
+        <div class="page-header" style="margin-top:16px;">
+          <h2 class="section-title" style="margin:0;">Today's Schedule</h2>
+          <button type="button" class="btn btn-primary btn-sm" id="add-item-btn">+ Add Timetable Item</button>
+        </div>
+        <div id="timetable-timeline" class="timetable-timeline"></div>
+
+        <div class="card daily-summary-card hidden" id="daily-summary-card">
+          <h3 class="section-title">Daily Summary</h3>
+          <div id="daily-summary-body"></div>
+        </div>
+      </div>
+
+      <div id="view-tomorrow" class="timetable-view hidden">
+        <div id="tomorrow-timeline" class="timetable-timeline"></div>
+      </div>
+
+      <div id="view-week" class="timetable-view hidden">
+        <div id="week-overview"></div>
+      </div>
+
+      <div id="view-goals" class="timetable-view hidden">
+        <div id="goals-full-view"></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="add-item-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add Timetable Item</h3>
+        <button class="modal-close" onclick="closeModal('add-item-modal')">&times;</button>
+      </div>
+      <form id="add-item-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Start</label>
+            <input class="form-control" id="item-start" type="time" value="09:00" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">End</label>
+            <input class="form-control" id="item-end" type="time" value="10:00" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input class="form-control" id="item-title" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" id="item-description"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Priority</label>
+            <select class="form-control" id="item-priority">
+              <option value="high">High</option>
+              <option value="medium" selected>Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select class="form-control" id="item-category">
+              <option value="work">Work</option>
+              <option value="business">Business</option>
+              <option value="development">Development</option>
+              <option value="meal">Meal</option>
+              <option value="break">Break</option>
+              <option value="exercise">Exercise</option>
+              <option value="personal">Personal</option>
+              <option value="planning">Planning</option>
+              <option value="sleep">Sleep</option>
+              <option value="communication">Communication</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Link</label>
+          <select class="form-control" id="item-link-type">
+            <option value="none">None</option>
+            <option value="company">Company dashboard</option>
+            <option value="company_group">Company group</option>
+            <option value="company_tasks">Company tasks</option>
+            <option value="company_earnings">Company earnings</option>
+            <option value="dashboard">Main dashboard</option>
+            <option value="ai_assistant">AI Assistant</option>
+          </select>
+        </div>
+        <div class="form-group hidden" id="item-company-wrap">
+          <label class="form-label">Company</label>
+          <select class="form-control" id="item-company-id"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Link button label</label>
+          <input class="form-control" id="item-link-label" placeholder="e.g. Open BuXin">
+        </div>
+        <div class="form-error" id="add-item-error"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('add-item-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="edit-item-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Edit Timetable Item</h3>
+        <button class="modal-close" onclick="closeModal('edit-item-modal')">&times;</button>
+      </div>
+      <form id="edit-item-form">
+        <input type="hidden" id="edit-item-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Start</label>
+            <input class="form-control" id="edit-item-start" type="time" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">End</label>
+            <input class="form-control" id="edit-item-end" type="time" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input class="form-control" id="edit-item-title" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" id="edit-item-description"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Priority</label>
+            <select class="form-control" id="edit-item-priority">
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select class="form-control" id="edit-item-category"></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Link type</label>
+          <select class="form-control" id="edit-item-link-type"></select>
+        </div>
+        <div class="form-group hidden" id="edit-item-company-wrap">
+          <label class="form-label">Company</label>
+          <select class="form-control" id="edit-item-company-id"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Link label</label>
+          <input class="form-control" id="edit-item-link-label">
+        </div>
+        <div class="form-error" id="edit-item-error"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('edit-item-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/timetable.js"></script>
+</body>
+</html>
