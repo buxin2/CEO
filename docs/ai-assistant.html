@@ -58,6 +58,15 @@
         </div>
 
         <form class="ai-chat-composer" id="ai-chat-form">
+          <div class="ai-chat-mode-bar" role="group" aria-label="AI conversation mode">
+            <button type="button" class="ai-mode-btn active" id="ai-mode-chat" data-mode="chat">
+              💬 Chat — mentor &amp; friend
+            </button>
+            <button type="button" class="ai-mode-btn" id="ai-mode-manage" data-mode="manage">
+              ⚙️ Manage — create &amp; update app
+            </button>
+          </div>
+          <div class="ai-chat-composer-inner-row">
           <div class="ai-chat-input-wrap">
             <label class="sr-only" for="ai-chat-input">Tell AI what you want to do</label>
             <textarea
@@ -90,6 +99,7 @@
               Done &amp; Send
             </button>
             <button type="submit" class="btn btn-primary" id="ai-send-btn">Send</button>
+          </div>
           </div>
         </form>
       </div>
@@ -177,7 +187,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/ai-voice.js?v=2"></script>
-  <script src="js/ai-assistant.js?v=2"></script>
+  <script src="js/ai-voice.js?v=3"></script>
+  <script src="js/ai-assistant.js?v=3"></script>
 </body>
 </html>

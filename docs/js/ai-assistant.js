@@ -16,6 +16,12 @@
   let processing = false;
   let serverReady = false;
   let wakePromise = null;
+  let aiMode = "chat";
+
+  const MODE_PLACEHOLDERS = {
+    chat: "Talk to your AI mentor — life, career, ideas… (no app changes in this mode)",
+    manage: "Create or update something: e.g. Create company AiDoBot, list my employees…",
+  };
 
   function escapeHtml(text) {
     const div = document.createElement("div");
@@ -58,6 +64,38 @@
       return !actionWords.some((w) => lower.includes(w));
     }
     return false;
+  }
+
+  function setAiMode(mode) {
+    aiMode = mode === "manage" ? "manage" : "chat";
+    const chatBtn = document.getElementById("ai-mode-chat");
+    const manageBtn = document.getElementById("ai-mode-manage");
+    if (chatBtn) chatBtn.classList.toggle("active", aiMode === "chat");
+    if (manageBtn) manageBtn.classList.toggle("active", aiMode === "manage");
+    if (input) input.placeholder = MODE_PLACEHOLDERS[aiMode] || MODE_PLACEHOLDERS.chat;
+    try {
+      sessionStorage.setItem("ceo_ai_mode", aiMode);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function loadAiMode() {
+    try {
+      const saved = sessionStorage.getItem("ceo_ai_mode");
+      if (saved === "manage" || saved === "chat") return saved;
+    } catch (e) {
+      /* ignore */
+    }
+    return "chat";
+  }
+
+  function historyForApi(text, priorHistory) {
+    if (aiMode === "chat") {
+      return sanitizeHistoryForApi(priorHistory);
+    }
+    if (isSmallTalk(text)) return [];
+    return sanitizeHistoryForApi(priorHistory);
   }
 
   function sanitizeHistoryForApi(items) {
@@ -549,7 +587,8 @@
         method: "POST",
         body: JSON.stringify({
           message: text,
-          history: isSmallTalk(text) ? [] : sanitizeHistoryForApi(history.slice(0, -1)),
+          mode: aiMode,
+          history: historyForApi(text, history.slice(0, -1)),
         }),
         retries: 20,
         retryDelayMs: 2500,
@@ -612,6 +651,11 @@
   }
 
   patchAiVoiceApi();
+  setAiMode(loadAiMode());
+
+  document.getElementById("ai-mode-chat").addEventListener("click", () => setAiMode("chat"));
+  document.getElementById("ai-mode-manage").addEventListener("click", () => setAiMode("manage"));
+
   setVoiceButtonsEnabled(true);
 
   if (typeof initMobileNav === "function") {

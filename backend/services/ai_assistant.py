@@ -50,9 +50,45 @@ _GREETING_RE = re.compile(
 )
 
 _ACTION_WORDS = (
-    "create", "add", "delete", "remove", "list", "show", "assign", "task",
-    "company", "employee", "product", "service", "earning", "timetable", "planner",
-    "remember", "update", "build", "make", "set up", "setup",
+    "create", "add", "delete", "remove", "assign", "update", "build", "make", "set up", "setup",
+)
+
+# Explicit management commands — casual mention of "company" in life talk must NOT match.
+_MANAGEMENT_COMMAND_RE = re.compile(
+    r"(?:"
+    r"\b(create|add|make|set up|setup)\s+(?:a\s+|the\s+|my\s+|new\s+)*"
+    r"(company|companies|employee|employees|task|tasks|product|products|service|services|earning|earnings)"
+    r"|"
+    r"\b(delete|remove)\s+(?:a\s+|the\s+|my\s+)*"
+    r"(company|companies|employee|employees|task|tasks|product|products|service|services|earning|earnings)"
+    r"|"
+    r"\b(list|show|get|display)\s+(?:all\s+|my\s+|the\s+)*"
+    r"(companies|company|employees|employee|tasks|task|products|product|services|service|earnings)"
+    r"|"
+    r"\b(assign|give)\s+.+\s+tasks?"
+    r"|"
+    r"\b(update|edit|change)\s+(?:a\s+|the\s+|my\s+)*"
+    r"(company|companies|employee|employees|task|tasks|product|products|service|services)"
+    r"|"
+    r"\b(generate|reset)\s+(?:my\s+)?(?:timetable|schedule|planner)"
+    r"|"
+    r"\b(what|which)\s+companies\b"
+    r"|"
+    r"\bwho\s+(?:works|is)\s+(?:at|on|in)\b"
+    r")",
+    re.I,
+)
+
+_CHAT_NEGATION_RE = re.compile(
+    r"\b(don'?t|do not|no need to|you don'?t have to|not asking you to)\s+"
+    r"(create|add|make|do|change|delete|anything)",
+    re.I,
+)
+
+_CHAT_PERSONAL_RE = re.compile(
+    r"\b(my life|talk about my|as a friend|you are my friend|personal|university|college|"
+    r"family|feelings|advice|mentor|how am i|how my life|just talking|just chat)\b",
+    re.I,
 )
 
 _HISTORY_ERROR_PREFIX = "I couldn't complete that request:"
@@ -177,15 +213,26 @@ def _is_small_talk(text):
     return False
 
 
-def _user_wants_action(text):
-    """True when the user is asking the assistant to do something, not just chat."""
+def _user_wants_management_action(text):
+    """True only for explicit app management commands, not casual conversation."""
     t = (text or "").strip()
     if not t or _is_small_talk(t):
         return False
-    lower = t.lower()
-    if any(word in lower for word in _ACTION_WORDS):
+    if _CHAT_NEGATION_RE.search(t):
+        return False
+    if _CHAT_PERSONAL_RE.search(t) and not _MANAGEMENT_COMMAND_RE.search(t):
+        return False
+    if _MANAGEMENT_COMMAND_RE.search(t):
         return True
-    return len(t) > 80
+    lower = t.lower()
+    if re.match(r"^\s*(create|add|delete|remove|list|show|assign|update)\s+", lower):
+        return True
+    return False
+
+
+def _user_wants_action(text):
+    """Alias used by tool-guard paths."""
+    return _user_wants_management_action(text)
 
 
 def sanitize_chat_history(history):
@@ -208,10 +255,26 @@ def sanitize_chat_history(history):
     return cleaned
 
 
-def _build_system_prompt(context, week_start, week_end, chat_only=False):
+def _build_system_prompt(context, week_start, week_end, mode="chat"):
     last_co = context.get("last_company_name") or "none"
     last_emp = context.get("last_employee_name") or "none"
     today = date.today().isoformat()
+
+    if mode == "chat":
+        return (
+            "You are the admin's personal AI mentor and thoughtful friend inside their management dashboard app.\n\n"
+            f"Today: {today}\n\n"
+            "CHAT MODE (no app changes):\n"
+            "- Listen, empathize, and give honest practical advice about life, career, money, education, and goals.\n"
+            "- You CANNOT create, update, or delete anything in the app in this mode. You have no database tools here.\n"
+            "- Never claim you created a company, employee, task, or product. Never invent app actions.\n"
+            "- If the user mentions companies casually (e.g. 'my company', 'talk about my life'), respond as a mentor — "
+            "do NOT treat that as a command to modify the app.\n"
+            "- Ask thoughtful follow-up questions when helpful. Be warm, direct, and supportive.\n"
+            "- If they want you to actually create or change data in the app, tell them to switch to **Manage** mode "
+            "and say clearly what to create (e.g. 'Create company X').\n"
+            "- You may reference that they run businesses in this app, but focus on the human conversation they asked for.\n"
+        )
 
     base = (
         "You are the AI Management Assistant for an admin company/employee/task dashboard. "
@@ -221,24 +284,19 @@ def _build_system_prompt(context, week_start, week_end, chat_only=False):
         "When the user says 'this week', assign tasks for this week using create_tasks (week is automatic).\n\n"
         f"Conversation context — last company discussed: {last_co}; last employee: {last_emp}. "
         "Use these when the user says 'it', 'them', 'him', 'her', or 'that company' without repeating names.\n\n"
+        "MANAGE MODE:\n"
+        "- Use tools only when the user gives a clear management command (create, add, list, update, delete).\n"
+        "- If the message is personal chat, life advice, or mentoring, reply in plain text WITHOUT tools.\n"
+        "- Never create or change data unless the user clearly asked for that action.\n\n"
     )
-
-    if chat_only:
-        return base + (
-            "CHAT MODE:\n"
-            "- The user is greeting you or having a casual conversation.\n"
-            "- Reply briefly and naturally. Do NOT create, update, or delete anything.\n"
-            "- Do NOT describe companies, employees, or tasks as if you just created them.\n"
-            "- Offer to help when they want to manage companies, employees, tasks, products, or services.\n"
-        )
 
     return base + (
         "TOOL CALLING (required for actions):\n"
         "- Use the native tool/function calling API only.\n"
         "- Put the tool name in the function name field and arguments as a JSON object string.\n"
         "- Do NOT use XML formats like <function=...> and do NOT put JSON inside the tool name.\n"
-        "- Only call tools when the user asks you to DO something (create, add, list, update, delete, remember).\n"
-        "- For greetings or small talk, reply in plain text WITHOUT calling any tools.\n\n"
+        "- Only call tools when the user asks you to DO something (create, add, list, update, delete).\n"
+        "- For greetings, mentoring, or personal conversation, reply in plain text WITHOUT calling any tools.\n\n"
         "RULES:\n"
         "- You MUST use the provided tools to read or change data. Never invent companies, employees, or tasks.\n"
         "- Never claim an action succeeded unless the tool returned success.\n"
@@ -337,22 +395,30 @@ def _chat_without_tools(client, model, messages, max_tokens=512):
     return (response.choices[0].message.content or "").strip()
 
 
+def _run_mentor_chat(client, model, system, user_messages, max_tokens=1200):
+    messages = [{"role": "system", "content": system}] + list(user_messages)
+    text = _chat_without_tools(client, model, messages, max_tokens=max_tokens)
+    return text or "I'm here to listen. What's on your mind?"
+
+
 def _run_chat_only(client, model, system, user_text):
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user_text},
-    ]
-    text = _chat_without_tools(client, model, messages, max_tokens=256)
-    return text or "Hello! How can I help you manage your companies, employees, or tasks today?"
+    return _run_mentor_chat(
+        client,
+        model,
+        system,
+        [{"role": "user", "content": user_text}],
+        max_tokens=512,
+    )
 
 
 def _groq_create(client, **kwargs):
     return client.chat.completions.create(**kwargs)
 
 
-def run_agent(user_messages, context):
+def run_agent(user_messages, context, mode="chat"):
     """
     Run the agent loop. user_messages excludes system prompt.
+    mode: 'chat' (mentor, no tools) or 'manage' (tools for explicit commands).
     Returns assistant reply text.
     """
     config = get_active_groq_config()
@@ -366,14 +432,46 @@ def run_agent(user_messages, context):
 
     client = Groq(api_key=api_key)
     week_start, week_end = get_week_bounds()
+    mode = (mode or "chat").strip().lower()
+    if mode not in ("chat", "manage"):
+        mode = "chat"
 
     current_message = _last_user_message(user_messages)
     if len(current_message) > _MAX_USER_MESSAGE_CHARS:
         current_message = current_message[:_MAX_USER_MESSAGE_CHARS] + "… [truncated]"
 
-    # Greetings / small talk: no tools, no history — saves tokens and prevents accidental actions
+    # Chat mode: mentor conversation only — never use tools
+    if mode == "chat":
+        system = _build_system_prompt(context, week_start, week_end, mode="chat")
+        try:
+            reply = _run_mentor_chat(client, model, system, user_messages)
+            mark_key_used(config.get("key_id"))
+            return reply
+        except Exception as exc:
+            if _is_rate_limit_error(exc):
+                raise RuntimeError(_friendly_api_error(exc))
+            raise
+
+    # Manage mode without explicit command: mentor-style reply, no tools
+    if not _user_wants_management_action(current_message):
+        system = _build_system_prompt(context, week_start, week_end, mode="chat")
+        system += (
+            "\nThe user is in Manage mode but did not give a clear create/list/update command. "
+            "Respond helpfully without using tools. "
+            "If they want app changes, ask them to state it clearly (e.g. 'Create company X').\n"
+        )
+        try:
+            reply = _run_mentor_chat(client, model, system, user_messages)
+            mark_key_used(config.get("key_id"))
+            return reply
+        except Exception as exc:
+            if _is_rate_limit_error(exc):
+                raise RuntimeError(_friendly_api_error(exc))
+            raise
+
+    # Manage mode with explicit command: tool loop
     if _is_small_talk(current_message):
-        system = _build_system_prompt(context, week_start, week_end, chat_only=True)
+        system = _build_system_prompt(context, week_start, week_end, mode="chat")
         try:
             reply = _run_chat_only(client, model, system, current_message)
             mark_key_used(config.get("key_id"))
@@ -383,7 +481,7 @@ def run_agent(user_messages, context):
                 raise RuntimeError(_friendly_api_error(exc))
             raise
 
-    system = _build_system_prompt(context, week_start, week_end, chat_only=False)
+    system = _build_system_prompt(context, week_start, week_end, mode="manage")
     messages = [{"role": "system", "content": system}] + list(user_messages)
     tools = TOOL_DEFINITIONS
     max_iterations = 14
@@ -423,7 +521,7 @@ def run_agent(user_messages, context):
                 name, args = _normalize_tool_call(tc.function.name, tc.function.arguments or "{}")
                 tool_id = tc.id or f"call_{uuid.uuid4().hex[:12]}"
 
-                if name in _WRITE_TOOL_NAMES and not _user_wants_action(current_message):
+                if name in _WRITE_TOOL_NAMES and not _user_wants_management_action(current_message):
                     tool_result = json.dumps({
                         "success": False,
                         "error": "Skipped: user did not request a data change. Reply in plain text only.",

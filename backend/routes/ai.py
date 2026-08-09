@@ -63,7 +63,7 @@ def ai_chat():
     user_messages.append({"role": "user", "content": message})
 
     try:
-        reply = run_agent(user_messages, context)
+        reply = run_agent(user_messages, context, mode=data.get("mode") or "chat")
     except Exception as exc:
         current_app.logger.exception("AI chat failed")
         err_text = str(exc)
