@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Tasks</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="public-page">
+    <div class="public-container">
+      <div id="page-body">
+        <div class="empty-state"><span class="spinner"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    const TOKEN = getQueryParam("token");
+    if (!TOKEN) {
+      document.getElementById("page-body").innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">&#128683;</div>
+          <p>This task link is invalid or no longer available.</p>
+        </div>`;
+    } else {
+      async function loadPublicTasks() {
+        const body = document.getElementById("page-body");
+        try {
+          const data = await apiRequest(`/api/public/tasks/${TOKEN}`);
+          render(data);
+        } catch (err) {
+          body.innerHTML = `<div class="empty-state"><div class="empty-icon">&#128683;</div><p>${escapeHtml(err.message)}</p></div>`;
+        }
+      }
+
+      function render(data) {
+        const body = document.getElementById("page-body");
+        const stats = data.stats;
+
+        let tasksHtml;
+        if (!data.tasks.length) {
+          tasksHtml = `<div class="empty-state"><p>You don't have any tasks for this week.</p></div>`;
+        } else {
+          tasksHtml = data.tasks.map(renderTaskCard).join("");
+        }
+
+        body.innerHTML = `
+          <div class="public-header">
+            <div class="company-name">${escapeHtml(data.company_name)}</div>
+            <div class="employee-name">${escapeHtml(data.employee_name)}</div>
+            <div class="week-range">${formatDateRange(data.week.week_start, data.week.week_end)}</div>
+          </div>
+          <div class="public-progress-card">
+            <div class="progress-label"><span>${stats.completed} / ${stats.total} completed</span><span>${stats.completion_pct}%</span></div>
+            <div class="progress-track"><div class="progress-fill ${stats.completion_pct >= 100 ? "success" : ""}" style="width:${stats.completion_pct}%"></div></div>
+          </div>
+          <div id="task-list">${tasksHtml}</div>
+        `;
+
+        document.querySelectorAll(".task-checkbox-btn").forEach((btn) => {
+          btn.addEventListener("click", () => toggleTask(btn.dataset.taskId, btn.dataset.completed === "true"));
+        });
+      }
+
+      function renderTaskCard(t) {
+        const isCompleted = t.status === "completed";
+        const dueLabel = t.due_date ? formatShortDate(t.due_date) : "No due date";
+        return `
+          <div class="public-task-card ${isCompleted ? "completed" : ""}">
+            <button class="task-checkbox-btn ${isCompleted ? "checked" : ""}" data-task-id="${t.id}" data-completed="${isCompleted}">
+              ${isCompleted ? "&#10003;" : ""}
+            </button>
+            <div class="public-task-body">
+              <div class="public-task-title ${isCompleted ? "completed" : ""}">${escapeHtml(t.title)}</div>
+              <div class="public-task-meta">
+                <span class="badge badge-priority-${t.priority}">${t.priority}</span>
+                <span class="badge badge-status-${t.status}">${isCompleted ? "Completed" : "Due: " + dueLabel}</span>
+              </div>
+              ${t.description ? `<div class="public-task-desc">${escapeHtml(t.description)}</div>` : ""}
+            </div>
+          </div>`;
+      }
+
+      async function toggleTask(taskId, isCurrentlyCompleted) {
+        const action = isCurrentlyCompleted ? "uncomplete" : "complete";
+        try {
+          await apiRequest(`/api/public/tasks/${TOKEN}/${taskId}/${action}`, { method: "POST" });
+          loadPublicTasks();
+        } catch (err) {
+          showToast(err.message);
+        }
+      }
+
+      loadPublicTasks();
+    }
+  </script>
+</body>
+</html>

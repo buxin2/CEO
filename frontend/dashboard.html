@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard &middot; My Management System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">My Management System</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link active" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="dashboard.html">Companies</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1>Dashboard</h1>
+          <div class="page-subtitle" id="week-subtitle">Loading week...</div>
+        </div>
+        <button class="btn btn-primary" id="open-create-company-btn">+ Create Company</button>
+      </div>
+
+      <div class="week-nav">
+        <button class="btn btn-secondary btn-sm" id="prev-week-btn">&larr; Previous Week</button>
+        <span class="week-label" id="week-label">This week</span>
+        <button class="btn btn-secondary btn-sm" id="next-week-btn">Next Week &rarr;</button>
+        <button class="btn btn-ghost btn-sm" id="current-week-btn">Current Week</button>
+      </div>
+
+      <div class="summary-grid" id="summary-grid">
+        <div class="summary-card"><div class="label">Total Companies</div><div class="value" id="stat-companies">&ndash;</div></div>
+        <div class="summary-card"><div class="label">Total Employees</div><div class="value" id="stat-employees">&ndash;</div></div>
+        <div class="summary-card"><div class="label">This Week's Tasks</div><div class="value" id="stat-tasks">&ndash;</div></div>
+        <div class="summary-card"><div class="label">Completed</div><div class="value success" id="stat-completed">&ndash;</div></div>
+        <div class="summary-card"><div class="label">Pending</div><div class="value warning" id="stat-pending">&ndash;</div></div>
+        <div class="summary-card"><div class="label">Completion</div><div class="value primary" id="stat-completion">&ndash;</div></div>
+      </div>
+
+      <h2 class="section-title">Companies</h2>
+      <div id="companies-container">
+        <div class="empty-state"><span class="spinner"></span></div>
+      </div>
+
+      <div class="modal-overlay" id="create-company-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Create Company</h3>
+            <button class="modal-close" onclick="closeModal('create-company-modal')">&times;</button>
+          </div>
+          <form id="create-company-form">
+            <div class="form-group">
+              <label class="form-label" for="company-name">Company Name</label>
+              <input class="form-control" id="company-name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="company-description">Description</label>
+              <textarea class="form-control" id="company-description" placeholder="Optional"></textarea>
+            </div>
+            <div class="form-error" id="create-company-error"></div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('create-company-modal')">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="create-company-submit">Create Company</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    let currentWeekStart = null;
+
+    function fmtWeekRange(weekStart, weekEnd) {
+      return formatDateRange(weekStart, weekEnd);
+    }
+
+    async function loadDashboard(weekStart) {
+      const container = document.getElementById("companies-container");
+      container.innerHTML = '<div class="empty-state"><span class="spinner"></span></div>';
+
+      let url = "/api/dashboard";
+      if (weekStart) url += "?week_start=" + weekStart;
+
+      try {
+        const data = await apiRequest(url);
+        currentWeekStart = data.week.week_start;
+
+        document.getElementById("week-label").textContent = fmtWeekRange(data.week.week_start, data.week.week_end);
+        document.getElementById("week-subtitle").textContent = "Overview for " + fmtWeekRange(data.week.week_start, data.week.week_end);
+
+        document.getElementById("stat-companies").textContent = data.summary.total_companies;
+        document.getElementById("stat-employees").textContent = data.summary.total_employees;
+        document.getElementById("stat-tasks").textContent = data.summary.total_tasks;
+        document.getElementById("stat-completed").textContent = data.summary.completed_tasks;
+        document.getElementById("stat-pending").textContent = data.summary.pending_tasks;
+        document.getElementById("stat-completion").textContent = data.summary.completion_pct + "%";
+
+        renderCompanies(data.companies);
+
+        document.getElementById("prev-week-btn").onclick = () => loadDashboard(data.week.prev_week_start);
+        document.getElementById("next-week-btn").onclick = () => loadDashboard(data.week.next_week_start);
+        document.getElementById("current-week-btn").onclick = () => loadDashboard(null);
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
+      }
+    }
+
+    function renderCompanies(companies) {
+      const container = document.getElementById("companies-container");
+
+      if (!companies.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#127970;</div>
+            <p>You haven't created any companies yet.</p>
+            <button class="btn btn-primary" onclick="openModal('create-company-modal')">+ Create Your First Company</button>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = `<div class="grid">${companies.map(renderCompanyCard).join("")}</div>`;
+    }
+
+    function renderCompanyCard(c) {
+      const stats = c.stats || { total: 0, completed: 0, pending: 0, completion_pct: 0 };
+      return `
+        <a class="entity-card" href="company.html?id=${c.id}" style="text-decoration:none;">
+          <div class="entity-card-title">${escapeHtml(c.name)}</div>
+          <div class="entity-card-meta">${c.employee_count} employee${c.employee_count === 1 ? "" : "s"} &middot; ${stats.total} task${stats.total === 1 ? "" : "s"} this week</div>
+          <div>
+            <div class="progress-label"><span>${stats.completed}/${stats.total} completed</span><span>${stats.completion_pct}%</span></div>
+            <div class="progress-track"><div class="progress-fill ${stats.completion_pct >= 100 ? "success" : ""}" style="width:${stats.completion_pct}%"></div></div>
+          </div>
+          <div class="entity-card-actions">
+            <span class="btn btn-secondary btn-sm">Open Company</span>
+          </div>
+        </a>`;
+    }
+
+    document.getElementById("open-create-company-btn").addEventListener("click", () => openModal("create-company-modal"));
+
+    document.getElementById("create-company-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errorBox = document.getElementById("create-company-error");
+      errorBox.classList.remove("visible");
+      const submitBtn = document.getElementById("create-company-submit");
+      submitBtn.disabled = true;
+
+      const name = document.getElementById("company-name").value.trim();
+      const description = document.getElementById("company-description").value.trim();
+
+      try {
+        const company = await apiRequest("/api/companies", {
+          method: "POST",
+          body: JSON.stringify({ name, description }),
+        });
+        closeModal("create-company-modal");
+        window.location.href = pageUrl("company.html?id=" + company.id);
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add("visible");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    loadDashboard(null);
+  </script>
+</body>
+</html>

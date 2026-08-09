@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Management System</title>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    fetch(apiUrl("/api/me"), { credentials: "include" })
+      .then((r) => {
+        window.location.href = r.ok ? "dashboard.html" : "login.html";
+      })
+      .catch(() => {
+        window.location.href = "login.html";
+      });
+  </script>
+</head>
+<body></body>
+</html>

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Company &middot; My Management System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">My Management System</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="dashboard.html">Companies</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content">
+      <div class="breadcrumb"><a href="dashboard.html">Dashboard</a> / <span id="breadcrumb-name">Company</span></div>
+
+      <div class="page-header">
+        <div>
+          <h1 id="company-name-heading">Loading...</h1>
+          <div class="page-subtitle" id="company-description"></div>
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-secondary" id="edit-company-btn">Edit</button>
+          <button class="btn btn-danger" id="delete-company-btn">Delete</button>
+        </div>
+      </div>
+
+      <div class="summary-grid" id="company-summary-grid">
+        <div class="summary-card"><div class="label">Employees</div><div class="value" id="stat-employees">&ndash;</div></div>
+        <div class="summary-card"><div class="label">Tasks This Week</div><div class="value" id="stat-tasks">&ndash;</div></div>
+        <div class="summary-card"><div class="label">Completed</div><div class="value success" id="stat-completed">&ndash;</div></div>
+        <div class="summary-card"><div class="label">Pending</div><div class="value warning" id="stat-pending">&ndash;</div></div>
+        <div class="summary-card"><div class="label">Completion</div><div class="value primary" id="stat-completion">&ndash;</div></div>
+      </div>
+
+      <div class="page-header">
+        <h2 class="section-title" style="margin:0;">Employees</h2>
+        <button class="btn btn-primary" id="open-add-employee-btn">+ Add Employee</button>
+      </div>
+
+      <div class="search-input-wrap">
+        <input class="form-control" id="employee-search" placeholder="Search employees by name...">
+      </div>
+
+      <div id="employees-container">
+        <div class="empty-state"><span class="spinner"></span></div>
+      </div>
+
+      <div class="modal-overlay" id="add-employee-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Add Employee</h3>
+            <button class="modal-close" onclick="closeModal('add-employee-modal')">&times;</button>
+          </div>
+          <form id="add-employee-form">
+            <div class="form-group">
+              <label class="form-label" for="employee-name">Name</label>
+              <input class="form-control" id="employee-name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="employee-email">Email</label>
+              <input class="form-control" type="email" id="employee-email" placeholder="Optional">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="employee-position">Position</label>
+              <input class="form-control" id="employee-position" placeholder="Optional">
+            </div>
+            <div class="form-error" id="add-employee-error"></div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('add-employee-modal')">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="add-employee-submit">Add Employee</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="new-employee-link-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Employee Added</h3>
+            <button class="modal-close" onclick="closeModal('new-employee-link-modal')">&times;</button>
+          </div>
+          <p class="text-muted" style="margin-bottom:10px;">Share this personal task link with the employee:</p>
+          <input class="form-control" id="new-employee-link-input" readonly>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('new-employee-link-modal')">Close</button>
+            <button type="button" class="btn btn-primary" id="copy-new-employee-link-btn">Copy Link</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="edit-company-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Edit Company</h3>
+            <button class="modal-close" onclick="closeModal('edit-company-modal')">&times;</button>
+          </div>
+          <form id="edit-company-form">
+            <div class="form-group">
+              <label class="form-label" for="edit-company-name">Company Name</label>
+              <input class="form-control" id="edit-company-name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-company-description">Description</label>
+              <textarea class="form-control" id="edit-company-description"></textarea>
+            </div>
+            <div class="form-error" id="edit-company-error"></div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('edit-company-modal')">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="edit-employee-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Edit Employee</h3>
+            <button class="modal-close" onclick="closeModal('edit-employee-modal')">&times;</button>
+          </div>
+          <form id="edit-employee-form">
+            <input type="hidden" id="edit-employee-id">
+            <div class="form-group">
+              <label class="form-label" for="edit-employee-name">Name</label>
+              <input class="form-control" id="edit-employee-name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-employee-email">Email</label>
+              <input class="form-control" type="email" id="edit-employee-email">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-employee-position">Position</label>
+              <input class="form-control" id="edit-employee-position">
+            </div>
+            <div class="form-error" id="edit-employee-error"></div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('edit-employee-modal')">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    const COMPANY_ID = getQueryParam("id");
+    if (!COMPANY_ID) {
+      window.location.href = pageUrl("dashboard.html");
+    }
+
+    let allEmployees = [];
+
+    async function loadCompany() {
+      const container = document.getElementById("employees-container");
+      try {
+        const data = await apiRequest(`/api/companies/${COMPANY_ID}`);
+        document.getElementById("company-name-heading").textContent = data.company.name;
+        document.getElementById("breadcrumb-name").textContent = data.company.name;
+        document.getElementById("company-description").textContent = data.company.description || "";
+
+        const stats = data.company.stats || { total: 0, completed: 0, pending: 0, completion_pct: 0 };
+        document.getElementById("stat-employees").textContent = data.company.employee_count;
+        document.getElementById("stat-tasks").textContent = stats.total;
+        document.getElementById("stat-completed").textContent = stats.completed;
+        document.getElementById("stat-pending").textContent = stats.pending;
+        document.getElementById("stat-completion").textContent = stats.completion_pct + "%";
+
+        allEmployees = data.employees;
+        renderEmployees(allEmployees);
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
+      }
+    }
+
+    function renderEmployees(employees) {
+      const container = document.getElementById("employees-container");
+
+      if (!employees.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#128100;</div>
+            <p>No employees have been added to this company.</p>
+            <button class="btn btn-primary" onclick="openModal('add-employee-modal')">+ Add Employee</button>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = `<div class="grid">${employees.map(renderEmployeeCard).join("")}</div>`;
+    }
+
+    function renderEmployeeCard(e) {
+      const stats = e.stats || { total: 0, completed: 0, pending: 0, completion_pct: 0 };
+      return `
+        <div class="entity-card">
+          <div class="entity-card-title">${escapeHtml(e.name)}</div>
+          <div class="entity-card-meta">${escapeHtml(e.position || "No position set")}</div>
+          <div>
+            <div class="progress-label"><span>${stats.completed}/${stats.total} completed</span><span>${stats.completion_pct}%</span></div>
+            <div class="progress-track"><div class="progress-fill ${stats.completion_pct >= 100 ? "success" : ""}" style="width:${stats.completion_pct}%"></div></div>
+          </div>
+          <div class="entity-card-actions">
+            <a class="btn btn-secondary btn-sm" href="employee-tasks.html?id=${e.id}">View Tasks</a>
+            <button class="btn btn-secondary btn-sm" onclick="openEditEmployee(${e.id})">Edit</button>
+            <button class="btn btn-secondary btn-sm" onclick="copyEmployeeLink('${e.unique_token}')">Copy Task Link</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Delete</button>
+          </div>
+        </div>`;
+    }
+
+    function copyEmployeeLink(token) {
+      copyToClipboard(taskLinkForToken(token)).then(() => showToast("Task link copied!"));
+    }
+
+    function openEditEmployee(id) {
+      const emp = allEmployees.find((e) => e.id === id);
+      if (!emp) return;
+      document.getElementById("edit-employee-id").value = emp.id;
+      document.getElementById("edit-employee-name").value = emp.name;
+      document.getElementById("edit-employee-email").value = emp.email || "";
+      document.getElementById("edit-employee-position").value = emp.position || "";
+      document.getElementById("edit-employee-error").classList.remove("visible");
+      openModal("edit-employee-modal");
+    }
+
+    async function deleteEmployee(id) {
+      if (!confirm("Delete this employee? All their tasks will also be deleted. This cannot be undone.")) return;
+      try {
+        await apiRequest(`/api/employees/${id}`, { method: "DELETE" });
+        showToast("Employee deleted");
+        loadCompany();
+      } catch (err) {
+        showToast(err.message);
+      }
+    }
+
+    document.getElementById("open-add-employee-btn").addEventListener("click", () => openModal("add-employee-modal"));
+
+    document.getElementById("add-employee-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errorBox = document.getElementById("add-employee-error");
+      errorBox.classList.remove("visible");
+
+      const name = document.getElementById("employee-name").value.trim();
+      const email = document.getElementById("employee-email").value.trim();
+      const position = document.getElementById("employee-position").value.trim();
+
+      try {
+        const employee = await apiRequest(`/api/companies/${COMPANY_ID}/employees`, {
+          method: "POST",
+          body: JSON.stringify({ name, email, position }),
+        });
+        closeModal("add-employee-modal");
+        document.getElementById("add-employee-form").reset();
+        loadCompany();
+
+        document.getElementById("new-employee-link-input").value = employee.task_link;
+        openModal("new-employee-link-modal");
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add("visible");
+      }
+    });
+
+    document.getElementById("copy-new-employee-link-btn").addEventListener("click", () => {
+      const val = document.getElementById("new-employee-link-input").value;
+      copyToClipboard(val).then(() => showToast("Task link copied!"));
+    });
+
+    document.getElementById("edit-employee-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errorBox = document.getElementById("edit-employee-error");
+      errorBox.classList.remove("visible");
+
+      const id = document.getElementById("edit-employee-id").value;
+      const name = document.getElementById("edit-employee-name").value.trim();
+      const email = document.getElementById("edit-employee-email").value.trim();
+      const position = document.getElementById("edit-employee-position").value.trim();
+
+      try {
+        await apiRequest(`/api/employees/${id}`, {
+          method: "PUT",
+          body: JSON.stringify({ name, email, position }),
+        });
+        closeModal("edit-employee-modal");
+        loadCompany();
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add("visible");
+      }
+    });
+
+    document.getElementById("employee-search").addEventListener("input", (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      const filtered = allEmployees.filter((emp) => emp.name.toLowerCase().includes(q));
+      renderEmployees(filtered);
+    });
+
+    document.getElementById("edit-company-btn").addEventListener("click", () => {
+      document.getElementById("edit-company-name").value = document.getElementById("company-name-heading").textContent;
+      document.getElementById("edit-company-description").value = document.getElementById("company-description").textContent;
+      openModal("edit-company-modal");
+    });
+
+    document.getElementById("edit-company-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errorBox = document.getElementById("edit-company-error");
+      errorBox.classList.remove("visible");
+
+      const name = document.getElementById("edit-company-name").value.trim();
+      const description = document.getElementById("edit-company-description").value.trim();
+
+      try {
+        await apiRequest(`/api/companies/${COMPANY_ID}`, {
+          method: "PUT",
+          body: JSON.stringify({ name, description }),
+        });
+        closeModal("edit-company-modal");
+        loadCompany();
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add("visible");
+      }
+    });
+
+    document.getElementById("delete-company-btn").addEventListener("click", async () => {
+      if (!confirm("Delete this company? All employees and tasks will also be deleted. This cannot be undone.")) return;
+      try {
+        await apiRequest(`/api/companies/${COMPANY_ID}`, { method: "DELETE" });
+        window.location.href = pageUrl("dashboard.html");
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+
+    loadCompany();
+  </script>
+</body>
+</html>
