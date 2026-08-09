@@ -2,6 +2,7 @@ from flask import Blueprint, current_app, jsonify, request, session
 
 from routes.auth import login_required
 from services.ai_assistant import run_agent, sanitize_chat_history
+from services.ai_transcribe import transcribe_audio
 from services.groq_key_service import (
     is_groq_configured,
     get_active_groq_config,
@@ -74,6 +75,29 @@ def ai_chat():
     session.modified = True
 
     return jsonify({"reply": reply})
+
+
+@ai_bp.route("/api/ai/transcribe", methods=["POST"])
+@login_required
+def ai_transcribe():
+    if not is_groq_configured():
+        return jsonify({
+            "error": "AI is not configured. Add a Groq API key to use voice transcription.",
+        }), 503
+
+    upload = request.files.get("audio")
+    if not upload:
+        return jsonify({"error": "Audio file is required."}), 400
+
+    try:
+        text = transcribe_audio(upload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception("AI transcribe failed")
+        return jsonify({"error": f"Transcription failed: {exc}"}), 500
+
+    return jsonify({"text": text})
 
 
 @ai_bp.route("/api/ai/groq-keys", methods=["GET"])

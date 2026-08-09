@@ -122,8 +122,10 @@
     label.textContent = role === "user" ? "You" : "AI Assistant";
     labelRow.appendChild(label);
 
-    if (role === "assistant" && window.AiVoice && AiVoice.speechSupported()) {
-      labelRow.appendChild(AiVoice.createPlayButton(content));
+    if (role === "assistant") {
+      labelRow.appendChild(
+        window.AiVoice ? AiVoice.createPlayButton(content) : createFallbackPlay(content)
+      );
     }
 
     const body = document.createElement("div");
@@ -138,6 +140,15 @@
     wrap.appendChild(body);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function createFallbackPlay(text) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ai-voice-play-btn";
+    btn.textContent = "▶ Listen";
+    btn.addEventListener("click", () => showToast("Voice module not loaded. Refresh the page."));
+    return btn;
   }
 
   function renderHistory() {
@@ -162,8 +173,9 @@
   }
 
   function setVoiceButtonsEnabled(enabled) {
-    if (speakBtn) speakBtn.disabled = !enabled || (window.AiVoice && AiVoice.isListening());
-    if (speakDoneBtn) speakDoneBtn.disabled = !enabled;
+    const on = enabled && !processing;
+    if (speakBtn) speakBtn.disabled = !on || (window.AiVoice && AiVoice.isListening());
+    if (speakDoneBtn) speakDoneBtn.disabled = !on;
   }
 
   function setProcessing(active, message) {
@@ -225,12 +237,15 @@
     return wakePromise;
   }
 
-  function startSpeak() {
-    if (processing || !serverReady) return;
-    if (!window.AiVoice) return;
+  async function startSpeak() {
+    if (processing) return;
+    if (!window.AiVoice) {
+      showToast("Voice module not loaded. Refresh the page.");
+      return;
+    }
 
-    if (!AiVoice.recognitionSupported()) {
-      showToast("Speech input is not supported in this browser. Try Chrome or Edge.");
+    if (!AiVoice.recordingSupported()) {
+      showToast("Voice recording is not supported in this browser. Try Chrome or Edge.");
       return;
     }
 
@@ -238,29 +253,36 @@
     setVoiceUiState(true);
     input.focus();
 
-    const started = AiVoice.startListening(
-      input,
-      null,
-      (msg) => {
-        setVoiceUiState(false);
-        showToast(msg);
-      }
-    );
+    const started = await AiVoice.startListening(input, (msg) => {
+      setVoiceUiState(false);
+      showToast(msg);
+    });
 
     if (!started) {
       setVoiceUiState(false);
     }
   }
 
-  function finishSpeakAndSend() {
+  async function finishSpeakAndSend() {
     if (!window.AiVoice) return;
-    AiVoice.stopListening();
+    if (processing) return;
+
     setVoiceUiState(false);
-    const text = AiVoice.getTranscript(input);
+    if (thinkingTextEl) thinkingTextEl.textContent = "Transcribing speech...";
+    thinkingEl.classList.remove("hidden");
+    if (speakDoneBtn) speakDoneBtn.disabled = true;
+
+    const text = await AiVoice.finishListening(input, null, (msg) => {
+      showToast(msg);
+    });
+
+    thinkingEl.classList.add("hidden");
+    setVoiceButtonsEnabled(true);
+
     if (text) {
       sendMessage(text);
     } else {
-      showToast("No speech detected. Try again.");
+      showToast("No speech detected. Tap Speak and try again.");
     }
   }
 
@@ -557,7 +579,7 @@
     speakDoneBtn.addEventListener("click", finishSpeakAndSend);
   }
 
-  setVoiceButtonsEnabled(false);
+  setVoiceButtonsEnabled(true);
 
   if (typeof initMobileNav === "function") {
     initMobileNav();
