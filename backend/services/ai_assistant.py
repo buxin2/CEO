@@ -92,10 +92,8 @@ _CHAT_PERSONAL_RE = re.compile(
 )
 
 _HISTORY_ERROR_PREFIX = "I couldn't complete that request:"
-_MAX_HISTORY_CHARS = 50
-_MAX_HISTORY_ITEMS_CHAT = 0
-_MAX_HISTORY_ITEMS_MANAGE = 2
-_MAX_USER_MESSAGE_CHARS = 1000
+_MAX_PRIOR_MESSAGES = 2
+_MAX_PRIOR_MESSAGE_CHARS = 2000
 
 
 class _FunctionStub:
@@ -188,9 +186,8 @@ def _is_rate_limit_error(exc):
 def _friendly_api_error(exc):
     if _is_rate_limit_error(exc):
         return (
-            "Groq API rate limit reached (too many tokens or requests). "
-            "Short messages like \"hi\" use fewer tokens — try clearing chat history. "
-            "Wait a few minutes or switch to another saved Groq API key."
+            "Groq API rate limit reached. Wait a few minutes or switch to another saved Groq API key. "
+            "Use Clear conversation to avoid sending long old messages."
         )
     return str(exc)
 
@@ -240,43 +237,82 @@ def _user_wants_action(text):
 
 def _shorten_text(text, max_len):
     t = (text or "").strip()
-    if len(t) <= max_len:
+    if not max_len or len(t) <= max_len:
         return t
     return t[:max_len].rstrip() + "…"
 
 
+def _build_app_summary_text():
+    """Compact live app overview for the system prompt (no extra Groq tool round-trips)."""
+    try:
+        from models import Company, Employee, get_week_bounds
+
+        week_start, week_end = get_week_bounds()
+        companies = Company.query.order_by(Company.name.asc()).all()
+        total_employees = Employee.query.count()
+        pending_week = 0
+        lines = [
+            f"You know this admin dashboard app. Today: {date.today().isoformat()}.",
+            f"Week: {week_start.isoformat()} to {week_end.isoformat()}.",
+            f"Companies: {len(companies)} · Total employees: {total_employees}.",
+        ]
+        for company in companies[:15]:
+            stats = company.get_week_stats(week_start, week_end)
+            pending = stats.get("pending", 0) or 0
+            pending_week += pending
+            total = stats.get("total", 0) or 0
+            done = stats.get("completed", 0) or 0
+            ec = company.employees.count()
+            lines.append(
+                f"· {company.name}: {ec} employees, "
+                f"{done}/{total} tasks done this week"
+            )
+        if len(companies) > 15:
+            lines.append(f"· …plus {len(companies) - 15} more companies")
+        lines.append(f"This week pending tasks across app: {pending_week}.")
+        lines.append(
+            "Pages in this app: Dashboard, Companies, AI Assistant (Chat/Manage), "
+            "My Timetable, per-company Products/Services/Earnings/Employees/Group chat."
+        )
+        return "\n".join(lines)
+    except Exception:
+        return (
+            "You assist inside the My Management System admin app "
+            "(companies, employees, weekly tasks, products, services, earnings, timetable)."
+        )
+
+
 def _compress_messages_for_api(messages, mode):
     """
-    Send only the current message plus tiny history snippets to Groq (free-tier friendly).
-  Chat mode: current message only. Manage mode: up to 2 prior lines at 50 chars each.
+    Send the current message (full length) plus the last 2 chat lines for continuity.
+    Clear chat resets history so the AI starts fresh when the user chooses.
     """
     if not messages:
         return messages
 
-    max_prior = _MAX_HISTORY_ITEMS_CHAT if mode == "chat" else _MAX_HISTORY_ITEMS_MANAGE
     prior = list(messages[:-1])
     current = messages[-1]
 
-    if max_prior > 0 and len(prior) > max_prior:
-        prior = prior[-max_prior:]
+    if len(prior) > _MAX_PRIOR_MESSAGES:
+        prior = prior[-_MAX_PRIOR_MESSAGES:]
 
     compressed = []
     for item in prior:
         role = item.get("role")
         if role not in ("user", "assistant"):
             continue
-        content = _shorten_text(item.get("content"), _MAX_HISTORY_CHARS)
+        content = _shorten_text(item.get("content"), _MAX_PRIOR_MESSAGE_CHARS)
         if content:
             compressed.append({"role": role, "content": content})
 
     role = current.get("role") or "user"
-    content = _shorten_text(current.get("content"), _MAX_USER_MESSAGE_CHARS)
+    content = (current.get("content") or "").strip()
     compressed.append({"role": role, "content": content})
     return compressed
 
 
 def sanitize_chat_history(history):
-    """Trim history from the browser before building the API payload."""
+    """Keep only the last 2 messages for API context (full up to prior char cap)."""
     cleaned = []
     for item in history:
         role = item.get("role")
@@ -285,11 +321,13 @@ def sanitize_chat_history(history):
             continue
         if content.startswith(_HISTORY_ERROR_PREFIX):
             continue
-        cleaned.append({"role": role, "content": _shorten_text(content, _MAX_HISTORY_CHARS)})
+        cleaned.append({
+            "role": role,
+            "content": _shorten_text(content, _MAX_PRIOR_MESSAGE_CHARS),
+        })
 
-    max_items = _MAX_HISTORY_ITEMS_MANAGE
-    if len(cleaned) > max_items:
-        cleaned = cleaned[-max_items:]
+    if len(cleaned) > _MAX_PRIOR_MESSAGES:
+        cleaned = cleaned[-_MAX_PRIOR_MESSAGES:]
 
     return cleaned
 
@@ -298,35 +336,35 @@ def _build_system_prompt(context, week_start, week_end, mode="chat"):
     last_co = context.get("last_company_name") or "none"
     last_emp = context.get("last_employee_name") or "none"
     today = date.today().isoformat()
+    app_summary = _build_app_summary_text()
 
     if mode == "chat":
         return (
             "You are the admin's personal AI mentor and thoughtful friend inside their management dashboard app.\n\n"
             f"Today: {today}\n\n"
+            "APP KNOWLEDGE (live overview — use when relevant, do not invent data):\n"
+            f"{app_summary}\n\n"
+            f"Last company discussed in AI Manage actions: {last_co}. Last employee: {last_emp}.\n\n"
             "CHAT MODE (no app changes):\n"
+            "- Continue the conversation naturally — you receive the last couple of messages for context.\n"
             "- Listen, empathize, and give honest practical advice about life, career, money, education, and goals.\n"
-            "- You CANNOT create, update, or delete anything in the app in this mode. You have no database tools here.\n"
+            "- You CANNOT create, update, or delete anything in the app in this mode.\n"
             "- Never claim you created a company, employee, task, or product. Never invent app actions.\n"
-            "- If the user mentions companies casually (e.g. 'my company', 'talk about my life'), respond as a mentor — "
-            "do NOT treat that as a command to modify the app.\n"
-            "- Ask thoughtful follow-up questions when helpful. Be warm, direct, and supportive.\n"
-            "- If they want you to actually create or change data in the app, tell them to switch to **Manage** mode "
-            "and say clearly what to create (e.g. 'Create company X').\n"
-            "- You may reference that they run businesses in this app, but focus on the human conversation they asked for.\n"
+            "- If the user mentions companies casually, respond as a mentor — not as a database command.\n"
+            "- If they want app changes, tell them to switch to **Manage** mode and say clearly what to create.\n"
         )
 
     base = (
-        "You are the AI Management Assistant for an admin company/employee/task dashboard. "
-        "You help the admin manage companies, employees, and weekly tasks using natural language.\n\n"
+        "You are the AI Management Assistant for an admin company/employee/task dashboard.\n\n"
         f"Today: {today}\n"
-        f"Current application week (Monday–Sunday): {week_start.isoformat()} to {week_end.isoformat()}\n"
-        "When the user says 'this week', assign tasks for this week using create_tasks (week is automatic).\n\n"
-        f"Conversation context — last company discussed: {last_co}; last employee: {last_emp}. "
-        "Use these when the user says 'it', 'them', 'him', 'her', or 'that company' without repeating names.\n\n"
+        f"Current application week (Monday–Sunday): {week_start.isoformat()} to {week_end.isoformat()}\n\n"
+        "APP KNOWLEDGE (live overview):\n"
+        f"{app_summary}\n\n"
+        f"Last company discussed: {last_co}; last employee: {last_emp}.\n\n"
         "MANAGE MODE:\n"
-        "- Use tools only when the user gives a clear management command (create, add, list, update, delete).\n"
-        "- If the message is personal chat, life advice, or mentoring, reply in plain text WITHOUT tools.\n"
-        "- Never create or change data unless the user clearly asked for that action.\n\n"
+        "- Use tools only for clear management commands (create, add, list, update, delete).\n"
+        "- For personal chat or mentoring, reply in plain text WITHOUT tools.\n"
+        "- Never create or change data unless the user clearly asked.\n\n"
     )
 
     return base + (

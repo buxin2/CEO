@@ -49,10 +49,8 @@
   }
 
   const HISTORY_ERROR_PREFIX = "I couldn't complete that request:";
-  const MAX_HISTORY_FOR_API_CHAT = 0;
-  const MAX_HISTORY_FOR_API_MANAGE = 2;
-  const MAX_HISTORY_CHARS = 50;
-  const MAX_USER_MESSAGE_CHARS = 1000;
+  const MAX_PRIOR_MESSAGES = 2;
+  const MAX_PRIOR_MESSAGE_CHARS = 2000;
 
   function isSmallTalk(text) {
     const t = (text || "").trim();
@@ -92,16 +90,7 @@
     return "chat";
   }
 
-  function shortenForApi(text, maxLen) {
-    const t = (text || "").trim();
-    if (t.length <= maxLen) return t;
-    return t.slice(0, maxLen).trim() + "…";
-  }
-
-  function historyForApi(text, priorHistory) {
-    if (aiMode === "chat") {
-      return [];
-    }
+  function historyForApi(priorHistory) {
     return sanitizeHistoryForApi(priorHistory);
   }
 
@@ -112,12 +101,13 @@
       let content = (item.content || "").trim();
       if (!content) return;
       if (content.startsWith(HISTORY_ERROR_PREFIX)) return;
-      content = shortenForApi(content, MAX_HISTORY_CHARS);
+      if (content.length > MAX_PRIOR_MESSAGE_CHARS) {
+        content = content.slice(0, MAX_PRIOR_MESSAGE_CHARS) + "…";
+      }
       cleaned.push({ role: item.role, content });
     });
-    const maxItems = aiMode === "manage" ? MAX_HISTORY_FOR_API_MANAGE : MAX_HISTORY_FOR_API_CHAT;
-    if (cleaned.length > maxItems) {
-      return cleaned.slice(-maxItems);
+    if (cleaned.length > MAX_PRIOR_MESSAGES) {
+      return cleaned.slice(-MAX_PRIOR_MESSAGES);
     }
     return cleaned;
   }
@@ -134,7 +124,7 @@
           <li>What companies do I have? Who hasn't completed their tasks this week?</li>
         </ul>
       </div>`;
-    showToast("Chat cleared");
+    showToast("Conversation cleared — starting fresh");
     input.focus();
   }
 
@@ -578,11 +568,6 @@
   async function sendMessage(text) {
     if (!text || processing) return;
 
-    const trimmed = shortenForApi(text, MAX_USER_MESSAGE_CHARS);
-    if (trimmed.length < text.trim().length) {
-      showToast("Message trimmed to " + MAX_USER_MESSAGE_CHARS + " characters for API limit.");
-    }
-
     appendMessage("user", text);
     history.push({ role: "user", content: text });
     saveHistory();
@@ -597,9 +582,9 @@
       const data = await apiRequest("/api/ai/chat", {
         method: "POST",
         body: JSON.stringify({
-          message: trimmed,
+          message: text.trim(),
           mode: aiMode,
-          history: historyForApi(trimmed, history.slice(0, -1)),
+          history: historyForApi(history.slice(0, -1)),
         }),
         retries: 20,
         retryDelayMs: 2500,
