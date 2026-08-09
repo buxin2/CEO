@@ -6,6 +6,7 @@ from flask import current_app
 
 from models import get_week_bounds
 from services.ai_tools import TOOL_DEFINITIONS, execute_tool_call
+from services.groq_key_service import get_active_groq_config, mark_key_used
 
 
 def _build_system_prompt(context, week_start, week_end):
@@ -68,11 +69,12 @@ def run_agent(user_messages, context):
     Run the agent loop. user_messages excludes system prompt.
     Returns assistant reply text.
     """
-    api_key = current_app.config.get("GROQ_API_KEY")
-    model = current_app.config.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    config = get_active_groq_config()
+    if not config:
+        raise RuntimeError("No Groq API key configured. Add one in Admin → AI.")
 
-    if not api_key:
-        raise RuntimeError("GROQ_API_KEY is not configured.")
+    api_key = config["api_key"]
+    model = config["model"]
 
     from groq import Groq
 
@@ -98,6 +100,7 @@ def run_agent(user_messages, context):
         messages.append(_assistant_message_dict(message))
 
         if not message.tool_calls:
+            mark_key_used(config.get("key_id"))
             return (message.content or "").strip()
 
         for tool_call in message.tool_calls:
@@ -110,4 +113,5 @@ def run_agent(user_messages, context):
                 }
             )
 
+    mark_key_used(config.get("key_id"))
     return "I needed too many steps for that request. Please try breaking it into smaller parts."

@@ -4,6 +4,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from models import db, get_week_bounds
 from routes.auth import login_required
+from services.groq_key_service import is_groq_configured
 from services.planner_snapshot import build_planner_snapshot, period_keys_for
 from services.planner_service import (
     get_planner_settings,
@@ -199,8 +200,8 @@ def api_reset_timetable():
 @planner_bp.route("/api/planner/generate", methods=["POST"])
 @login_required
 def api_generate_timetable():
-    if not current_app.config.get("GROQ_API_KEY"):
-        return jsonify({"error": "GROQ_API_KEY is not configured."}), 503
+    if not is_groq_configured():
+        return jsonify({"error": "AI is not configured. Add a Groq API key in Admin → AI."}), 503
 
     data = request.get_json(silent=True) or {}
     plan_date = _parse_date(data.get("date"))
@@ -226,8 +227,8 @@ def api_generate_timetable():
 @planner_bp.route("/api/planner/what-next", methods=["POST"])
 @login_required
 def api_what_next():
-    if not current_app.config.get("GROQ_API_KEY"):
-        return jsonify({"error": "GROQ_API_KEY is not configured."}), 503
+    if not is_groq_configured():
+        return jsonify({"error": "AI is not configured. Add a Groq API key in Admin → AI."}), 503
 
     data = request.get_json(silent=True) or {}
     plan_date = _parse_date(data.get("date"))

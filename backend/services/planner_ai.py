@@ -26,9 +26,14 @@ def _parse_plan_json(content):
 
 
 def generate_timetable_with_ai(plan_date, replace_existing=False, extra_instructions=""):
-    api_key = current_app.config.get("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError("GROQ_API_KEY is not configured.")
+    from services.groq_key_service import get_active_groq_config, mark_key_used
+
+    config = get_active_groq_config()
+    if not config:
+        raise RuntimeError("No Groq API key configured. Add one in Admin → AI.")
+
+    api_key = config["api_key"]
+    model = config["model"]
 
     from groq import Groq
 
@@ -62,7 +67,6 @@ def generate_timetable_with_ai(plan_date, replace_existing=False, extra_instruct
     )
 
     client = Groq(api_key=api_key)
-    model = current_app.config.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     response = client.chat.completions.create(
         model=model,
@@ -108,6 +112,8 @@ def generate_timetable_with_ai(plan_date, replace_existing=False, extra_instruct
         )
         created.append(item)
 
+    mark_key_used(config.get("key_id"))
+
     return {
         "today_focus": data.get("today_focus") or [],
         "items_created": len(created),
@@ -117,11 +123,16 @@ def generate_timetable_with_ai(plan_date, replace_existing=False, extra_instruct
 
 def suggest_next_activity(plan_date=None, current_time=None):
     """Suggest what to do now based on timetable and time."""
-    api_key = current_app.config.get("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError("GROQ_API_KEY is not configured.")
+    from services.groq_key_service import get_active_groq_config, mark_key_used
+
+    config = get_active_groq_config()
+    if not config:
+        raise RuntimeError("No Groq API key configured. Add one in Admin → AI.")
 
     from groq import Groq
+
+    api_key = config["api_key"]
+    model = config["model"]
 
     plan_date = plan_date or date.today()
     if current_time is None:
@@ -132,7 +143,6 @@ def suggest_next_activity(plan_date=None, current_time=None):
     items_data = [i.to_dict(include_link=True) for i in items]
 
     client = Groq(api_key=api_key)
-    model = current_app.config.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     response = client.chat.completions.create(
         model=model,
@@ -155,4 +165,5 @@ def suggest_next_activity(plan_date=None, current_time=None):
         max_tokens=800,
     )
 
+    mark_key_used(config.get("key_id"))
     return (response.choices[0].message.content or "").strip()

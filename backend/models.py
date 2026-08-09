@@ -469,3 +469,41 @@ class PlannerSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     personal_notes = db.Column(db.Text, default="")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class GroqApiKey(db.Model):
+    __tablename__ = "groq_api_keys"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text, default="")
+    encrypted_key = db.Column(db.Text, nullable=False)
+    model = db.Column(db.String(120), default="")
+    is_active = db.Column(db.Boolean, default=False, index=True)
+    last_tested_at = db.Column(db.DateTime, nullable=True)
+    last_test_status = db.Column(db.String(40), default="")
+    last_test_message = db.Column(db.String(500), default="")
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self, include_masked=True):
+        from services.groq_key_service import mask_api_key, decrypt_api_key
+
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description or "",
+            "provider": "Groq",
+            "is_active": self.is_active,
+            "model": self.model or "",
+            "last_tested_at": self.last_tested_at.isoformat() if self.last_tested_at else None,
+            "last_test_status": self.last_test_status or "",
+            "last_test_message": self.last_test_message or "",
+            "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_masked:
+            plain = decrypt_api_key(self.encrypted_key)
+            data["masked_key"] = mask_api_key(plain)
+        return data
