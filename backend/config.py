@@ -94,6 +94,13 @@ class Config:
     # Application timezone offset (hours from UTC). Default: UTC.
     APP_TZ_OFFSET_HOURS = float(os.environ.get("APP_TZ_OFFSET_HOURS", "0"))
 
+    # Groq API for AI Management Assistant (gsk_... key from console.groq.com)
+    # GROK_API_KEY is accepted as an alias for convenience.
+    GROQ_API_KEY = (
+        os.environ.get("GROQ_API_KEY") or os.environ.get("GROK_API_KEY") or ""
+    ).strip()
+    GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
     @property
     def APP_TIMEZONE(self):
         return timezone(timedelta(hours=self.APP_TZ_OFFSET_HOURS))

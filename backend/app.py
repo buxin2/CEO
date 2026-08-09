@@ -63,6 +63,7 @@ def create_app():
     from routes.employee import employee_bp
     from routes.public import public_bp
     from routes.group import group_bp
+    from routes.ai import ai_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -70,6 +71,7 @@ def create_app():
     app.register_blueprint(employee_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(group_bp)
+    app.register_blueprint(ai_bp)
 
     @app.route("/")
     def index():

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Assistant &middot; My Management System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">My Management System</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="dashboard.html">Companies</a>
+        <a class="sidebar-link active" href="ai-assistant.html">&#129302; AI Assistant</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content ai-assistant-page">
+      <div class="ai-assistant-header">
+        <h1>AI Management Assistant</h1>
+        <p class="page-subtitle">Tell me what you want to do, and I'll handle it for you.</p>
+        <div id="ai-config-warning" class="form-error"></div>
+      </div>
+
+      <div class="ai-chat-shell">
+        <div class="ai-chat-messages" id="ai-chat-messages" aria-live="polite">
+          <div class="ai-chat-welcome">
+            <p>Examples you can type naturally:</p>
+            <ul>
+              <li>Create a company called BuXin Healthcare with John as manager and Sarah in marketing.</li>
+              <li>Give John three tasks this week: contact hospitals, prepare the report, follow up with suppliers.</li>
+              <li>What companies do I have? Who hasn't completed their tasks this week?</li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="ai-thinking" class="ai-thinking hidden" aria-hidden="true">
+          <span class="ai-thinking-dot"></span>
+          <span>AI is working...</span>
+        </div>
+
+        <form class="ai-chat-composer" id="ai-chat-form">
+          <label class="sr-only" for="ai-chat-input">Tell AI what you want to do</label>
+          <textarea
+            id="ai-chat-input"
+            rows="3"
+            placeholder="Tell AI what you want to do..."
+            autocomplete="off"
+          ></textarea>
+          <button type="submit" class="btn btn-primary" id="ai-send-btn">Send</button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/ai-assistant.js"></script>
+</body>
+</html>
