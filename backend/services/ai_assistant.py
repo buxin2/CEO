@@ -29,6 +29,8 @@ def _build_system_prompt(context, week_start, week_end):
         "- If company or employee is ambiguous or missing, ask one short clarification question.\n"
         "- For read-only questions (lists, counts, pending tasks), use list/get tools first.\n"
         "- Creating a company automatically creates its group chat — do not create duplicate groups.\n"
+        "- Products, services, and earnings belong to a specific company — always set or infer the company.\n"
+        "- Use create_product, create_service, and create_earning for catalog and earnings actions.\n"
         "- After completing actions, summarize clearly: what was created/updated/deleted, with names and roles.\n"
         "- Keep responses concise but complete. Use bullet lists for employees and tasks when helpful.\n"
         "- You only operate for the authenticated admin; all tools are already authorized.\n"

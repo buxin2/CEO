@@ -39,6 +39,7 @@
       function render(data) {
         const body = document.getElementById("page-body");
         const stats = data.stats;
+        const earningsToday = data.earnings_today || { total: 0, records: [] };
 
         let tasksHtml;
         if (!data.tasks.length) {
@@ -47,22 +48,73 @@
           tasksHtml = data.tasks.map(renderTaskCard).join("");
         }
 
+        const groupBtn = data.group_link
+          ? `<a class="btn btn-secondary public-group-btn" href="${escapeHtml(data.group_link)}">&#128172; Company Group</a>`
+          : "";
+
         body.innerHTML = `
           <div class="public-header">
             <div class="company-name">${escapeHtml(data.company_name)}</div>
             <div class="employee-name">${escapeHtml(data.employee_name)}</div>
             <div class="week-range">${formatDateRange(data.week.week_start, data.week.week_end)}</div>
+            ${groupBtn ? `<div class="public-header-actions">${groupBtn}</div>` : ""}
           </div>
           <div class="public-progress-card">
             <div class="progress-label"><span>${stats.completed} / ${stats.total} completed</span><span>${stats.completion_pct}%</span></div>
             <div class="progress-track"><div class="progress-fill ${stats.completion_pct >= 100 ? "success" : ""}" style="width:${stats.completion_pct}%"></div></div>
           </div>
+          <div class="public-earnings-card">
+            <h3 class="section-title">Earnings Today</h3>
+            <p class="text-muted public-earnings-prompt">How much did you earn for the company today?</p>
+            <form id="earnings-form" class="public-earnings-form">
+              <input class="form-control" id="earnings-amount" type="number" min="0.01" step="0.01" placeholder="Enter amount" required>
+              <button type="submit" class="btn btn-primary">Submit Earnings</button>
+            </form>
+            <div id="earnings-today-summary" class="public-earnings-summary"></div>
+          </div>
           <div id="task-list">${tasksHtml}</div>
         `;
+
+        renderEarningsSummary(earningsToday);
+
+        document.getElementById("earnings-form").addEventListener("submit", submitEarnings);
 
         document.querySelectorAll(".task-checkbox-btn").forEach((btn) => {
           btn.addEventListener("click", () => toggleTask(btn.dataset.taskId, btn.dataset.completed === "true"));
         });
+      }
+
+      function renderEarningsSummary(earningsToday) {
+        const el = document.getElementById("earnings-today-summary");
+        if (!el) return;
+        const records = earningsToday.records || [];
+        if (!records.length) {
+          el.innerHTML = "<p class=\"text-muted\">No earnings submitted today yet.</p>";
+          return;
+        }
+        const rows = records.map((r) =>
+          `<div class="earnings-today-row"><span>You</span><span>${formatCurrency(r.amount)}</span></div>`
+        ).join("");
+        el.innerHTML = `
+          ${rows}
+          <div class="earnings-today-total"><span>Your total today</span><strong>${formatCurrency(earningsToday.total)}</strong></div>`;
+      }
+
+      async function submitEarnings(e) {
+        e.preventDefault();
+        const input = document.getElementById("earnings-amount");
+        const amount = input.value;
+        try {
+          await apiRequest(`/api/public/tasks/${TOKEN}/earnings`, {
+            method: "POST",
+            body: JSON.stringify({ amount }),
+          });
+          input.value = "";
+          showToast("Earnings submitted!");
+          loadPublicTasks();
+        } catch (err) {
+          showToast(err.message);
+        }
       }
 
       function renderTaskCard(t) {

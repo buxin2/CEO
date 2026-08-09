@@ -1,15 +1,20 @@
 """AI assistant tools — all mutations go through existing models and business logic."""
 
 import json
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 
 from models import (
     db,
     Company,
     Employee,
     Task,
+    Product,
+    Service,
+    Earning,
     get_week_bounds,
 )
+from routes.catalog import _earnings_summary
 from utils import create_group_for_company, group_link_for_token, task_link_for_token
 
 
@@ -288,6 +293,119 @@ TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {"company_name": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_products",
+            "description": "List products for a company.",
+            "parameters": {
+                "type": "object",
+                "properties": {"company_name": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_product",
+            "description": "Add a product to a company.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_product",
+            "description": "Delete a product by id. Requires confirmed=true after user approval.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {"type": "integer"},
+                    "confirmed": {"type": "boolean"},
+                },
+                "required": ["product_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_services",
+            "description": "List services for a company.",
+            "parameters": {
+                "type": "object",
+                "properties": {"company_name": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_service",
+            "description": "Add a service to a company.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_service",
+            "description": "Delete a service by id. Requires confirmed=true after user approval.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "service_id": {"type": "integer"},
+                    "confirmed": {"type": "boolean"},
+                },
+                "required": ["service_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_earnings_summary",
+            "description": "Get earnings totals (today, week, month, total) for a company.",
+            "parameters": {
+                "type": "object",
+                "properties": {"company_name": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_earning",
+            "description": "Record earnings for an employee. Defaults to today if date not given.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "employee_name": {"type": "string"},
+                    "amount": {"type": "number"},
+                    "earned_date": {"type": "string", "description": "YYYY-MM-DD"},
+                    "note": {"type": "string"},
+                },
+                "required": ["employee_name", "amount"],
             },
         },
     },
@@ -595,6 +713,129 @@ def execute_tool(name, arguments, context):
                         "tasks": [t.title for t in tasks],
                     })
         return _ok({"pending": pending})
+
+    if name == "list_products":
+        company, err = _resolve_company(
+            args.get("company_name") or context.get("last_company_name"), None
+        )
+        if err:
+            return err
+        items = company.products.order_by(Product.name.asc()).all()
+        return _ok({"company": company.name, "products": [p.to_dict() for p in items]})
+
+    if name == "create_product":
+        company, err = _resolve_company(
+            args.get("company_name") or context.get("last_company_name"), None
+        )
+        if err:
+            return err
+        name_val = (args.get("name") or "").strip()
+        if not name_val:
+            return _err("Product name is required.")
+        product = Product(
+            company_id=company.id,
+            name=name_val,
+            description=(args.get("description") or "").strip(),
+        )
+        db.session.add(product)
+        db.session.commit()
+        return _ok({"product_id": product.id, "name": product.name, "company": company.name})
+
+    if name == "delete_product":
+        if not args.get("confirmed"):
+            return _needs_confirm("Ask the user to confirm product deletion, then call with confirmed=true.")
+        product = Product.query.get(args.get("product_id"))
+        if not product:
+            return _err("Product not found.")
+        db.session.delete(product)
+        db.session.commit()
+        return _ok({"message": f"Deleted product '{product.name}'."})
+
+    if name == "list_services":
+        company, err = _resolve_company(
+            args.get("company_name") or context.get("last_company_name"), None
+        )
+        if err:
+            return err
+        items = company.services.order_by(Service.name.asc()).all()
+        return _ok({"company": company.name, "services": [s.to_dict() for s in items]})
+
+    if name == "create_service":
+        company, err = _resolve_company(
+            args.get("company_name") or context.get("last_company_name"), None
+        )
+        if err:
+            return err
+        name_val = (args.get("name") or "").strip()
+        if not name_val:
+            return _err("Service name is required.")
+        service = Service(
+            company_id=company.id,
+            name=name_val,
+            description=(args.get("description") or "").strip(),
+        )
+        db.session.add(service)
+        db.session.commit()
+        return _ok({"service_id": service.id, "name": service.name, "company": company.name})
+
+    if name == "delete_service":
+        if not args.get("confirmed"):
+            return _needs_confirm("Ask the user to confirm service deletion, then call with confirmed=true.")
+        service = Service.query.get(args.get("service_id"))
+        if not service:
+            return _err("Service not found.")
+        db.session.delete(service)
+        db.session.commit()
+        return _ok({"message": f"Deleted service '{service.name}'."})
+
+    if name == "get_earnings_summary":
+        company, err = _resolve_company(
+            args.get("company_name") or context.get("last_company_name"), None
+        )
+        if err:
+            return err
+        return _ok({"company": company.name, "summary": _earnings_summary(company.id)})
+
+    if name == "create_earning":
+        company, err = _resolve_company(
+            args.get("company_name") or context.get("last_company_name"), None
+        )
+        if err:
+            return err
+        employee, err = _find_employee(
+            company, args.get("employee_name") or context.get("last_employee_name")
+        )
+        if err:
+            return err
+        try:
+            amount = Decimal(str(args.get("amount")))
+        except (InvalidOperation, ValueError):
+            return _err("Amount must be a valid number.")
+        if amount <= 0:
+            return _err("Amount must be greater than zero.")
+        earned_date = date.today()
+        if args.get("earned_date"):
+            try:
+                earned_date = datetime.strptime(args["earned_date"], "%Y-%m-%d").date()
+            except ValueError:
+                return _err("earned_date must be YYYY-MM-DD.")
+        earning = Earning(
+            company_id=company.id,
+            employee_id=employee.id,
+            amount=amount,
+            earned_date=earned_date,
+            note=(args.get("note") or "").strip(),
+        )
+        db.session.add(earning)
+        db.session.commit()
+        context["last_employee_name"] = employee.name
+        return _ok({
+            "employee": employee.name,
+            "amount": float(amount),
+            "earned_date": earned_date.isoformat(),
+            "company": company.name,
+            "summary": _earnings_summary(company.id),
+        })
 
     return _err(f"Unknown tool: {name}")
 

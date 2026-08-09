@@ -1318,3 +1318,147 @@ textarea.form-control {
     width: 100%;
   }
 }
+
+.modal-wide {
+  max-width: 720px;
+  width: 95%;
+}
+
+.company-section-card {
+  margin-bottom: 20px;
+}
+
+.catalog-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.catalog-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.catalog-item:last-child {
+  border-bottom: none;
+}
+
+.catalog-item-desc {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.earnings-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.earnings-summary-grid .label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+.earnings-summary-grid strong {
+  font-size: 18px;
+}
+
+.earnings-today-list {
+  margin-top: 8px;
+}
+
+.earnings-today-heading {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--color-text-muted);
+}
+
+.earnings-today-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.earnings-today-total {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 10px;
+  margin-top: 8px;
+  border-top: 1px solid var(--color-border);
+  font-size: 14px;
+}
+
+.earnings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.earnings-table th,
+.earnings-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.earnings-table th:last-child,
+.earnings-table td:last-child {
+  text-align: right;
+}
+
+.earnings-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.public-earnings-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.public-earnings-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.public-earnings-form .form-control {
+  flex: 1;
+}
+
+.public-header-actions {
+  margin-top: 12px;
+}
+
+.public-group-btn {
+  display: inline-block;
+  text-decoration: none;
+}
+
+@media (max-width: 700px) {
+  .earnings-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .public-earnings-form {
+    flex-direction: column;
+  }
+  .public-earnings-form .btn {
+    width: 100%;
+  }
+}
