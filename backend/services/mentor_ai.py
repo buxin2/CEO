@@ -15,18 +15,24 @@ from services.mentor_service import (
     update_problem,
     update_mentor_settings,
 )
+from services.owner_profile_service import build_name_address_rules, resolve_owner_display_name
 from services.app_time import app_now
 
-MENTOR_SYSTEM = (
-    "You are the admin's personal Mentor — advisor, accountability partner, and strategic guide.\n"
-    "You know their companies, timetable, earnings, tasks, opportunities, and problems.\n"
-    "Be supportive, honest, direct, and practical. Never insulting or manipulative.\n"
-    "Give ONE clear priority at a time — do not overwhelm with long lists.\n"
-    "Use LIVE DATA below. Never invent companies, earnings, or deadlines.\n"
-    "When the user completes something, acknowledge and give the next step.\n"
-    "You can use tools to create problems, schedule reminders, update timetable, and generate schedules.\n"
-    "For destructive actions, ask confirmation first.\n"
-)
+
+def build_mentor_system(admin_id=None):
+    name = resolve_owner_display_name(admin_id)
+    return (
+        f"You are {name}'s personal Mentor — advisor, accountability partner, and strategic guide.\n"
+        + build_name_address_rules(admin_id)
+        + "\n"
+        "You know their companies, timetable, earnings, tasks, opportunities, and problems.\n"
+        "Be supportive, honest, direct, and practical. Never insulting or manipulative.\n"
+        "Give ONE clear priority at a time — do not overwhelm with long lists.\n"
+        "Use LIVE DATA below. Never invent companies, earnings, or deadlines.\n"
+        "When the user completes something, acknowledge and give the next step.\n"
+        "You can use tools to create problems, schedule reminders, update timetable, and generate schedules.\n"
+        "For destructive actions, ask confirmation first.\n"
+    )
 
 MENTOR_TOOLS = [
     {
@@ -237,7 +243,7 @@ def mentor_chat(admin_id, message):
     from groq import Groq
 
     client = Groq(api_key=config["api_key"])
-    system = MENTOR_SYSTEM + "\n\n" + context
+    system = build_mentor_system(admin_id) + "\n\n" + context
     messages = [{"role": "system", "content": system}] + _chat_messages_for_api(admin_id, message)
 
     for _ in range(6):
@@ -298,7 +304,7 @@ def mentor_what_now(admin_id):
     context = snapshot_text_for_ai(snapshot)
 
     prompt = (
-        "Based on CURRENT DATE/TIME and all data, answer: What should the admin do RIGHT NOW?\n"
+        f"Based on CURRENT DATE/TIME and all data, answer: What should {resolve_owner_display_name(admin_id)} do RIGHT NOW?\n"
         "Return JSON only:\n"
         '{"title":"...","why":"...","start_time":"HH:MM optional","end_time":"HH:MM optional",'
         '"duration_minutes":45,"action_label":"Start","timetable_item_id":null or int}'
@@ -310,7 +316,7 @@ def mentor_what_now(admin_id):
     response = client.chat.completions.create(
         model=config["model"],
         messages=[
-            {"role": "system", "content": MENTOR_SYSTEM + "\n" + context},
+            {"role": "system", "content": build_mentor_system(admin_id) + "\n" + context},
             {"role": "user", "content": prompt},
         ],
         temperature=0.35,
@@ -339,7 +345,7 @@ def mentor_advice(admin_id):
     response = client.chat.completions.create(
         model=config["model"],
         messages=[
-            {"role": "system", "content": MENTOR_SYSTEM + "\n" + context},
+            {"role": "system", "content": build_mentor_system(admin_id) + "\n" + context},
             {
                 "role": "user",
                 "content": "Give one short paragraph of Mentor advice for right now. Be specific.",
@@ -367,7 +373,7 @@ def mentor_daily_review(admin_id, kind="evening"):
     response = client.chat.completions.create(
         model=config["model"],
         messages=[
-            {"role": "system", "content": MENTOR_SYSTEM + "\n" + context},
+            {"role": "system", "content": build_mentor_system(admin_id) + "\n" + context},
             {
                 "role": "user",
                 "content": f"Provide a {label}: progress, what went well, needs attention, top 3 priorities. Concise.",

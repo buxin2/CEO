@@ -107,6 +107,9 @@ class Config:
     # Optional: secret for external cron hitting POST /api/news/cron at midnight
     NEWS_CRON_SECRET = (os.environ.get("NEWS_CRON_SECRET") or "").strip()
 
+    # Display name for AI Mentor / Assistant (e.g. Abdoukadir). Overrides generic "Admin" from login email.
+    ADMIN_DISPLAY_NAME = (os.environ.get("ADMIN_DISPLAY_NAME") or "").strip()
+
     @property
     def APP_TIMEZONE(self):
         return timezone(timedelta(hours=self.APP_TZ_OFFSET_HOURS))

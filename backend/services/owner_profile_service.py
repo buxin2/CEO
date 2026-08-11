@@ -1,8 +1,14 @@
 """Owner profile for the AI assistant — who the admin is (sole user of this AI)."""
 
+import os
+
+from flask import current_app
+
 from models import db, Admin, AiOwnerProfile, PlannerSettings
 
 _MAX_PROFILE_PROMPT_CHARS = 2500
+
+_GENERIC_NAMES = frozenset({"admin", "ceo", "user", "owner", "boss"})
 
 _DEFAULT_PROFILE_TEXT = (
     "You speak only with the owner and CEO of this management system. "
@@ -13,13 +19,57 @@ _DEFAULT_PROFILE_TEXT = (
 )
 
 
+def _configured_display_name():
+    try:
+        return (current_app.config.get("ADMIN_DISPLAY_NAME") or "").strip()
+    except RuntimeError:
+        return (os.environ.get("ADMIN_DISPLAY_NAME") or "").strip()
+
+
 def _default_display_name(admin):
+    configured = _configured_display_name()
+    if configured:
+        return configured
     if not admin:
         return "CEO"
     local = (admin.email or "").split("@")[0].strip()
     if local:
-        return local.replace(".", " ").replace("_", " ").title()
+        candidate = local.replace(".", " ").replace("_", " ").title()
+        if candidate.lower() not in _GENERIC_NAMES:
+            return candidate
     return "CEO"
+
+
+def _is_generic_name(name):
+    return not name or name.strip().lower() in _GENERIC_NAMES
+
+
+def resolve_owner_display_name(admin_id=None):
+    """Best name to use when talking to the user (never generic 'Admin' if we can avoid it)."""
+    profile = get_owner_profile(admin_id)
+    if not profile:
+        return _configured_display_name() or "CEO"
+
+    admin = profile.admin or Admin.query.get(profile.admin_id)
+    name = (profile.display_name or "").strip()
+    if name and not _is_generic_name(name):
+        return name
+
+    configured = _configured_display_name()
+    if configured:
+        return configured
+
+    return _default_display_name(admin)
+
+
+def build_name_address_rules(admin_id=None):
+    """Short mandatory instruction so Groq always uses the real name."""
+    name = resolve_owner_display_name(admin_id)
+    return (
+        f"THE USER'S NAME IS {name}. "
+        f"You MUST call them '{name}' — in greetings, advice, and every reply. "
+        f"NEVER call them 'Admin', 'the admin', 'user', or 'CEO' unless their name is literally that."
+    )
 
 
 def get_planner_personal_notes():
@@ -35,13 +85,14 @@ def get_owner_profile(admin_id):
         profile = AiOwnerProfile.query.first()
         if profile:
             return profile
-        admin_id = Admin.query.order_by(Admin.id.asc()).first()
-        admin_id = admin_id.id if admin_id else None
+        admin = Admin.query.order_by(Admin.id.asc()).first()
+        admin_id = admin.id if admin else None
         if not admin_id:
             return None
 
     profile = AiOwnerProfile.query.filter_by(admin_id=admin_id).first()
     if profile:
+        _maybe_upgrade_generic_name(profile)
         return profile
 
     admin = Admin.query.get(admin_id)
@@ -53,6 +104,17 @@ def get_owner_profile(admin_id):
     db.session.add(profile)
     db.session.commit()
     return profile
+
+
+def _maybe_upgrade_generic_name(profile):
+    """Replace generic display names (e.g. Admin from login email) with configured real name."""
+    configured = _configured_display_name()
+    if not configured:
+        return
+    current = (profile.display_name or "").strip()
+    if _is_generic_name(current) and current.lower() != configured.lower():
+        profile.display_name = configured[:120]
+        db.session.commit()
 
 
 def update_owner_profile(admin_id, display_name=None, profile_text=None):
@@ -69,17 +131,30 @@ def update_owner_profile(admin_id, display_name=None, profile_text=None):
     return profile
 
 
+def ensure_owner_display_names(app):
+    """On startup: apply ADMIN_DISPLAY_NAME when profile still has a generic name."""
+    configured = (app.config.get("ADMIN_DISPLAY_NAME") or "").strip()
+    if not configured:
+        return
+    for profile in AiOwnerProfile.query.all():
+        if _is_generic_name(profile.display_name):
+            profile.display_name = configured[:120]
+    db.session.commit()
+
+
 def build_ai_owner_profile_text(admin_id=None):
     """Compact block for the AI system prompt."""
     profile = get_owner_profile(admin_id)
     if not profile:
+        name = _configured_display_name() or "CEO"
         return (
             "WHO YOU ARE TALKING TO:\n"
-            "The sole admin and CEO of this app. Only one person uses this AI.\n"
+            f"Name: {name}\n"
+            + build_name_address_rules(admin_id)
         )
 
     admin = profile.admin or Admin.query.get(profile.admin_id)
-    name = (profile.display_name or "").strip() or _default_display_name(admin)
+    name = resolve_owner_display_name(admin_id)
     bio = (profile.profile_text or "").strip() or _DEFAULT_PROFILE_TEXT
     if len(bio) > _MAX_PROFILE_PROMPT_CHARS:
         bio = bio[:_MAX_PROFILE_PROMPT_CHARS].rstrip() + "…"
@@ -87,6 +162,7 @@ def build_ai_owner_profile_text(admin_id=None):
     lines = [
         "WHO YOU ARE TALKING TO (sole user — no one else chats with you):",
         f"Name: {name}",
+        build_name_address_rules(admin_id),
     ]
     if admin and admin.email:
         lines.append(f"Login email: {admin.email}")
@@ -100,7 +176,6 @@ def build_ai_owner_profile_text(admin_id=None):
         lines.append(f"Personal planner notes (from My Timetable): {clipped}")
 
     lines.append(
-        "Always address this person personally. You are their private mentor — "
-        "not a generic assistant for their staff."
+        "You are their private mentor — not a generic assistant for their staff."
     )
     return "\n".join(lines)

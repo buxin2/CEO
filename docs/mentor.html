@@ -33,6 +33,7 @@
         <div>
           <h1>&#129504; Mentor</h1>
           <p class="page-subtitle" id="mentor-now-label">Loading…</p>
+          <p class="page-subtitle" id="mentor-greeting-label" style="margin-top:4px;font-size:14px;"></p>
         </div>
         <button type="button" class="btn btn-primary" id="mentor-what-now-btn">&#128293; What should I do now?</button>
       </div>
@@ -62,6 +63,11 @@
           <div class="card mentor-advice-card" id="mentor-advice-card">
             <h3 class="section-subtitle">&#128161; Mentor&apos;s advice</h3>
             <p id="mentor-advice-text" class="text-muted">—</p>
+          </div>
+          <div class="card" id="mentor-name-card">
+            <h3 class="section-subtitle">Your name (how Mentor calls you)</h3>
+            <input class="form-control" id="mentor-display-name" placeholder="e.g. Abdoukadir" maxlength="120">
+            <button type="button" class="btn btn-secondary btn-sm" id="mentor-save-name-btn" style="margin-top:8px;">Save name</button>
           </div>
         </section>
 
@@ -95,6 +101,6 @@
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="js/ai-voice.js?v=8"></script>
-  <script src="js/mentor.js?v=1"></script>
+  <script src="js/mentor.js?v=2"></script>
 </body>
 </html>

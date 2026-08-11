@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from models import db, Admin, MentorCheckIn, MentorMessage, MentorProblem, MentorSettings, TimetableItem
 from services.app_time import app_now, app_today, parse_date_iso
+from services.owner_profile_service import resolve_owner_display_name
 
 
 def get_mentor_settings(admin_id):
@@ -288,6 +289,7 @@ def build_dashboard(admin_id):
 
     return {
         "now": snapshot["now"],
+        "display_name": resolve_owner_display_name(admin_id),
         "settings": settings.to_dict(),
         "right_now": tt.get("current_focus"),
         "next_up": tt.get("next_up"),

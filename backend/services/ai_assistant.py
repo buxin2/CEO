@@ -8,7 +8,7 @@ from datetime import date
 from models import get_week_bounds
 from services.ai_tools import TOOL_DEFINITIONS, execute_tool_call
 from services.app_knowledge import build_ai_app_knowledge_text
-from services.owner_profile_service import build_ai_owner_profile_text
+from services.owner_profile_service import build_ai_owner_profile_text, resolve_owner_display_name
 from services.groq_key_service import get_active_groq_config, mark_key_used
 
 _KNOWN_TOOL_NAMES = {t["function"]["name"] for t in TOOL_DEFINITIONS}
@@ -395,10 +395,11 @@ def _build_system_prompt(context, week_start, week_end, mode="chat", admin_id=No
     today = date.today().isoformat()
     owner_profile = build_ai_owner_profile_text(admin_id)
     app_knowledge = build_ai_app_knowledge_text()
+    user_name = resolve_owner_display_name(admin_id)
 
     if mode == "chat":
         return (
-            "You are the admin's personal AI mentor and strategic advisor inside their management dashboard.\n\n"
+            f"You are {user_name}'s personal AI mentor and strategic advisor inside their management dashboard.\n\n"
             f"Today: {today}\n\n"
             f"{owner_profile}\n\n"
             "LIVE APP DATABASE (refreshed every message — your source of truth for business facts):\n"
@@ -416,7 +417,7 @@ def _build_system_prompt(context, week_start, week_end, mode="chat", admin_id=No
         )
 
     base = (
-        "You are the AI Management Assistant for an admin company/employee/task dashboard.\n\n"
+        f"You are {user_name}'s AI Management Assistant for their company/employee/task dashboard.\n\n"
         f"Today: {today}\n"
         f"Current application week (Monday–Sunday): {week_start.isoformat()} to {week_end.isoformat()}\n\n"
         f"{owner_profile}\n\n"

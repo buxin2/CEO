@@ -67,6 +67,12 @@
     dashboard = d;
     document.getElementById("mentor-now-label").textContent =
       `${d.now.weekday} ${d.now.date} · ${d.now.time}`;
+    const name = d.display_name || "";
+    document.getElementById("mentor-greeting-label").textContent = name
+      ? `Speaking with you, ${name}`
+      : "";
+    const nameInput = document.getElementById("mentor-display-name");
+    if (nameInput && name) nameInput.value = name;
 
     renderRightNow(d);
 
@@ -188,6 +194,20 @@
   document.getElementById("mentor-speak-btn").addEventListener("click", () => {
     if (!window.AiVoice || !AiVoice.startListening) return;
     AiVoice.startListening(input, (err) => showToast(err || "Voice failed"));
+  });
+
+  document.getElementById("mentor-save-name-btn").addEventListener("click", async () => {
+    const name = document.getElementById("mentor-display-name").value.trim();
+    try {
+      await apiRequest("/api/ai/profile", {
+        method: "PUT",
+        body: JSON.stringify({ display_name: name }),
+      });
+      showToast("Name saved — Mentor will call you " + name);
+      await loadDashboard();
+    } catch (e) {
+      showToast(e.message || "Failed to save name");
+    }
   });
 
   document.getElementById("logout-btn").addEventListener("click", async () => {

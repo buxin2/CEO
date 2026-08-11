@@ -5,6 +5,7 @@ from datetime import datetime
 
 from models import Company
 from services.app_knowledge import build_ai_app_knowledge_text
+from services.owner_profile_service import build_name_address_rules, resolve_owner_display_name
 from services.opportunity_search import build_url_allowlist, url_is_verified
 from services.opportunity_ventures import OPPORTUNITY_TYPES, venture_meta
 
@@ -128,10 +129,11 @@ def build_ai_recommendation(report_date, opportunities, app_knowledge):
         ensure_ascii=False,
     )
 
+    name = resolve_owner_display_name()
     prompt = (
         f"Date: {report_date.isoformat()}\n"
-        "Based on the admin's companies and today's opportunities, write a short personal recommendation "
-        "(2-4 sentences) answering: What opportunity should they act on first today?\n"
+        f"Based on {name}'s companies and today's opportunities, write a short personal recommendation "
+        f"(2-4 sentences) for {name}: What opportunity should they act on first today?\n"
         "Consider deadlines, priority, and fit with their ventures.\n\n"
         f"APP CONTEXT:\n{app_knowledge[:6000]}\n\n"
         f"OPPORTUNITIES:\n{opp_summary}\n"
@@ -143,7 +145,13 @@ def build_ai_recommendation(report_date, opportunities, app_knowledge):
     response = client.chat.completions.create(
         model=config["model"],
         messages=[
-            {"role": "system", "content": "You are the admin's strategic mentor."},
+            {
+                "role": "system",
+                "content": (
+                    f"You are {name}'s strategic mentor. "
+                    + build_name_address_rules()
+                ),
+            },
             {"role": "user", "content": prompt},
         ],
         temperature=0.4,
@@ -166,8 +174,11 @@ def chat_about_opportunities(message, opportunities_context, extra_search_result
     if extra_search_results:
         extra = "\nFRESH SEARCH:\n" + json.dumps(extra_search_results[:15], ensure_ascii=False)
 
+    name = resolve_owner_display_name()
     prompt = (
-        "You help the admin understand and act on daily business opportunities.\n"
+        f"You help {name} understand and act on daily business opportunities.\n"
+        + build_name_address_rules()
+        + "\n"
         "Use ONLY verified information from context. If you don't know, say so.\n"
         "Suggest specific opportunities from the list when relevant.\n\n"
         f"APP:\n{app_knowledge[:5000]}\n\n"

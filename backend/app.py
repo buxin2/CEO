@@ -101,6 +101,9 @@ def create_app():
 
         run_schema_migrations()
         _ensure_admin_account(app)
+        from services.owner_profile_service import ensure_owner_display_names
+
+        ensure_owner_display_names(app)
         _ensure_company_groups(app)
         from services.opportunity_scheduler import start_opportunity_scheduler
         from services.mentor_scheduler import start_mentor_scheduler

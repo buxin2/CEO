@@ -46,16 +46,28 @@ def api_mentor_dashboard():
 @mentor_bp.route("/api/mentor/settings", methods=["GET"])
 @login_required
 def api_mentor_settings_get():
-    s = get_mentor_settings(session.get("admin_id"))
-    return jsonify(s.to_dict())
+    from services.owner_profile_service import resolve_owner_display_name
+
+    admin_id = session.get("admin_id")
+    s = get_mentor_settings(admin_id)
+    result = s.to_dict()
+    result["display_name"] = resolve_owner_display_name(admin_id)
+    return jsonify(result)
 
 
 @mentor_bp.route("/api/mentor/settings", methods=["PUT"])
 @login_required
 def api_mentor_settings_put():
     data = request.get_json(silent=True) or {}
-    s = update_mentor_settings(session.get("admin_id"), data)
-    return jsonify(s.to_dict())
+    admin_id = session.get("admin_id")
+    if data.get("display_name") is not None:
+        from services.owner_profile_service import update_owner_profile
+
+        update_owner_profile(admin_id, display_name=data.get("display_name"))
+    s = update_mentor_settings(admin_id, data)
+    result = s.to_dict()
+    result["display_name"] = resolve_owner_display_name(admin_id)
+    return jsonify(result)
 
 
 @mentor_bp.route("/api/mentor/messages", methods=["GET"])
