@@ -5,6 +5,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from models import MentorSettings
 
+_TZ_ALIASES = {
+    "Asia/Calcutta": "Asia/Kolkata",
+}
+
 
 def get_admin_timezone_settings(admin_id):
     if not admin_id:
@@ -15,7 +19,8 @@ def get_admin_timezone_settings(admin_id):
 def get_admin_timezone_id(admin_id):
     row = get_admin_timezone_settings(admin_id)
     if row and row.timezone_id:
-        return row.timezone_id.strip()
+        tz = row.timezone_id.strip()
+        return _TZ_ALIASES.get(tz, tz)
     return None
 
 

@@ -13,15 +13,37 @@
   let timerStart = null;
   let timerInterval = null;
 
+  function normalizeTimezoneId(tz) {
+    const aliases = { "Asia/Calcutta": "Asia/Kolkata" };
+    return aliases[tz] || tz;
+  }
+
+  // Used if /api/mentor/timezones is unavailable (e.g. old backend deploy)
+  const FALLBACK_TIMEZONE_COUNTRIES = [
+    {
+      name: "India",
+      cities: [
+        { name: "Mumbai", timezone_id: "Asia/Kolkata", label: "Mumbai (IST)" },
+        { name: "Delhi", timezone_id: "Asia/Kolkata", label: "Delhi (IST)" },
+        { name: "Kolkata", timezone_id: "Asia/Kolkata", label: "Kolkata (IST)" },
+        { name: "Chennai", timezone_id: "Asia/Kolkata", label: "Chennai (IST)" },
+        { name: "Bangalore", timezone_id: "Asia/Kolkata", label: "Bangalore (IST)" },
+        { name: "Hyderabad", timezone_id: "Asia/Kolkata", label: "Hyderabad (IST)" },
+        { name: "Ahmedabad", timezone_id: "Asia/Kolkata", label: "Ahmedabad (IST)" },
+        { name: "Pune", timezone_id: "Asia/Kolkata", label: "Pune (IST)" },
+      ],
+    },
+  ];
+
   function formatTimeInZone(tz) {
     if (!tz) return "--:--:--";
     try {
-      return new Intl.DateTimeFormat("en-GB", {
+      return new Intl.DateTimeFormat("en-IN", {
         timeZone: tz,
-        hour: "2-digit",
+        hour: "numeric",
         minute: "2-digit",
         second: "2-digit",
-        hour12: false,
+        hour12: true,
       }).format(new Date());
     } catch (e) {
       return "--:--:--";
@@ -57,6 +79,13 @@
     sel.innerHTML = timezoneOptions
       .map((c) => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`)
       .join("");
+    syncCitiesForSelectedCountry();
+  }
+
+  function syncCitiesForSelectedCountry() {
+    const countrySel = document.getElementById("mentor-timezone-country");
+    if (!countrySel || !countrySel.value) return;
+    populateCities(countrySel.value);
   }
 
   function populateCities(countryName) {
@@ -82,24 +111,79 @@
   }
 
   function applyLocationSettings(settings) {
-    if (!settings) return;
+    if (!settings) settings = {};
     const countrySel = document.getElementById("mentor-timezone-country");
     const citySel = document.getElementById("mentor-timezone-city");
     if (settings.timezone_country && countrySel) {
       countrySel.value = settings.timezone_country;
-      populateCities(settings.timezone_country);
     }
+    syncCitiesForSelectedCountry();
     if (settings.timezone_city && citySel) {
       citySel.value = settings.timezone_city;
     }
-    activeTimezoneId = settings.timezone_id || selectedCityTimezone() || "";
+    activeTimezoneId =
+      settings.timezone_id || selectedCityTimezone() || activeTimezoneId || "";
     const locLabel = document.getElementById("mentor-location-label");
     if (locLabel) {
       locLabel.textContent = settings.timezone_id
         ? `Mentor uses local time for ${settings.timezone_city || "your city"}, ${settings.timezone_country || "your country"}.`
-        : "Select your country and city so Mentor knows your real local time.";
+        : "Select your country and city, then click Save location.";
     }
     startLiveClock();
+  }
+
+  function findBrowserLocation() {
+    const browserTz = normalizeTimezoneId(
+      Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+    );
+    if (!browserTz) return null;
+    for (const country of timezoneOptions) {
+      for (const city of country.cities) {
+        if (normalizeTimezoneId(city.timezone_id) === browserTz) {
+          return {
+            country: country.name,
+            city: city.name,
+            timezone_id: city.timezone_id,
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  function applyLocationToDropdowns(match) {
+    if (!match) return;
+    const countrySel = document.getElementById("mentor-timezone-country");
+    const citySel = document.getElementById("mentor-timezone-city");
+    if (countrySel) countrySel.value = match.country;
+    syncCitiesForSelectedCountry();
+    if (citySel) citySel.value = match.city;
+    activeTimezoneId = match.timezone_id;
+    startLiveClock();
+  }
+
+  async function maybeAutoSaveLocation() {
+    const saved = dashboard && dashboard.settings && dashboard.settings.timezone_id;
+    if (saved) return;
+    const match = findBrowserLocation();
+    if (!match) {
+      syncCitiesForSelectedCountry();
+      return;
+    }
+    applyLocationToDropdowns(match);
+    try {
+      await apiRequest("/api/mentor/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          timezone_country: match.country,
+          timezone_city: match.city,
+          timezone_id: match.timezone_id,
+        }),
+      });
+      showToast("Location set to " + match.city + ", " + match.country);
+    } catch (e) {
+      /* user can save manually */
+    }
   }
 
   function startLiveClock() {
@@ -122,27 +206,20 @@
   }
 
   function suggestBrowserTimezone() {
-    if (dashboard && dashboard.settings && dashboard.settings.timezone_id) return;
-    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    for (const country of timezoneOptions) {
-      for (const city of country.cities) {
-        if (city.timezone_id === browserTz) {
-          const countrySel = document.getElementById("mentor-timezone-country");
-          if (countrySel) countrySel.value = country.name;
-          populateCities(country.name);
-          const citySel = document.getElementById("mentor-timezone-city");
-          if (citySel) citySel.value = city.name;
-          activeTimezoneId = city.timezone_id;
-          startLiveClock();
-          return;
-        }
-      }
-    }
+    const match = findBrowserLocation();
+    if (match) applyLocationToDropdowns(match);
   }
 
   async function loadTimezoneOptions() {
-    const data = await apiRequest("/api/mentor/timezones");
-    timezoneOptions = data.countries || [];
+    try {
+      const data = await apiRequest("/api/mentor/timezones");
+      timezoneOptions = data.countries || [];
+    } catch (e) {
+      timezoneOptions = FALLBACK_TIMEZONE_COUNTRIES;
+    }
+    if (!timezoneOptions.length) {
+      timezoneOptions = FALLBACK_TIMEZONE_COUNTRIES;
+    }
     populateCountries();
     suggestBrowserTimezone();
   }
@@ -371,6 +448,10 @@
     const country = document.getElementById("mentor-timezone-country").value;
     const city = document.getElementById("mentor-timezone-city").value;
     const tz = selectedCityTimezone();
+    if (!country || !city || !tz) {
+      showToast("Please select a country and city first");
+      return;
+    }
     try {
       await apiRequest("/api/mentor/settings", {
         method: "PUT",
@@ -389,8 +470,7 @@
   });
 
   document.getElementById("mentor-timezone-country").addEventListener("change", () => {
-    const country = document.getElementById("mentor-timezone-country").value;
-    populateCities(country);
+    syncCitiesForSelectedCountry();
     activeTimezoneId = selectedCityTimezone();
     startLiveClock();
   });
@@ -436,6 +516,8 @@
       return;
     }
     await loadTimezoneOptions();
+    await loadDashboard();
+    await maybeAutoSaveLocation();
     await loadDashboard();
     pollTimer = setInterval(loadDashboard, 45000);
   })();
