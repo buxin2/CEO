@@ -67,6 +67,7 @@ def create_app():
     from routes.catalog import catalog_bp
     from routes.planner import planner_bp
     from routes.news import news_bp
+    from routes.mentor import mentor_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -78,6 +79,7 @@ def create_app():
     app.register_blueprint(catalog_bp)
     app.register_blueprint(planner_bp)
     app.register_blueprint(news_bp)
+    app.register_blueprint(mentor_bp)
 
     @app.route("/")
     def index():
@@ -101,8 +103,10 @@ def create_app():
         _ensure_admin_account(app)
         _ensure_company_groups(app)
         from services.opportunity_scheduler import start_opportunity_scheduler
+        from services.mentor_scheduler import start_mentor_scheduler
 
         start_opportunity_scheduler(app)
+        start_mentor_scheduler(app)
 
     return app
 

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mentor &middot; My Management System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">My Management System</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="dashboard.html">Companies</a>
+        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
+        <a class="sidebar-link active" href="mentor.html">&#129504; Mentor</a>
+        <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
+        <a class="sidebar-link" href="news.html">&#128240; News</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+
+    <main class="main-content mentor-page">
+      <div class="page-header mentor-page-header">
+        <div>
+          <h1>&#129504; Mentor</h1>
+          <p class="page-subtitle" id="mentor-now-label">Loading…</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="mentor-what-now-btn">&#128293; What should I do now?</button>
+      </div>
+
+      <div class="mentor-layout">
+        <section class="mentor-dashboard-col">
+          <div class="card mentor-right-now-card" id="mentor-right-now">
+            <h2 class="section-title">&#128293; Right now</h2>
+            <p class="text-muted">Loading…</p>
+          </div>
+          <div class="card" id="mentor-next-card">
+            <h3 class="section-subtitle">&#9193; Next</h3>
+            <p class="text-muted" id="mentor-next-text">—</p>
+          </div>
+          <div class="card" id="mentor-problems-card">
+            <h3 class="section-subtitle">&#9888; Active problems</h3>
+            <div id="mentor-problems-list"></div>
+          </div>
+          <div class="card" id="mentor-business-card">
+            <h3 class="section-subtitle">&#128176; Business</h3>
+            <div id="mentor-business-summary"></div>
+          </div>
+          <div class="card" id="mentor-opportunities-card">
+            <h3 class="section-subtitle">&#128293; Opportunities</h3>
+            <div id="mentor-opportunities-list"></div>
+          </div>
+          <div class="card mentor-advice-card" id="mentor-advice-card">
+            <h3 class="section-subtitle">&#128161; Mentor&apos;s advice</h3>
+            <p id="mentor-advice-text" class="text-muted">—</p>
+          </div>
+        </section>
+
+        <section class="mentor-chat-col card">
+          <div class="mentor-quick-actions" id="mentor-quick-actions">
+            <button type="button" class="btn btn-secondary btn-sm" data-prompt="What should I do now?">&#127919; Now</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-prompt="Give me today's plan in 3 priorities.">&#128197; Today</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-prompt="Summarize my progress today.">&#128202; Progress</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-prompt="What is my financial situation across companies?">&#128176; Money</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-prompt="What opportunities should I act on today?">&#128293; Opportunities</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-prompt="What are my biggest problems right now?">&#9888; Problems</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-prompt="Give me honest advice on what to focus on.">&#129504; Advice</button>
+          </div>
+
+          <div class="mentor-chat-messages" id="mentor-chat-messages" aria-live="polite"></div>
+
+          <div id="mentor-checkins" class="mentor-checkins"></div>
+
+          <form class="mentor-chat-composer" id="mentor-chat-form">
+            <textarea id="mentor-chat-input" rows="2" placeholder="Talk to your Mentor…" autocomplete="off"></textarea>
+            <div class="mentor-chat-actions">
+              <button type="button" class="btn btn-secondary btn-sm" id="mentor-speak-btn">&#127908; Speak</button>
+              <button type="button" class="btn btn-primary btn-sm" id="mentor-send-btn">Send</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/ai-voice.js?v=8"></script>
+  <script src="js/mentor.js?v=1"></script>
+</body>
+</html>

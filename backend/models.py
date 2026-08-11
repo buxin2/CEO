@@ -634,6 +634,129 @@ class AiOwnerProfile(db.Model):
         }
 
 
+class MentorSettings(db.Model):
+    __tablename__ = "mentor_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False, unique=True, index=True)
+    quiet_start = db.Column(db.String(5), default="22:00")
+    quiet_end = db.Column(db.String(5), default="07:00")
+    reminder_interval_minutes = db.Column(db.Integer, default=30)
+    max_reminders = db.Column(db.Integer, default=3)
+    voice_responses = db.Column(db.Boolean, default=True)
+    proactive_enabled = db.Column(db.Boolean, default=True)
+    context_notes = db.Column(db.Text, default="")
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "quiet_start": self.quiet_start or "22:00",
+            "quiet_end": self.quiet_end or "07:00",
+            "reminder_interval_minutes": self.reminder_interval_minutes or 30,
+            "max_reminders": self.max_reminders or 3,
+            "voice_responses": bool(self.voice_responses),
+            "proactive_enabled": bool(self.proactive_enabled),
+            "context_notes": self.context_notes or "",
+        }
+
+
+class MentorProblem(db.Model):
+    __tablename__ = "mentor_problems"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False, index=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    title = db.Column(db.String(500), nullable=False)
+    description = db.Column(db.Text, default="")
+    status = db.Column(db.String(20), default="open", index=True)  # open, pending, resolved
+    priority = db.Column(db.String(20), default="medium")
+    next_action = db.Column(db.Text, default="")
+    follow_up_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+
+    company = db.relationship("Company")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "company_id": self.company_id,
+            "company_name": self.company.name if self.company else None,
+            "title": self.title,
+            "description": self.description or "",
+            "status": self.status,
+            "priority": self.priority,
+            "next_action": self.next_action or "",
+            "follow_up_at": self.follow_up_at.isoformat() if self.follow_up_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class MentorMessage(db.Model):
+    __tablename__ = "mentor_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False)  # user, assistant, proactive
+    content = db.Column(db.Text, nullable=False)
+    meta_json = db.Column(db.Text, default="{}")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    def to_dict(self):
+        import json
+
+        meta = {}
+        try:
+            meta = json.loads(self.meta_json or "{}")
+        except json.JSONDecodeError:
+            pass
+        return {
+            "id": self.id,
+            "role": self.role,
+            "content": self.content,
+            "meta": meta,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class MentorCheckIn(db.Model):
+    __tablename__ = "mentor_check_ins"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False, index=True)
+    kind = db.Column(db.String(40), default="scheduled")  # scheduled, hourly, follow_up, morning, evening
+    title = db.Column(db.String(500), default="")
+    message = db.Column(db.Text, nullable=False)
+    scheduled_at = db.Column(db.DateTime, nullable=False, index=True)
+    status = db.Column(db.String(20), default="pending", index=True)  # pending, sent, responded, cancelled
+    response = db.Column(db.Text, default="")
+    response_type = db.Column(db.String(40), default="")
+    reminder_count = db.Column(db.Integer, default=0)
+    timetable_item_id = db.Column(db.Integer, db.ForeignKey("timetable_items.id"), nullable=True)
+    problem_id = db.Column(db.Integer, db.ForeignKey("mentor_problems.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    timetable_item = db.relationship("TimetableItem")
+    problem = db.relationship("MentorProblem")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "title": self.title or "",
+            "message": self.message,
+            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "status": self.status,
+            "response": self.response or "",
+            "response_type": self.response_type or "",
+            "reminder_count": self.reminder_count or 0,
+            "timetable_item_id": self.timetable_item_id,
+            "problem_id": self.problem_id,
+        }
+
+
 class GroqApiKey(db.Model):
     __tablename__ = "groq_api_keys"
 
