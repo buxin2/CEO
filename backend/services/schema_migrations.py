@@ -62,5 +62,27 @@ def run_schema_migrations():
                 )
             )
 
+    _add_column(
+        engine,
+        "mentor_settings",
+        "timezone_country",
+        "timezone_country VARCHAR(80) DEFAULT ''",
+        "timezone_country VARCHAR(80) DEFAULT ''",
+    )
+    _add_column(
+        engine,
+        "mentor_settings",
+        "timezone_city",
+        "timezone_city VARCHAR(80) DEFAULT ''",
+        "timezone_city VARCHAR(80) DEFAULT ''",
+    )
+    _add_column(
+        engine,
+        "mentor_settings",
+        "timezone_id",
+        "timezone_id VARCHAR(64) DEFAULT ''",
+        "timezone_id VARCHAR(64) DEFAULT ''",
+    )
+
     db.session.commit()
     logger.info("Schema migrations complete.")

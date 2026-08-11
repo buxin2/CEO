@@ -12,13 +12,17 @@ def app_timezone_offset_hours():
         return 0.0
 
 
-def app_now():
+def app_now(admin_id=None):
+    if admin_id:
+        from services.user_timezone import admin_now
+
+        return admin_now(admin_id)
     offset = app_timezone_offset_hours()
     return datetime.utcnow() + timedelta(hours=offset)
 
 
-def app_today():
-    return app_now().date()
+def app_today(admin_id=None):
+    return app_now(admin_id).date()
 
 
 def parse_date_iso(value):

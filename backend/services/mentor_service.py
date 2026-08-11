@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from models import db, Admin, MentorCheckIn, MentorMessage, MentorProblem, MentorSettings, TimetableItem
 from services.app_time import app_now, app_today, parse_date_iso
 from services.owner_profile_service import resolve_owner_display_name
+from services.timezone_data import find_city, is_valid_timezone_selection
 
 
 def get_mentor_settings(admin_id):
@@ -44,6 +45,19 @@ def update_mentor_settings(admin_id, data):
         s.proactive_enabled = bool(data["proactive_enabled"])
     if data.get("context_notes") is not None:
         s.context_notes = (data["context_notes"] or "").strip()
+    if data.get("timezone_country") is not None or data.get("timezone_city") is not None:
+        country = (data.get("timezone_country") or s.timezone_country or "").strip()
+        city_name = (data.get("timezone_city") or s.timezone_city or "").strip()
+        tz_id = (data.get("timezone_id") or "").strip()
+        _, city = find_city(country, city_name)
+        if city:
+            s.timezone_country = country[:80]
+            s.timezone_city = city_name[:80]
+            s.timezone_id = city["timezone_id"]
+        elif tz_id and is_valid_timezone_selection(country, city_name, tz_id):
+            s.timezone_country = country[:80]
+            s.timezone_city = city_name[:80]
+            s.timezone_id = tz_id[:64]
     db.session.commit()
     return s
 
@@ -193,7 +207,7 @@ def process_due_checkins():
         settings = get_mentor_settings(admin.id)
         if not settings.proactive_enabled:
             continue
-        now_local = app_now()
+        now_local = app_now(admin.id)
         if _in_quiet_hours(settings, now_local):
             continue
 
@@ -238,7 +252,7 @@ def schedule_hourly_timetable_checkins(admin_id):
     settings = get_mentor_settings(admin_id)
     if not settings.proactive_enabled:
         return
-    now = app_now()
+    now = app_now(admin_id)
     if _in_quiet_hours(settings, now):
         return
 

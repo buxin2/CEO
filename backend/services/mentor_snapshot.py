@@ -14,6 +14,7 @@ from models import (
 from services.app_knowledge import build_ai_app_knowledge_text
 from services.app_time import app_now, app_today
 from services.owner_profile_service import build_ai_owner_profile_text
+from services.user_timezone import get_admin_location_label, get_admin_timezone_id
 from services.planner_snapshot import build_planner_snapshot, period_keys_for
 from services.planner_service import list_timetable_for_date, timetable_progress
 
@@ -67,9 +68,9 @@ def _timetable_focus(items, now_hm):
     return current, next_item
 
 
-def _today_opportunities(limit=8):
+def _today_opportunities(admin_id=None, limit=8):
     report = OpportunityReport.query.filter_by(
-        report_date=app_today(), status="complete"
+        report_date=app_today(admin_id), status="complete"
     ).first()
     if not report:
         return []
@@ -113,7 +114,7 @@ def _saved_opportunities(admin_id, limit=5):
 
 
 def build_mentor_snapshot(admin_id=None):
-    now = app_now()
+    now = app_now(admin_id)
     today = now.date()
     now_hm = now.strftime("%H:%M")
     keys = period_keys_for(today)
@@ -147,12 +148,17 @@ def build_mentor_snapshot(admin_id=None):
 
     planner = build_planner_snapshot(today)
 
+    tz_id = get_admin_timezone_id(admin_id) if admin_id else None
+    location = get_admin_location_label(admin_id) if admin_id else None
+
     return {
         "now": {
             "datetime": now.isoformat(),
             "date": today.isoformat(),
             "time": now_hm,
             "weekday": now.strftime("%A"),
+            "timezone_id": tz_id or "",
+            "location": location or "",
         },
         "owner_profile": build_ai_owner_profile_text(admin_id),
         "app_knowledge": build_ai_app_knowledge_text(),
@@ -178,7 +184,7 @@ def build_mentor_snapshot(admin_id=None):
             "next_up": next_item,
         },
         "problems": problems,
-        "opportunities_today": _today_opportunities(),
+        "opportunities_today": _today_opportunities(admin_id),
         "saved_opportunities": _saved_opportunities(admin_id) if admin_id else [],
         "settings": settings_dict,
     }
@@ -186,8 +192,16 @@ def build_mentor_snapshot(admin_id=None):
 
 def snapshot_text_for_ai(snapshot, max_chars=12000):
     """Compact text block for Groq system prompt."""
+    now_block = snapshot["now"]
+    loc = now_block.get("location") or "not set"
+    tz = now_block.get("timezone_id") or "UTC offset from server"
+    time_line = (
+        f"CURRENT LOCAL DATE/TIME FOR USER: {now_block['datetime']} ({now_block['weekday']}) "
+        f"at {now_block['time']} in {loc}. Timezone: {tz}. "
+        "Timetable start/end times are in THIS local timezone — never UTC unless stated."
+    )
     parts = [
-        f"CURRENT DATE/TIME: {snapshot['now']['datetime']} ({snapshot['now']['weekday']})",
+        time_line,
         snapshot.get("owner_profile", ""),
         f"MENTOR NOTES FROM USER: {snapshot.get('mentor_context_notes') or 'None'}",
         "LIVE APP DATA:",

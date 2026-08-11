@@ -24,6 +24,7 @@ from services.mentor_service import (
     create_checkin,
 )
 from services.ai_transcribe import transcribe_audio
+from services.timezone_data import list_timezone_options
 
 mentor_bp = Blueprint("mentor", __name__)
 
@@ -53,16 +54,20 @@ def api_mentor_settings_get():
     result = s.to_dict()
     result["display_name"] = resolve_owner_display_name(admin_id)
     return jsonify(result)
+@mentor_bp.route("/api/mentor/timezones", methods=["GET"])
+@login_required
+def api_mentor_timezones():
+    return jsonify({"countries": list_timezone_options()})
 
 
 @mentor_bp.route("/api/mentor/settings", methods=["PUT"])
 @login_required
 def api_mentor_settings_put():
+    from services.owner_profile_service import resolve_owner_display_name, update_owner_profile
+
     data = request.get_json(silent=True) or {}
     admin_id = session.get("admin_id")
     if data.get("display_name") is not None:
-        from services.owner_profile_service import update_owner_profile
-
         update_owner_profile(admin_id, display_name=data.get("display_name"))
     s = update_mentor_settings(admin_id, data)
     result = s.to_dict()
@@ -90,7 +95,7 @@ def api_mentor_chat():
 
     admin_id = session.get("admin_id")
 
-    when = parse_reminder_from_message(message)
+    when = parse_reminder_from_message(message, admin_id)
     if when and "remind" in message.lower():
         create_checkin(admin_id, message, when, title="Reminder")
         reply = mentor_chat(admin_id, message)

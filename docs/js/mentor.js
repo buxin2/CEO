@@ -6,6 +6,174 @@
   let dashboard = null;
   let pollTimer = null;
   let processing = false;
+  let timezoneOptions = [];
+  let activeTimezoneId = "";
+  let clockTimer = null;
+  let timerAccum = 0;
+  let timerStart = null;
+  let timerInterval = null;
+
+  function formatTimeInZone(tz) {
+    if (!tz) return "--:--:--";
+    try {
+      return new Intl.DateTimeFormat("en-GB", {
+        timeZone: tz,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }).format(new Date());
+    } catch (e) {
+      return "--:--:--";
+    }
+  }
+
+  function formatDateInZone(tz) {
+    if (!tz) return "";
+    try {
+      return new Intl.DateTimeFormat("en-GB", {
+        timeZone: tz,
+        weekday: "long",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }).format(new Date());
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function formatTimerMs(ms) {
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+  }
+
+  function populateCountries() {
+    const sel = document.getElementById("mentor-timezone-country");
+    if (!sel) return;
+    sel.innerHTML = timezoneOptions
+      .map((c) => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`)
+      .join("");
+  }
+
+  function populateCities(countryName) {
+    const sel = document.getElementById("mentor-timezone-city");
+    if (!sel) return;
+    const country = timezoneOptions.find((c) => c.name === countryName);
+    if (!country) {
+      sel.innerHTML = "";
+      return;
+    }
+    sel.innerHTML = country.cities
+      .map(
+        (city) =>
+          `<option value="${escapeHtml(city.name)}" data-tz="${escapeHtml(city.timezone_id)}">${escapeHtml(city.label)}</option>`
+      )
+      .join("");
+  }
+
+  function selectedCityTimezone() {
+    const citySel = document.getElementById("mentor-timezone-city");
+    const opt = citySel && citySel.selectedOptions[0];
+    return opt ? opt.getAttribute("data-tz") || "" : "";
+  }
+
+  function applyLocationSettings(settings) {
+    if (!settings) return;
+    const countrySel = document.getElementById("mentor-timezone-country");
+    const citySel = document.getElementById("mentor-timezone-city");
+    if (settings.timezone_country && countrySel) {
+      countrySel.value = settings.timezone_country;
+      populateCities(settings.timezone_country);
+    }
+    if (settings.timezone_city && citySel) {
+      citySel.value = settings.timezone_city;
+    }
+    activeTimezoneId = settings.timezone_id || selectedCityTimezone() || "";
+    const locLabel = document.getElementById("mentor-location-label");
+    if (locLabel) {
+      locLabel.textContent = settings.timezone_id
+        ? `Mentor uses local time for ${settings.timezone_city || "your city"}, ${settings.timezone_country || "your country"}.`
+        : "Select your country and city so Mentor knows your real local time.";
+    }
+    startLiveClock();
+  }
+
+  function startLiveClock() {
+    if (clockTimer) clearInterval(clockTimer);
+    const clockEl = document.getElementById("mentor-live-clock");
+    const headerLabel = document.getElementById("mentor-now-label");
+    const tick = () => {
+      const tz = activeTimezoneId;
+      if (!tz) {
+        if (clockEl) clockEl.textContent = "Set location";
+        return;
+      }
+      const timeStr = formatTimeInZone(tz);
+      const dateStr = formatDateInZone(tz);
+      if (clockEl) clockEl.textContent = timeStr;
+      if (headerLabel) headerLabel.textContent = `${dateStr} · ${timeStr}`;
+    };
+    tick();
+    clockTimer = setInterval(tick, 1000);
+  }
+
+  function suggestBrowserTimezone() {
+    if (dashboard && dashboard.settings && dashboard.settings.timezone_id) return;
+    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    for (const country of timezoneOptions) {
+      for (const city of country.cities) {
+        if (city.timezone_id === browserTz) {
+          const countrySel = document.getElementById("mentor-timezone-country");
+          if (countrySel) countrySel.value = country.name;
+          populateCities(country.name);
+          const citySel = document.getElementById("mentor-timezone-city");
+          if (citySel) citySel.value = city.name;
+          activeTimezoneId = city.timezone_id;
+          startLiveClock();
+          return;
+        }
+      }
+    }
+  }
+
+  async function loadTimezoneOptions() {
+    const data = await apiRequest("/api/mentor/timezones");
+    timezoneOptions = data.countries || [];
+    populateCountries();
+    suggestBrowserTimezone();
+  }
+
+  function startTaskTimer() {
+    if (timerInterval) return;
+    timerStart = Date.now();
+    timerInterval = setInterval(() => {
+      const elapsed = timerAccum + (Date.now() - timerStart);
+      document.getElementById("mentor-timer-display").textContent = formatTimerMs(elapsed);
+    }, 200);
+    document.getElementById("mentor-timer-start").disabled = true;
+    document.getElementById("mentor-timer-stop").disabled = false;
+  }
+
+  function stopTaskTimer() {
+    if (!timerInterval) return;
+    timerAccum += Date.now() - timerStart;
+    timerStart = null;
+    clearInterval(timerInterval);
+    timerInterval = null;
+    document.getElementById("mentor-timer-display").textContent = formatTimerMs(timerAccum);
+    document.getElementById("mentor-timer-start").disabled = false;
+    document.getElementById("mentor-timer-stop").disabled = true;
+  }
+
+  function resetTaskTimer() {
+    stopTaskTimer();
+    timerAccum = 0;
+    document.getElementById("mentor-timer-display").textContent = "00:00:00";
+  }
 
   function escapeHtml(t) {
     const d = document.createElement("div");
@@ -65,14 +233,17 @@
 
   function renderDashboard(d) {
     dashboard = d;
-    document.getElementById("mentor-now-label").textContent =
-      `${d.now.weekday} ${d.now.date} · ${d.now.time}`;
     const name = d.display_name || "";
     document.getElementById("mentor-greeting-label").textContent = name
       ? `Speaking with you, ${name}`
       : "";
     const nameInput = document.getElementById("mentor-display-name");
     if (nameInput && name) nameInput.value = name;
+
+    if (d.now && d.now.timezone_id) {
+      activeTimezoneId = d.now.timezone_id;
+    }
+    applyLocationSettings(d.settings || {});
 
     renderRightNow(d);
 
@@ -196,6 +367,43 @@
     AiVoice.startListening(input, (err) => showToast(err || "Voice failed"));
   });
 
+  document.getElementById("mentor-save-location-btn").addEventListener("click", async () => {
+    const country = document.getElementById("mentor-timezone-country").value;
+    const city = document.getElementById("mentor-timezone-city").value;
+    const tz = selectedCityTimezone();
+    try {
+      await apiRequest("/api/mentor/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          timezone_country: country,
+          timezone_city: city,
+          timezone_id: tz,
+        }),
+      });
+      activeTimezoneId = tz;
+      showToast("Location saved — Mentor now uses your local time");
+      await loadDashboard();
+    } catch (e) {
+      showToast(e.message || "Failed to save location");
+    }
+  });
+
+  document.getElementById("mentor-timezone-country").addEventListener("change", () => {
+    const country = document.getElementById("mentor-timezone-country").value;
+    populateCities(country);
+    activeTimezoneId = selectedCityTimezone();
+    startLiveClock();
+  });
+
+  document.getElementById("mentor-timezone-city").addEventListener("change", () => {
+    activeTimezoneId = selectedCityTimezone();
+    startLiveClock();
+  });
+
+  document.getElementById("mentor-timer-start").addEventListener("click", startTaskTimer);
+  document.getElementById("mentor-timer-stop").addEventListener("click", stopTaskTimer);
+  document.getElementById("mentor-timer-reset").addEventListener("click", resetTaskTimer);
+
   document.getElementById("mentor-save-name-btn").addEventListener("click", async () => {
     const name = document.getElementById("mentor-display-name").value.trim();
     try {
@@ -227,6 +435,7 @@
       window.location.href = pageUrl("login.html");
       return;
     }
+    await loadTimezoneOptions();
     await loadDashboard();
     pollTimer = setInterval(loadDashboard, 45000);
   })();

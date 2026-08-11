@@ -2168,6 +2168,39 @@ textarea.form-control {
   margin-top: 8px;
 }
 
+.mentor-live-clock {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  margin: 8px 0 4px;
+  color: var(--primary, #2563eb);
+}
+
+.mentor-location-fields .form-label {
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.mentor-location-hint {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.mentor-timer-display {
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin: 8px 0 12px;
+}
+
+.mentor-timer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: 900px) {
   .mentor-layout {
     grid-template-columns: 1fr;

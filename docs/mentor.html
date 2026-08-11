@@ -64,6 +64,27 @@
             <h3 class="section-subtitle">&#128161; Mentor&apos;s advice</h3>
             <p id="mentor-advice-text" class="text-muted">—</p>
           </div>
+          <div class="card mentor-location-card" id="mentor-location-card">
+            <h3 class="section-subtitle">&#127760; Your location &amp; time</h3>
+            <div class="mentor-live-clock" id="mentor-live-clock" aria-live="polite">--:--:--</div>
+            <p class="text-muted mentor-location-hint" id="mentor-location-label">Select your country and city so Mentor knows your real local time.</p>
+            <div class="mentor-location-fields">
+              <label class="form-label" for="mentor-timezone-country">Country</label>
+              <select class="form-control" id="mentor-timezone-country"></select>
+              <label class="form-label" for="mentor-timezone-city">City</label>
+              <select class="form-control" id="mentor-timezone-city"></select>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="mentor-save-location-btn" style="margin-top:8px;">Save location</button>
+          </div>
+          <div class="card mentor-timer-card" id="mentor-timer-card">
+            <h3 class="section-subtitle">&#9201; Timer</h3>
+            <div class="mentor-timer-display" id="mentor-timer-display">00:00:00</div>
+            <div class="mentor-timer-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="mentor-timer-start">Start</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="mentor-timer-stop" disabled>Stop</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="mentor-timer-reset">Reset</button>
+            </div>
+          </div>
           <div class="card" id="mentor-name-card">
             <h3 class="section-subtitle">Your name (how Mentor calls you)</h3>
             <input class="form-control" id="mentor-display-name" placeholder="e.g. Abdoukadir" maxlength="120">
@@ -101,6 +122,6 @@
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="js/ai-voice.js?v=8"></script>
-  <script src="js/mentor.js?v=2"></script>
+  <script src="js/mentor.js?v=3"></script>
 </body>
 </html>

@@ -164,7 +164,7 @@ def _execute_mentor_tool(name, args, admin_id):
         try:
             scheduled = datetime.fromisoformat(when.replace("Z", ""))
         except ValueError:
-            scheduled = app_now() + timedelta(hours=1)
+            scheduled = app_now(admin_id) + timedelta(hours=1)
         row = create_checkin(
             admin_id,
             args.get("message") or "Reminder",
@@ -388,12 +388,12 @@ def mentor_daily_review(admin_id, kind="evening"):
     return text
 
 
-def parse_reminder_from_message(message):
+def parse_reminder_from_message(message, admin_id=None):
     """Simple 'remind me in 2 hours' parser."""
     m = re.search(r"remind(?: me)?(?: in| at)?\s+(\d+)\s*(minute|hour|hr|min)s?", message, re.I)
     if m:
         n = int(m.group(1))
         unit = m.group(2).lower()
         delta = timedelta(minutes=n) if unit.startswith("min") else timedelta(hours=n)
-        return app_now() + delta
+        return app_now(admin_id) + delta
     return None

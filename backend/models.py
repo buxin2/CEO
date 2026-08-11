@@ -646,6 +646,9 @@ class MentorSettings(db.Model):
     voice_responses = db.Column(db.Boolean, default=True)
     proactive_enabled = db.Column(db.Boolean, default=True)
     context_notes = db.Column(db.Text, default="")
+    timezone_country = db.Column(db.String(80), default="")
+    timezone_city = db.Column(db.String(80), default="")
+    timezone_id = db.Column(db.String(64), default="")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self):
@@ -657,6 +660,9 @@ class MentorSettings(db.Model):
             "voice_responses": bool(self.voice_responses),
             "proactive_enabled": bool(self.proactive_enabled),
             "context_notes": self.context_notes or "",
+            "timezone_country": self.timezone_country or "",
+            "timezone_city": self.timezone_city or "",
+            "timezone_id": self.timezone_id or "",
         }
 
 
