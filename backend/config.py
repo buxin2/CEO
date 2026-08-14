@@ -110,6 +110,12 @@ class Config:
     # Display name for AI Mentor / Assistant (e.g. Abdoukadir). Overrides generic "Admin" from login email.
     ADMIN_DISPLAY_NAME = (os.environ.get("ADMIN_DISPLAY_NAME") or "").strip()
 
+    # Cloudinary for admin group chat images (use CLOUDINARY_URL or separate keys)
+    CLOUDINARY_URL = (os.environ.get("CLOUDINARY_URL") or "").strip()
+    CLOUDINARY_CLOUD_NAME = (os.environ.get("CLOUDINARY_CLOUD_NAME") or "").strip()
+    CLOUDINARY_API_KEY = (os.environ.get("CLOUDINARY_API_KEY") or "").strip()
+    CLOUDINARY_API_SECRET = (os.environ.get("CLOUDINARY_API_SECRET") or "").strip()
+
     @property
     def APP_TIMEZONE(self):
         return timezone(timedelta(hours=self.APP_TZ_OFFSET_HOURS))

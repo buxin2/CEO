@@ -202,7 +202,8 @@ class GroupMessage(db.Model):
     employee_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=True)
     admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey("group_messages.id"), nullable=True)
-    content = db.Column(db.Text, nullable=False)
+    content = db.Column(db.Text, nullable=False, default="")
+    image_url = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     deleted_at = db.Column(db.DateTime, nullable=True)
 
@@ -231,7 +232,9 @@ class GroupMessage(db.Model):
             "employee_id": self.employee_id,
             "admin_id": self.admin_id,
             "parent_id": self.parent_id,
-            "content": self.content,
+            "content": self.content or "",
+            "image_url": self.image_url or "",
+            "message_type": "image" if self.image_url else "text",
             "sender_name": sender_name,
             "sender_role": sender_role,
             "is_admin": self.admin_id is not None,

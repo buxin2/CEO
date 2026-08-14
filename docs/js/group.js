@@ -192,9 +192,11 @@ function showChatScreen(companyName, groupName) {
     document.getElementById("admin-badge").classList.remove("hidden");
     document.getElementById("leave-group-btn").classList.add("hidden");
     document.getElementById("open-my-tasks-btn").classList.add("hidden");
+    document.getElementById("attach-image-btn").classList.remove("hidden");
   } else {
     document.getElementById("user-badge").textContent = state.employeeName;
     document.getElementById("leave-group-btn").classList.remove("hidden");
+    document.getElementById("attach-image-btn").classList.add("hidden");
   }
   loadMessages(true);
   startPolling();
@@ -294,6 +296,14 @@ function renderMessageCard(m) {
     ? `<div class="chat-reply-quote"><strong>${escapeHtml(m.parent_preview.sender_name)}</strong> ${escapeHtml(m.parent_preview.content)}</div>`
     : "";
 
+  const imageBlock = m.image_url
+    ? `<div class="chat-image-wrap"><a href="${escapeHtml(m.image_url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(m.image_url)}" alt="Image from admin" class="chat-image" loading="lazy"></a></div>`
+    : "";
+
+  const textBlock = m.content
+    ? `<div class="chat-message-body">${formatMessageContent(m.content)}</div>`
+    : "";
+
   const deleteBtn = state.isAdmin
     ? `<button type="button" class="btn btn-ghost btn-sm chat-delete-btn" onclick="confirmDeleteMessage(${m.id})">Delete</button>`
     : "";
@@ -306,7 +316,8 @@ function renderMessageCard(m) {
         <span class="chat-time">${formatChatTime(m.created_at)}</span>
       </div>
       ${parentQuote}
-      <div class="chat-message-body">${formatMessageContent(m.content)}</div>
+      ${imageBlock}
+      ${textBlock}
       <div class="chat-message-actions">
         <button type="button" class="chat-react-btn ${likeClass}" onclick="reactMessage(${m.id}, 'like')">👍 ${m.likes || 0}</button>
         <button type="button" class="chat-react-btn ${dislikeClass}" onclick="reactMessage(${m.id}, 'dislike')">👎 ${m.dislikes || 0}</button>
@@ -373,6 +384,54 @@ async function sendMessage() {
     await loadMessages(true);
   } catch (e) {
     showToast(e.message);
+  }
+}
+
+async function uploadGroupImage(file) {
+  if (!state.isAdmin || !state.companyId) {
+    showToast("Only the admin can share images");
+    return;
+  }
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("image", file);
+  const input = document.getElementById("message-input");
+  const content = input.value.trim();
+  if (content) formData.append("content", content);
+  if (state.replyTo) formData.append("parent_id", String(state.replyTo.id));
+
+  const btn = document.getElementById("attach-image-btn");
+  btn.disabled = true;
+  try {
+    const response = await fetch(
+      apiUrl(`/api/companies/${state.companyId}/group/messages/image`),
+      {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      }
+    );
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = null;
+    }
+    if (!response.ok) {
+      throw new Error((data && data.error) || "Image upload failed");
+    }
+    input.value = "";
+    cancelReply();
+    state.lastMessageId = 0;
+    state.messages = [];
+    await loadMessages(true);
+    showToast("Image shared");
+  } catch (e) {
+    showToast(e.message || "Image upload failed");
+  } finally {
+    btn.disabled = false;
+    document.getElementById("image-input").value = "";
   }
 }
 
@@ -553,6 +612,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("send-message-btn").addEventListener("click", sendMessage);
+  document.getElementById("attach-image-btn").addEventListener("click", () => {
+    document.getElementById("image-input").click();
+  });
+  document.getElementById("image-input").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) uploadGroupImage(file);
+  });
   document.getElementById("message-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

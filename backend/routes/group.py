@@ -183,6 +183,9 @@ def api_public_post_message(token):
     content = (data.get("content") or "").strip()
     parent_id = data.get("parent_id")
 
+    if data.get("image_url"):
+        return jsonify({"error": "Only the admin can share images in group chat."}), 403
+
     if not content:
         return jsonify({"error": "Message cannot be empty."}), 400
 
@@ -381,6 +384,50 @@ def api_admin_post_message(company_id):
         admin_id=session.get("admin_id"),
         parent_id=parent_id,
         content=content,
+    )
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify(msg.to_dict()), 201
+
+
+@group_bp.route("/api/companies/<int:company_id>/group/messages/image", methods=["POST"])
+@login_required
+def api_admin_post_image_message(company_id):
+    """Admin-only: upload an image to group chat (stored on Cloudinary)."""
+    company = Company.query.get(company_id)
+    if not company or not company.group:
+        return jsonify({"error": "Company or group not found."}), 404
+
+    group = company.group
+    upload = request.files.get("image")
+    if not upload:
+        return jsonify({"error": "Image file is required."}), 400
+
+    content = (request.form.get("content") or "").strip()
+    parent_id = request.form.get("parent_id", type=int)
+
+    if parent_id:
+        parent = GroupMessage.query.filter_by(
+            id=parent_id, group_id=group.id, deleted_at=None
+        ).first()
+        if not parent:
+            return jsonify({"error": "Parent message not found."}), 404
+
+    from services.cloudinary_service import upload_group_chat_image
+
+    try:
+        uploaded = upload_group_chat_image(upload, company_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 503
+
+    msg = GroupMessage(
+        group_id=group.id,
+        admin_id=session.get("admin_id"),
+        parent_id=parent_id,
+        content=content,
+        image_url=uploaded["url"],
     )
     db.session.add(msg)
     db.session.commit()

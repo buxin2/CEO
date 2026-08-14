@@ -1130,6 +1130,25 @@ textarea.form-control {
   min-height: 44px;
 }
 
+.chat-image-wrap {
+  margin: 8px 0;
+}
+
+.chat-image {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  object-fit: contain;
+  background: var(--color-bg);
+}
+
+#attach-image-btn {
+  flex-shrink: 0;
+  min-width: 40px;
+}
+
 .chat-banner,
 .chat-reply-banner {
   display: flex;

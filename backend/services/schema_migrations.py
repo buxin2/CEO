@@ -84,5 +84,13 @@ def run_schema_migrations():
         "timezone_id VARCHAR(64) DEFAULT ''",
     )
 
+    _add_column(
+        engine,
+        "group_messages",
+        "image_url",
+        "image_url VARCHAR(500)",
+        "image_url VARCHAR(500)",
+    )
+
     db.session.commit()
     logger.info("Schema migrations complete.")
