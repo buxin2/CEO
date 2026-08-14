@@ -238,7 +238,11 @@ def api_test_groq_key(key_id):
 def api_cloudinary_get():
     from services.cloudinary_settings_service import settings_to_dict
 
-    return jsonify(settings_to_dict())
+    try:
+        return jsonify(settings_to_dict())
+    except Exception as exc:
+        current_app.logger.exception("Cloudinary settings load failed")
+        return jsonify({"error": f"Could not load Cloudinary settings: {exc}"}), 500
 
 
 @ai_bp.route("/api/ai/cloudinary", methods=["PUT"])
@@ -256,3 +260,6 @@ def api_cloudinary_put():
         return jsonify(result)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception("Cloudinary settings save failed")
+        return jsonify({"error": f"Could not save Cloudinary settings: {exc}"}), 500

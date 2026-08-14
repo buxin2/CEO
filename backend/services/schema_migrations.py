@@ -33,6 +33,34 @@ def _add_column(engine, table, column, postgres_def, sqlite_def):
         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {ddl}"))
 
 
+def _ensure_cloudinary_settings_table(engine):
+    if _table_exists(engine, "cloudinary_settings"):
+        return
+    logger.info("Creating cloudinary_settings table")
+    if _is_postgres(engine):
+        ddl = (
+            "CREATE TABLE cloudinary_settings ("
+            "id SERIAL PRIMARY KEY, "
+            "cloud_name VARCHAR(80) DEFAULT '', "
+            "encrypted_api_key TEXT DEFAULT '', "
+            "encrypted_api_secret TEXT DEFAULT '', "
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            ")"
+        )
+    else:
+        ddl = (
+            "CREATE TABLE cloudinary_settings ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "cloud_name VARCHAR(80) DEFAULT '', "
+            "encrypted_api_key TEXT DEFAULT '', "
+            "encrypted_api_secret TEXT DEFAULT '', "
+            "updated_at DATETIME"
+            ")"
+        )
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def run_schema_migrations():
     """Add columns introduced after initial production deploy."""
     engine = db.engine
@@ -91,6 +119,8 @@ def run_schema_migrations():
         "image_url VARCHAR(500)",
         "image_url VARCHAR(500)",
     )
+
+    _ensure_cloudinary_settings_table(engine)
 
     db.session.commit()
     logger.info("Schema migrations complete.")

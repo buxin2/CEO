@@ -1,7 +1,7 @@
 """Cloudinary credentials stored in the database (admin configures in AI Assistant)."""
 
 from models import db, CloudinarySettings
-from services.groq_key_service import decrypt_api_key, encrypt_api_key, mask_api_key
+from services.groq_key_service import decrypt_api_key, encrypt_api_key
 
 
 def _mask_secret(secret):
@@ -49,7 +49,7 @@ def settings_to_dict():
     return {
         "configured": creds is not None,
         "cloud_name": row.cloud_name or "",
-        "masked_api_key": mask_api_key(api_key_plain) if api_key_plain else "",
+        "masked_api_key": _mask_secret(api_key_plain) if api_key_plain else "",
         "masked_api_secret": _mask_secret(api_secret_plain),
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }

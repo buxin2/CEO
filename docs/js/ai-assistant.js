@@ -449,13 +449,26 @@
     e.preventDefault();
     const err = document.getElementById("cloudinary-settings-error");
     err.classList.remove("visible");
+    const cloudName = document.getElementById("cloudinary-cloud-name").value.trim();
+    const apiKey = document.getElementById("cloudinary-api-key").value.trim();
+    const apiSecret = document.getElementById("cloudinary-api-secret").value.trim();
+    if (!cloudName || !apiKey || !apiSecret) {
+      err.textContent = "Cloud name, API key, and API secret are all required.";
+      err.classList.add("visible");
+      return;
+    }
+    if (/^•+$/.test(apiKey) || /^•+$/.test(apiSecret)) {
+      err.textContent = "Paste your real API key and secret from Cloudinary (not bullet dots).";
+      err.classList.add("visible");
+      return;
+    }
     try {
       const data = await apiRequest("/api/ai/cloudinary", {
         method: "PUT",
         body: JSON.stringify({
-          cloud_name: document.getElementById("cloudinary-cloud-name").value.trim(),
-          api_key: document.getElementById("cloudinary-api-key").value.trim(),
-          api_secret: document.getElementById("cloudinary-api-secret").value.trim(),
+          cloud_name: cloudName,
+          api_key: apiKey,
+          api_secret: apiSecret,
         }),
       });
       renderCloudinaryStatus(data);
