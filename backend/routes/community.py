@@ -30,6 +30,7 @@ from services.community_service import (
     membership_for_token,
     record_product_view,
     register_member,
+    member_has_community_access,
     remove_member,
     restore_member,
     suspend_member,
@@ -354,12 +355,17 @@ def api_member_register(token):
     data = request.get_json(silent=True) or {}
     try:
         user, membership = register_member(token, data)
-        if membership.status == "active":
-            session["cm_user_id"] = user.id
-            session.permanent = True
+        session["cm_user_id"] = user.id
+        session.permanent = True
+        checkout_url = None
+        if membership.status == "pending_payment":
+            checkout_url = f"checkout.html?membership_id={membership.id}&token={token}"
         return jsonify({
             "success": True,
             "status": membership.status,
+            "membership_id": membership.id,
+            "needs_payment": membership.status == "pending_payment",
+            "checkout_url": checkout_url,
             "user": user.to_dict(private=True),
         }), 201
     except ValueError as exc:
@@ -432,6 +438,10 @@ def api_public_community_info(token):
             "description": c.description or "",
             "approval_required": bool(c.approval_required),
             "members_visible": bool(c.members_visible),
+            "community_type": c.community_type or "free",
+            "price_cents": c.price_cents or 0,
+            "currency": c.currency or "USD",
+            "billing_interval": c.billing_interval or "one_time",
             "registration_fields": c.registration_fields(),
         })
     except ValueError as exc:
@@ -442,8 +452,13 @@ def api_public_community_info(token):
 def api_public_posts(token):
     try:
         c = _community_by_token_param(token)
-        after_id = request.args.get("after_id", type=int)
         viewer = session.get("cm_user_id")
+        if viewer and not member_has_community_access(viewer, c.id):
+            membership = membership_for_token(viewer, token)
+            if membership and membership.status == "pending_payment":
+                return jsonify({"error": "Payment required.", "needs_payment": True, "membership_id": membership.id}), 403
+            return jsonify({"error": "You do not have access to this community."}), 403
+        after_id = request.args.get("after_id", type=int)
         return jsonify({"posts": list_posts(c.id, after_id=after_id, viewer_member_id=viewer)})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404

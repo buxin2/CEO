@@ -3,6 +3,14 @@
   let communityInfo = null;
   let pollTimer = null;
 
+  function checkoutUrl(params) {
+    const q = new URLSearchParams(params);
+    if (communityInfo && communityInfo.community_token) {
+      q.set("token", TOKEN);
+    }
+    return pageUrl("checkout.html?" + q.toString());
+  }
+
   function formatContent(text) {
     const escaped = escapeHtml(text || "");
     return escaped.replace(/(https?:\/\/[^\s<]+)/gi, (url) => {
@@ -16,14 +24,27 @@
     if (communityInfo.error) throw new Error(communityInfo.error);
     document.getElementById("community-name-label").textContent = communityInfo.name;
     document.getElementById("community-desc-label").textContent = communityInfo.description || "";
+    if (communityInfo.community_type === "paid") {
+      const price = ((communityInfo.price_cents || 0) / 100).toFixed(2);
+      document.getElementById("community-desc-label").textContent +=
+        ` · Paid community: ${price} ${communityInfo.currency || "USD"}`;
+      document.getElementById("show-register-btn").textContent = "Register";
+      document.getElementById("login-form").classList.add("hidden");
+      document.getElementById("register-form").classList.remove("hidden");
+    }
     const fields = communityInfo.registration_fields || [];
     document.getElementById("register-fields").innerHTML = fields
       .filter((f) => f.key !== "password")
-      .map((f) => `
-        <div class="form-group">
-          <label class="form-label">${escapeHtml(f.label)}</label>
-          <input class="form-control reg-field" data-key="${escapeHtml(f.key)}" type="${f.type === "email" ? "email" : "text"}">
-        </div>`).join("") +
+      .map((f) => {
+        const key = f.key || f.id;
+        const type = f.type || "text";
+        if (type === "long_text") {
+          return `<div class="form-group"><label class="form-label">${escapeHtml(f.label)}</label>
+            <textarea class="form-control reg-field" data-key="${escapeHtml(key)}"></textarea></div>`;
+        }
+        return `<div class="form-group"><label class="form-label">${escapeHtml(f.label)}</label>
+          <input class="form-control reg-field" data-key="${escapeHtml(key)}" type="${type === "email" ? "email" : type === "number" ? "number" : "text"}"></div>`;
+      }).join("") +
       `<div class="form-group"><label class="form-label">Password</label>
        <input class="form-control" id="reg-password" type="password"></div>`;
   }
@@ -37,6 +58,10 @@
       const membership = await fetch(apiUrl(`/api/public/community/${TOKEN}/membership`), { credentials: "include" });
       if (!membership.ok) return false;
       const m = await membership.json();
+      if (m.status === "pending_payment") {
+        window.location.href = checkoutUrl({ membership_id: m.id });
+        return false;
+      }
       if (m.status !== "active") {
         showToast("Your membership is " + m.status);
         return false;
@@ -59,7 +84,12 @@
   }
 
   async function loadPosts() {
-    const data = await fetch(apiUrl(`/api/public/community/${TOKEN}/posts`), { credentials: "include" }).then((r) => r.json());
+    const res = await fetch(apiUrl(`/api/public/community/${TOKEN}/posts`), { credentials: "include" });
+    const data = await res.json();
+    if (res.status === 403 && data.needs_payment) {
+      window.location.href = checkoutUrl({ membership_id: data.membership_id });
+      return;
+    }
     const list = document.getElementById("posts-list");
     list.innerHTML = (data.posts || []).map((p) => `
       <article class="chat-message" style="margin-bottom:10px;">
@@ -82,15 +112,31 @@
     await loadPosts();
   };
 
+  window.buyProduct = (productId, sellable) => {
+    if (sellable <= 0) {
+      showToast("Out of stock");
+      return;
+    }
+    window.location.href = checkoutUrl({ product_id: productId, quantity: 1 });
+  };
+
   async function loadProducts() {
     const data = await fetch(apiUrl(`/api/public/community/${TOKEN}/products`), { credentials: "include" }).then((r) => r.json());
-    document.getElementById("products-panel").innerHTML = (data.products || []).map((p) => `
+    document.getElementById("products-panel").innerHTML = (data.products || []).map((p) => {
+      const sellable = p.quantity_sellable != null ? p.quantity_sellable : p.quantity_available;
+      const out = p.status === "out_of_stock" || sellable <= 0;
+      const price = p.price || ((p.price_cents || 0) / 100).toFixed(2);
+      return `
       <div class="card card-inner" style="margin-bottom:8px;">
+        ${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" style="max-width:120px;border-radius:8px;">` : ""}
         <h4>${escapeHtml(p.name)}</h4>
         <p>${escapeHtml(p.description)}</p>
-        <p><strong>${escapeHtml(p.price)} ${escapeHtml(p.currency)}</strong> · ${escapeHtml(p.product_type)}</p>
-        ${p.purchase_url ? `<a class="btn btn-primary btn-sm" href="${escapeHtml(p.purchase_url)}" target="_blank" rel="noopener">Buy / Purchase</a>` : "<span class=\"text-muted\">Checkout not configured</span>"}
-      </div>`).join("") || "<p class=\"text-muted\">No products yet.</p>";
+        <p><strong>${escapeHtml(price)} ${escapeHtml(p.currency)}</strong> · ${escapeHtml(p.product_type)}
+        · Available: ${sellable}</p>
+        ${out ? "<span class=\"text-muted\">Out of stock</span>" :
+          `<button type="button" class="btn btn-primary btn-sm" onclick="buyProduct(${p.id}, ${sellable})">Buy Now</button>`}
+      </div>`;
+    }).join("") || "<p class=\"text-muted\">No products yet.</p>";
   }
 
   document.getElementById("show-register-btn").addEventListener("click", () => {
@@ -121,9 +167,15 @@
   });
 
   document.getElementById("register-btn").addEventListener("click", async () => {
-    const payload = { password: document.getElementById("reg-password").value };
+    const payload = { password: document.getElementById("reg-password").value, custom_fields: {} };
     document.querySelectorAll(".reg-field").forEach((el) => {
-      payload[el.dataset.key] = el.value.trim();
+      const key = el.dataset.key;
+      const val = el.value.trim();
+      if (["username", "email", "full_name", "background", "why_join", "experience_level"].includes(key)) {
+        payload[key] = val;
+      } else {
+        payload.custom_fields[key] = val;
+      }
     });
     const res = await fetch(apiUrl(`/api/community-auth/register/${TOKEN}`), {
       method: "POST",
@@ -134,6 +186,10 @@
     const data = await res.json();
     if (!res.ok) {
       showToast(data.error || "Registration failed");
+      return;
+    }
+    if (data.needs_payment) {
+      window.location.href = checkoutUrl({ membership_id: data.membership_id });
       return;
     }
     if (data.status === "pending") {

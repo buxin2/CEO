@@ -1,6 +1,42 @@
 (function () {
   const communityId = getQueryParam("id");
   let dash = null;
+  let registrationFields = [];
+
+  function renderRegistrationFieldsEditor() {
+    const el = document.getElementById("registration-fields-editor");
+    if (!el) return;
+    el.innerHTML = registrationFields.map((f, i) => `
+      <div class="card card-inner" style="margin-bottom:8px;" data-idx="${i}">
+        <input class="form-control" placeholder="Label" value="${escapeHtml(f.label || "")}" data-field="label" style="margin-bottom:4px;">
+        <input class="form-control" placeholder="Field key" value="${escapeHtml(f.key || "")}" data-field="key" style="margin-bottom:4px;">
+        <select class="form-control" data-field="type">
+          ${["text","long_text","number","email","dropdown","radio","checkbox","date"].map((t) =>
+            `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
+        </select>
+        <label><input type="checkbox" data-field="required" ${f.required ? "checked" : ""}> Required</label>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="removeRegField(${i})">Remove</button>
+      </div>`).join("");
+    el.querySelectorAll("[data-field]").forEach((input) => {
+      input.addEventListener("change", syncRegFieldsFromDom);
+      input.addEventListener("input", syncRegFieldsFromDom);
+    });
+  }
+
+  function syncRegFieldsFromDom() {
+    const cards = document.querySelectorAll("#registration-fields-editor .card-inner");
+    registrationFields = Array.from(cards).map((card) => ({
+      label: card.querySelector("[data-field=label]").value.trim(),
+      key: card.querySelector("[data-field=key]").value.trim(),
+      type: card.querySelector("[data-field=type]").value,
+      required: card.querySelector("[data-field=required]").checked,
+    }));
+  }
+
+  window.removeRegField = (idx) => {
+    registrationFields.splice(idx, 1);
+    renderRegistrationFieldsEditor();
+  };
 
   function showTab(name) {
     document.querySelectorAll(".community-tab").forEach((el) => el.classList.add("hidden"));
@@ -28,6 +64,14 @@
     document.getElementById("settings-description").value = c.description || "";
     document.getElementById("settings-approval").checked = c.approval_required;
     document.getElementById("settings-members-visible").checked = c.members_visible;
+    if (document.getElementById("settings-community-type")) {
+      document.getElementById("settings-community-type").value = c.community_type || "free";
+      document.getElementById("settings-price").value = ((c.price_cents || 0) / 100).toFixed(2);
+      document.getElementById("settings-currency").value = c.currency || "USD";
+      document.getElementById("settings-billing").value = c.billing_interval || "one_time";
+    }
+    registrationFields = (c.registration_fields || []).slice();
+    renderRegistrationFieldsEditor();
   }
 
   async function loadMembers() {
@@ -77,7 +121,7 @@
     const data = await apiRequest(`/api/communities/${communityId}/products`);
     document.getElementById("products-admin-list").innerHTML = (data.products || []).map((p) => `
       <div class="card-inner member-row">
-        <div><strong>${escapeHtml(p.name)}</strong> · ${escapeHtml(p.price)} ${escapeHtml(p.currency)} · ${escapeHtml(p.product_type)}</div>
+        <div><strong>${escapeHtml(p.name)}</strong> · ${escapeHtml(p.price)} ${escapeHtml(p.currency)} · Qty ${p.quantity_available || 0} · ${escapeHtml(p.product_type)} · ${escapeHtml(p.status)}</div>
         <button class="btn btn-danger btn-sm" onclick="deleteProduct(${p.id})">Delete</button>
       </div>`).join("") || "<p class=\"text-muted\">No products.</p>";
   }
@@ -160,14 +204,20 @@
     await loadPosts();
   });
 
+  document.getElementById("add-reg-field-btn").addEventListener("click", () => {
+    registrationFields.push({ label: "New field", key: "field_" + Date.now(), type: "text", required: false });
+    renderRegistrationFieldsEditor();
+  });
+
   document.getElementById("add-product-btn").addEventListener("click", async () => {
     const name = prompt("Product name");
     if (!name) return;
     const price = prompt("Price (e.g. 49.99)") || "";
-    const purchase_url = prompt("Purchase link (URL)") || "";
+    const quantity = parseInt(prompt("Quantity / inventory", "100") || "0", 10);
+    const product_type = prompt("Type: physical or digital", "physical") || "physical";
     await apiRequest(`/api/communities/${communityId}/products`, {
       method: "POST",
-      body: JSON.stringify({ name, price, purchase_url, product_type: "physical" }),
+      body: JSON.stringify({ name, price, quantity_available: quantity, product_type }),
     });
     await loadProducts();
   });
@@ -188,6 +238,7 @@
 
   document.getElementById("community-settings-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    syncRegFieldsFromDom();
     await apiRequest(`/api/communities/${communityId}`, {
       method: "PUT",
       body: JSON.stringify({
@@ -195,6 +246,11 @@
         description: document.getElementById("settings-description").value.trim(),
         approval_required: document.getElementById("settings-approval").checked,
         members_visible: document.getElementById("settings-members-visible").checked,
+        community_type: document.getElementById("settings-community-type").value,
+        price: document.getElementById("settings-price").value.trim(),
+        currency: document.getElementById("settings-currency").value.trim(),
+        billing_interval: document.getElementById("settings-billing").value,
+        registration_fields: registrationFields,
       }),
     });
     showToast("Settings saved");

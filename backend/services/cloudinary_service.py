@@ -125,3 +125,27 @@ def upload_community_image(file_storage, community_id):
     if not url:
         raise RuntimeError("Cloudinary upload failed.")
     return {"url": url, "public_id": result.get("public_id") or ""}
+
+
+def upload_payment_receipt(file_storage, payment_id):
+    """Upload manual payment receipt image."""
+    if not _configure_cloudinary():
+        raise RuntimeError(
+            "Image upload is not configured. Open AI Assistant → Cloudinary settings."
+        )
+    if not file_storage or not file_storage.filename:
+        raise ValueError("No file provided.")
+    content_type = (file_storage.content_type or "").split(";")[0].strip().lower()
+    if content_type and content_type not in ALLOWED_IMAGE_TYPES:
+        raise ValueError("Only image files are allowed.")
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+    if size > MAX_IMAGE_BYTES:
+        raise ValueError("File is too large. Maximum size is 10 MB.")
+    folder = f"payment-receipts/payment-{payment_id}"
+    result = cloudinary.uploader.upload(file_storage, folder=folder, resource_type="image")
+    url = result.get("secure_url") or result.get("url")
+    if not url:
+        raise RuntimeError("Cloudinary upload failed.")
+    return {"url": url}

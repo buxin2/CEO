@@ -839,6 +839,10 @@ class Community(db.Model):
     description = db.Column(db.Text, default="")
     approval_required = db.Column(db.Boolean, default=False)
     members_visible = db.Column(db.Boolean, default=True)
+    community_type = db.Column(db.String(20), default="free")  # free, paid
+    price_cents = db.Column(db.Integer, default=0)
+    currency = db.Column(db.String(10), default="USD")
+    billing_interval = db.Column(db.String(20), default="one_time")  # one_time, month, year
     registration_fields_json = db.Column(db.Text, default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -874,6 +878,10 @@ class Community(db.Model):
             "description": self.description or "",
             "approval_required": bool(self.approval_required),
             "members_visible": bool(self.members_visible),
+            "community_type": self.community_type or "free",
+            "price_cents": self.price_cents or 0,
+            "currency": self.currency or "USD",
+            "billing_interval": self.billing_interval or "one_time",
             "registration_fields": self.registration_fields(),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
@@ -921,7 +929,8 @@ class CommunityMembership(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=False, index=True)
     member_user_id = db.Column(db.Integer, db.ForeignKey("community_member_users.id"), nullable=False, index=True)
-    status = db.Column(db.String(20), default="active", index=True)  # pending, active, suspended, removed
+    status = db.Column(db.String(20), default="active", index=True)  # pending_payment, pending, active, suspended, removed
+    payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True, index=True)
     background = db.Column(db.Text, default="")
     why_join = db.Column(db.Text, default="")
     experience_level = db.Column(db.String(120), default="")
@@ -940,6 +949,7 @@ class CommunityMembership(db.Model):
             "community_id": self.community_id,
             "member_user_id": self.member_user_id,
             "status": self.status,
+            "payment_id": self.payment_id,
             "username": user.username if user else "",
             "full_name": user.full_name if user else "",
             "background": self.background or "",
@@ -1066,12 +1076,28 @@ class CommunityProduct(db.Model):
     price = db.Column(db.String(64), default="")
     currency = db.Column(db.String(10), default="USD")
     purchase_url = db.Column(db.String(500), default="")
-    status = db.Column(db.String(20), default="available")  # available, unavailable
+    price_cents = db.Column(db.Integer, default=0)
+    quantity_available = db.Column(db.Integer, default=0)
+    quantity_reserved = db.Column(db.Integer, default=0)
+    digital_delivery_url = db.Column(db.String(500), default="")
+    digital_delivery_text = db.Column(db.Text, default="")
+    fee_percent = db.Column(db.Float, default=0.0)
+    status = db.Column(db.String(20), default="available")  # available, unavailable, out_of_stock
     view_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def effective_status(self):
+        if self.status == "unavailable":
+            return "unavailable"
+        avail = (self.quantity_available or 0) - (self.quantity_reserved or 0)
+        if avail <= 0 and (self.quantity_available or 0) > 0:
+            return "out_of_stock"
+        return self.status or "available"
+
     def to_dict(self):
+        avail = max(0, (self.quantity_available or 0) - (self.quantity_reserved or 0))
+        eff = self.effective_status()
         return {
             "id": self.id,
             "community_id": self.community_id,
@@ -1080,10 +1106,18 @@ class CommunityProduct(db.Model):
             "image_url": self.image_url or "",
             "product_type": self.product_type or "physical",
             "price": self.price or "",
+            "price_cents": self.price_cents or 0,
             "currency": self.currency or "USD",
             "purchase_url": self.purchase_url or "",
-            "status": self.status or "available",
+            "quantity_available": self.quantity_available or 0,
+            "quantity_reserved": self.quantity_reserved or 0,
+            "quantity_sellable": avail,
+            "digital_delivery_url": self.digital_delivery_url or "",
+            "digital_delivery_text": self.digital_delivery_text or "",
+            "fee_percent": self.fee_percent or 0,
+            "status": eff,
             "view_count": self.view_count or 0,
+            "in_app_checkout": True,
         }
 
 
@@ -1133,3 +1167,190 @@ class CommunityNotification(db.Model):
     message = db.Column(db.Text, nullable=False)
     read_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+
+class Payment(db.Model):
+    __tablename__ = "payments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    payment_reference = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    payment_kind = db.Column(db.String(32), nullable=False, index=True)  # product_order, community_membership
+    membership_id = db.Column(db.Integer, db.ForeignKey("community_memberships.id"), nullable=True, index=True)
+    community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=True, index=True)
+    community_product_id = db.Column(db.Integer, db.ForeignKey("community_products.id"), nullable=True)
+    member_user_id = db.Column(db.Integer, db.ForeignKey("community_member_users.id"), nullable=True, index=True)
+    subtotal_cents = db.Column(db.Integer, default=0)
+    discount_cents = db.Column(db.Integer, default=0)
+    fee_cents = db.Column(db.Integer, default=0)
+    total_cents = db.Column(db.Integer, default=0)
+    currency = db.Column(db.String(10), default="USD")
+    provider = db.Column(db.String(20), default="manual")  # modem, paypal, manual, coupon
+    provider_payment_id = db.Column(db.String(255), default="", index=True)
+    provider_intent_secret = db.Column(db.String(255), default="")
+    payment_link = db.Column(db.String(500), default="")
+    status = db.Column(db.String(30), default="pending", index=True)
+    coupon_id = db.Column(db.Integer, db.ForeignKey("coupons.id"), nullable=True)
+    customer_name = db.Column(db.String(255), default="")
+    customer_email = db.Column(db.String(255), default="")
+    customer_phone = db.Column(db.String(64), default="")
+    receipt_url = db.Column(db.String(500), default="")
+    manual_review_note = db.Column(db.Text, default="")
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    metadata_json = db.Column(db.Text, default="{}")
+    paid_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    order = db.relationship("Order", backref="payment_record", uselist=False, foreign_keys="Order.payment_id")
+    coupon = db.relationship("Coupon", backref="payments")
+
+    def to_dict(self, include_private=False):
+        import json
+
+        data = {
+            "id": self.id,
+            "payment_reference": self.payment_reference,
+            "payment_kind": self.payment_kind,
+            "membership_id": self.membership_id,
+            "community_id": self.community_id,
+            "community_product_id": self.community_product_id,
+            "member_user_id": self.member_user_id,
+            "subtotal_cents": self.subtotal_cents or 0,
+            "discount_cents": self.discount_cents or 0,
+            "fee_cents": self.fee_cents or 0,
+            "total_cents": self.total_cents or 0,
+            "currency": self.currency or "USD",
+            "provider": self.provider or "",
+            "provider_payment_id": self.provider_payment_id or "",
+            "payment_link": self.payment_link or "",
+            "status": self.status or "pending",
+            "coupon_id": self.coupon_id,
+            "customer_name": self.customer_name or "",
+            "customer_email": self.customer_email or "",
+            "receipt_url": self.receipt_url or "",
+            "manual_review_note": self.manual_review_note or "",
+            "paid_at": self.paid_at.isoformat() if self.paid_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        try:
+            data["metadata"] = json.loads(self.metadata_json or "{}")
+        except json.JSONDecodeError:
+            data["metadata"] = {}
+        if include_private:
+            data["customer_phone"] = self.customer_phone or ""
+        return data
+
+
+class Order(db.Model):
+    __tablename__ = "orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_number = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=False, index=True)
+    community_product_id = db.Column(db.Integer, db.ForeignKey("community_products.id"), nullable=False, index=True)
+    member_user_id = db.Column(db.Integer, db.ForeignKey("community_member_users.id"), nullable=False, index=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True, index=True)
+    quantity = db.Column(db.Integer, default=1)
+    unit_price_cents = db.Column(db.Integer, default=0)
+    subtotal_cents = db.Column(db.Integer, default=0)
+    discount_cents = db.Column(db.Integer, default=0)
+    total_cents = db.Column(db.Integer, default=0)
+    currency = db.Column(db.String(10), default="USD")
+    payment_status = db.Column(db.String(30), default="pending")
+    order_status = db.Column(db.String(30), default="pending_payment", index=True)
+    product_type = db.Column(db.String(20), default="physical")
+    delivery_json = db.Column(db.Text, default="{}")
+    digital_delivery_url = db.Column(db.String(500), default="")
+    digital_delivery_text = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    product = db.relationship("CommunityProduct", backref="orders")
+    member_user = db.relationship("CommunityMemberUser", backref="orders")
+
+    def to_dict(self, include_private=False):
+        import json
+
+        user = self.member_user
+        product = self.product
+        try:
+            delivery = json.loads(self.delivery_json or "{}")
+        except json.JSONDecodeError:
+            delivery = {}
+        data = {
+            "id": self.id,
+            "order_number": self.order_number,
+            "community_id": self.community_id,
+            "community_product_id": self.community_product_id,
+            "member_user_id": self.member_user_id,
+            "payment_id": self.payment_id,
+            "quantity": self.quantity or 1,
+            "unit_price_cents": self.unit_price_cents or 0,
+            "subtotal_cents": self.subtotal_cents or 0,
+            "discount_cents": self.discount_cents or 0,
+            "total_cents": self.total_cents or 0,
+            "currency": self.currency or "USD",
+            "payment_status": self.payment_status or "",
+            "order_status": self.order_status or "",
+            "product_type": self.product_type or "physical",
+            "product_name": product.name if product else "",
+            "product_image": product.image_url if product else "",
+            "customer_name": user.full_name if user else "",
+            "customer_username": user.username if user else "",
+            "digital_delivery_url": self.digital_delivery_url or "",
+            "digital_delivery_text": self.digital_delivery_text or "",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_private:
+            data["delivery"] = delivery
+            if user:
+                data["customer_email"] = user.email
+        return data
+
+
+class Coupon(db.Model):
+    __tablename__ = "coupons"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    discount_type = db.Column(db.String(20), default="percent")  # percent, fixed
+    discount_value = db.Column(db.Integer, default=0)  # percent 0-100 or fixed cents
+    max_uses = db.Column(db.Integer, nullable=True)
+    used_count = db.Column(db.Integer, default=0)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    applies_to = db.Column(db.String(20), default="all")  # all, product, community
+    community_product_id = db.Column(db.Integer, db.ForeignKey("community_products.id"), nullable=True)
+    community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "code": self.code,
+            "discount_type": self.discount_type,
+            "discount_value": self.discount_value or 0,
+            "max_uses": self.max_uses,
+            "used_count": self.used_count or 0,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "is_active": bool(self.is_active),
+            "applies_to": self.applies_to or "all",
+            "community_product_id": self.community_product_id,
+            "community_id": self.community_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class PaymentWebhookEvent(db.Model):
+    __tablename__ = "payment_webhook_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    provider = db.Column(db.String(20), nullable=False, index=True)
+    event_key = db.Column(db.String(255), nullable=False, index=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True)
+    payload_json = db.Column(db.Text, default="{}")
+    processed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("provider", "event_key", name="uq_payment_webhook_event"),
+    )

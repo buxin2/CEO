@@ -122,5 +122,20 @@ def run_schema_migrations():
 
     _ensure_cloudinary_settings_table(engine)
 
+    # Communities — paid membership + products inventory
+    _add_column(engine, "communities", "community_type", "community_type VARCHAR(20) DEFAULT 'free'", "community_type VARCHAR(20) DEFAULT 'free'")
+    _add_column(engine, "communities", "price_cents", "price_cents INTEGER DEFAULT 0", "price_cents INTEGER DEFAULT 0")
+    _add_column(engine, "communities", "currency", "currency VARCHAR(10) DEFAULT 'USD'", "currency VARCHAR(10) DEFAULT 'USD'")
+    _add_column(engine, "communities", "billing_interval", "billing_interval VARCHAR(20) DEFAULT 'one_time'", "billing_interval VARCHAR(20) DEFAULT 'one_time'")
+
+    _add_column(engine, "community_products", "price_cents", "price_cents INTEGER DEFAULT 0", "price_cents INTEGER DEFAULT 0")
+    _add_column(engine, "community_products", "quantity_available", "quantity_available INTEGER DEFAULT 0", "quantity_available INTEGER DEFAULT 0")
+    _add_column(engine, "community_products", "quantity_reserved", "quantity_reserved INTEGER DEFAULT 0", "quantity_reserved INTEGER DEFAULT 0")
+    _add_column(engine, "community_products", "digital_delivery_url", "digital_delivery_url VARCHAR(500) DEFAULT ''", "digital_delivery_url VARCHAR(500) DEFAULT ''")
+    _add_column(engine, "community_products", "digital_delivery_text", "digital_delivery_text TEXT DEFAULT ''", "digital_delivery_text TEXT DEFAULT ''")
+    _add_column(engine, "community_products", "fee_percent", "fee_percent DOUBLE PRECISION DEFAULT 0", "fee_percent REAL DEFAULT 0")
+
+    _add_column(engine, "community_memberships", "payment_id", "payment_id INTEGER", "payment_id INTEGER")
+
     db.session.commit()
     logger.info("Schema migrations complete.")

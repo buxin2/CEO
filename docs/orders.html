@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orders · Admin</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">Orders</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="communities.html">Communities</a>
+        <a class="sidebar-link" href="payments.html">Payments</a>
+        <a class="sidebar-link active" href="orders.html">Orders</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+    <main class="main-content">
+      <div class="page-header"><h1>Orders</h1></div>
+      <div id="orders-list"></div>
+    </main>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/orders.js?v=1"></script>
+</body>
+</html>

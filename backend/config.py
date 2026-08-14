@@ -13,19 +13,15 @@ def normalize_database_url(raw_value):
 
     url = raw_value.strip()
 
-    # Neon sometimes shows: psql 'postgresql://...'
     if url.lower().startswith("psql "):
         url = url[5:].strip()
 
-    # Strip wrapping quotes from copy-paste
     if len(url) >= 2 and url[0] == url[-1] and url[0] in ("'", '"'):
         url = url[1:-1].strip()
 
-    # SQLAlchemy expects postgresql:// not postgres://
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
 
-    # Use psycopg v3 driver (works on Python 3.12+ including 3.14 on Render)
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
 
@@ -55,6 +51,41 @@ def build_cors_origins():
     return origins
 
 
+def _load_manual_payment_instructions():
+    raw = os.environ.get("MANUAL_PAYMENT_INSTRUCTIONS_JSON", "")
+    if raw:
+        try:
+            import json
+
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+    return {
+        "bank_transfer": {
+            "title": "Bank Transfer (Ecobank Gambia)",
+            "fields": [
+                {"label": "Account holder", "value": "Abdoukadir Jabbi"},
+                {"label": "Bank", "value": "Ecobank Gambia Ltd"},
+                {"label": "Account number", "value": "6261010783"},
+                {"label": "IBAN", "value": "008203626101078387"},
+                {"label": "SWIFT / BIC", "value": "ECOCGMGM"},
+                {"label": "Country", "value": "The Gambia"},
+                {"label": "Currency", "value": "USD / GMD"},
+                {"label": "Reference", "value": "Your full name + Buxin Academy"},
+            ],
+        },
+        "money_transfer": {
+            "title": "Money Transfer (Western Union / MoneyGram / Ria)",
+            "fields": [
+                {"label": "Receiver name", "value": "ABDOUKADIR JABBI"},
+                {"label": "Country", "value": "India"},
+                {"label": "City", "value": "Greater Noida, Uttar Pradesh"},
+                {"label": "Phone", "value": "+91 931 903 8312"},
+            ],
+        },
+    }
+
+
 class Config:
     """Base configuration loaded from environment variables."""
 
@@ -74,47 +105,41 @@ class Config:
         "pool_recycle": 300,
     }
 
-    # Initial admin account, created automatically on first startup
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@example.com")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "change-this-password")
 
-    # Frontend URL (GitHub Pages) — used for task links and login redirects
     FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8080").rstrip("/")
-
-    # Allowed CORS origins (comma-separated). Defaults to FRONTEND_URL.
-    # GitHub Pages project sites also need https://user.github.io (no repo path).
     CORS_ORIGINS = build_cors_origins()
 
-    # Session / cookie security (cross-origin frontend requires SameSite=None + Secure)
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None")
     SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
 
-    # Application timezone offset (hours from UTC). Default: UTC.
     APP_TZ_OFFSET_HOURS = float(os.environ.get("APP_TZ_OFFSET_HOURS", "0"))
 
-    # Groq API for AI Management Assistant (gsk_... key from console.groq.com)
-    # GROK_API_KEY is accepted as an alias for convenience.
     GROQ_API_KEY = (
         os.environ.get("GROQ_API_KEY") or os.environ.get("GROK_API_KEY") or ""
     ).strip()
     GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
-    # Optional: Serper.dev for better web search in News (https://serper.dev)
     SERPER_API_KEY = (os.environ.get("SERPER_API_KEY") or "").strip()
-
-    # Optional: secret for external cron hitting POST /api/news/cron at midnight
     NEWS_CRON_SECRET = (os.environ.get("NEWS_CRON_SECRET") or "").strip()
-
-    # Display name for AI Mentor / Assistant (e.g. Abdoukadir). Overrides generic "Admin" from login email.
     ADMIN_DISPLAY_NAME = (os.environ.get("ADMIN_DISPLAY_NAME") or "").strip()
 
-    # Cloudinary for admin group chat images (use CLOUDINARY_URL or separate keys)
     CLOUDINARY_URL = (os.environ.get("CLOUDINARY_URL") or "").strip()
     CLOUDINARY_CLOUD_NAME = (os.environ.get("CLOUDINARY_CLOUD_NAME") or "").strip()
     CLOUDINARY_API_KEY = (os.environ.get("CLOUDINARY_API_KEY") or "").strip()
     CLOUDINARY_API_SECRET = (os.environ.get("CLOUDINARY_API_SECRET") or "").strip()
+
+    BACKEND_URL = (os.environ.get("BACKEND_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
+    PAYPAL_CLIENT_ID = (os.environ.get("PAYPAL_CLIENT_ID") or "").strip()
+    PAYPAL_CLIENT_SECRET = (os.environ.get("PAYPAL_CLIENT_SECRET") or "").strip()
+    PAYPAL_MODE = (os.environ.get("PAYPAL_MODE") or "live").strip().lower()
+    MODEMPAY_PUBLIC_KEY = (os.environ.get("MODEMPAY_PUBLIC_KEY") or "").strip()
+    MODEMPAY_SECRET_KEY = (os.environ.get("MODEMPAY_SECRET_KEY") or "").strip()
+    MODEMPAY_WEBHOOK_SECRET = (os.environ.get("MODEMPAY_WEBHOOK_SECRET") or "").strip()
+    MANUAL_PAYMENT_INSTRUCTIONS = _load_manual_payment_instructions()
 
     @property
     def APP_TIMEZONE(self):

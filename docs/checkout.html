@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="group-page-body">
+  <div class="group-entry" style="max-width:560px;margin:40px auto;">
+    <div class="group-entry-card">
+      <h1>Checkout</h1>
+      <div id="checkout-loading" class="text-muted">Loading…</div>
+      <div id="checkout-error" class="form-error hidden"></div>
+      <div id="checkout-form" class="hidden">
+        <div id="checkout-summary" class="card card-inner" style="margin-bottom:16px;"></div>
+        <div class="form-group">
+          <label class="form-label">Coupon code</label>
+          <input class="form-control" id="coupon-code" placeholder="Optional">
+          <button type="button" class="btn btn-secondary btn-sm" id="apply-coupon-btn" style="margin-top:6px;">Apply</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Full name</label>
+          <input class="form-control" id="customer-name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input class="form-control" id="customer-phone">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Payment method</label>
+          <div id="payment-methods"></div>
+        </div>
+        <div id="manual-instructions" class="hidden card card-inner" style="margin-top:12px;"></div>
+        <div id="delivery-section" class="hidden">
+          <h3>Delivery information</h3>
+          <input class="form-control" id="del-name" placeholder="Full name" style="margin-bottom:6px;">
+          <input class="form-control" id="del-phone" placeholder="Phone" style="margin-bottom:6px;">
+          <input class="form-control" id="del-country" placeholder="Country" style="margin-bottom:6px;">
+          <input class="form-control" id="del-city" placeholder="City" style="margin-bottom:6px;">
+          <input class="form-control" id="del-address" placeholder="Address" style="margin-bottom:6px;">
+          <input class="form-control" id="del-postal" placeholder="Postal / ZIP">
+        </div>
+        <button type="button" class="btn btn-primary btn-block" id="pay-btn" style="margin-top:16px;">Complete payment</button>
+        <div id="receipt-section" class="hidden" style="margin-top:16px;">
+          <label class="form-label">Upload payment receipt</label>
+          <input type="file" id="receipt-file" accept="image/*">
+          <button type="button" class="btn btn-secondary btn-block" id="submit-receipt-btn" style="margin-top:8px;">Submit receipt</button>
+        </div>
+      </div>
+      <div id="checkout-success" class="hidden">
+        <h2>Payment confirmed</h2>
+        <p id="success-message"></p>
+        <a class="btn btn-primary" id="success-continue" href="#">Continue</a>
+      </div>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/checkout.js?v=1"></script>
+</body>
+</html>

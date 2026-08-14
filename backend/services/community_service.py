@@ -19,6 +19,7 @@ from models import (
     generate_token,
 )
 from utils import community_link_for_token
+from services.payment.money import parse_price_to_cents
 
 URL_PATTERN = re.compile(r"https?://[^\s<]+", re.I)
 
@@ -66,6 +67,16 @@ def update_community(community_id, data):
         c.members_visible = bool(data["members_visible"])
     if data.get("registration_fields") is not None:
         c.registration_fields_json = json.dumps(data["registration_fields"])
+    if data.get("community_type") is not None:
+        c.community_type = (data.get("community_type") or "free").lower()[:20]
+    if data.get("currency") is not None:
+        c.currency = (data.get("currency") or "USD").strip()[:10]
+    if data.get("billing_interval") is not None:
+        c.billing_interval = (data.get("billing_interval") or "one_time").strip()[:20]
+    if data.get("price_cents") is not None:
+        c.price_cents = int(data.get("price_cents") or 0)
+    elif data.get("price") is not None:
+        c.price_cents = parse_price_to_cents(data.get("price"))
     db.session.commit()
     return c
 
@@ -312,8 +323,13 @@ def create_product(community_id, data):
         image_url=(data.get("image_url") or "").strip()[:500],
         product_type=(data.get("product_type") or "physical").lower()[:20],
         price=(data.get("price") or "").strip()[:64],
+        price_cents=parse_price_to_cents(data.get("price_cents") or data.get("price")),
         currency=(data.get("currency") or "USD").strip()[:10],
         purchase_url=(data.get("purchase_url") or "").strip()[:500],
+        quantity_available=int(data.get("quantity_available") or data.get("quantity") or 0),
+        digital_delivery_url=(data.get("digital_delivery_url") or "").strip()[:500],
+        digital_delivery_text=(data.get("digital_delivery_text") or "").strip(),
+        fee_percent=float(data.get("fee_percent") or 0),
         status=(data.get("status") or "available").lower()[:20],
     )
     db.session.add(p)
@@ -325,9 +341,18 @@ def update_product(community_id, product_id, data):
     p = CommunityProduct.query.filter_by(id=product_id, community_id=community_id).first()
     if not p:
         raise ValueError("Product not found.")
-    for field in ("name", "description", "image_url", "product_type", "price", "currency", "purchase_url", "status"):
+    for field in (
+        "name", "description", "image_url", "product_type", "price", "currency",
+        "purchase_url", "status", "digital_delivery_url", "digital_delivery_text",
+    ):
         if data.get(field) is not None:
             setattr(p, field, (data.get(field) or "").strip())
+    if data.get("price_cents") is not None or data.get("price") is not None:
+        p.price_cents = parse_price_to_cents(data.get("price_cents") or data.get("price"))
+    if data.get("quantity_available") is not None or data.get("quantity") is not None:
+        p.quantity_available = int(data.get("quantity_available") or data.get("quantity") or 0)
+    if data.get("fee_percent") is not None:
+        p.fee_percent = float(data.get("fee_percent") or 0)
     db.session.commit()
     return p
 
@@ -363,7 +388,13 @@ def register_member(token, data):
     user.set_password(password)
     db.session.add(user)
     db.session.flush()
-    status = "pending" if c.approval_required else "active"
+    is_paid = (c.community_type or "free") == "paid"
+    if is_paid:
+        status = "pending_payment"
+    elif c.approval_required:
+        status = "pending"
+    else:
+        status = "active"
     membership = CommunityMembership(
         community_id=c.id,
         member_user_id=user.id,
@@ -389,9 +420,18 @@ def login_member(username_or_email, password):
     return user
 
 
+def member_has_community_access(member_user_id, community_id):
+    m = CommunityMembership.query.filter_by(
+        community_id=community_id, member_user_id=member_user_id
+    ).first()
+    if not m:
+        return False
+    return m.status == "active"
+
+
 def get_member_memberships(member_user_id):
     rows = CommunityMembership.query.filter_by(member_user_id=member_user_id).filter(
-        CommunityMembership.status.in_(["active", "pending", "suspended"])
+        CommunityMembership.status.in_(["active", "pending", "pending_payment", "suspended"])
     ).all()
     return rows
 

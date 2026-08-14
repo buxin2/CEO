@@ -9,6 +9,8 @@ from services.community_service import create_post
 
 logger = logging.getLogger(__name__)
 
+_scheduler = None
+
 
 def compute_next_run(row, now=None):
     now = now or app_now()
@@ -67,12 +69,31 @@ def process_scheduled_messages():
 
 
 def start_community_scheduler(app):
+    global _scheduler
+    if _scheduler is not None:
+        return
+
+    def _tick():
+        with app.app_context():
+            try:
+                process_scheduled_messages()
+            except Exception:
+                app.logger.exception("Scheduled community messages job failed")
+
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.interval import IntervalTrigger
 
         scheduler = BackgroundScheduler(daemon=True)
-        scheduler.add_job(process_scheduled_messages, "interval", minutes=1)
+        scheduler.add_job(
+            _tick,
+            IntervalTrigger(minutes=1),
+            id="community_scheduled_messages",
+            replace_existing=True,
+        )
         scheduler.start()
+        _scheduler = scheduler
         app.config["COMMUNITY_SCHEDULER"] = scheduler
+        app.logger.info("Community scheduler started (1 min interval)")
     except Exception:
         logger.exception("Community scheduler failed to start")
