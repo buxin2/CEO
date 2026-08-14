@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Communities &middot; My Management System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">My Management System</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="dashboard.html">Companies</a>
+        <a class="sidebar-link active" href="communities.html">&#128101; Communities</a>
+        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
+        <a class="sidebar-link" href="mentor.html">&#129504; Mentor</a>
+        <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
+        <a class="sidebar-link" href="news.html">&#128240; News</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1>&#128101; Communities</h1>
+          <p class="page-subtitle">Manage audiences, students, and followers</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="create-community-btn">+ Create Community</button>
+      </div>
+      <div id="communities-list" class="card-grid"></div>
+    </main>
+  </div>
+  <div class="modal-overlay" id="create-community-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Create Community</h3>
+        <button class="modal-close" onclick="closeModal('create-community-modal')">&times;</button>
+      </div>
+      <form id="create-community-form">
+        <div class="form-group">
+          <label class="form-label" for="new-community-name">Community name</label>
+          <input class="form-control" id="new-community-name" required placeholder="e.g. BuXin Robotics Community">
+        </div>
+        <div class="form-error" id="create-community-error"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('create-community-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/communities.js?v=1"></script>
+</body>
+</html>

@@ -68,6 +68,7 @@ def create_app():
     from routes.planner import planner_bp
     from routes.news import news_bp
     from routes.mentor import mentor_bp
+    from routes.community import community_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -80,6 +81,7 @@ def create_app():
     app.register_blueprint(planner_bp)
     app.register_blueprint(news_bp)
     app.register_blueprint(mentor_bp)
+    app.register_blueprint(community_bp)
 
     @app.route("/")
     def index():
@@ -110,6 +112,9 @@ def create_app():
 
         start_opportunity_scheduler(app)
         start_mentor_scheduler(app)
+        from services.community_scheduler import start_community_scheduler
+
+        start_community_scheduler(app)
 
     return app
 

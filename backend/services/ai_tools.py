@@ -562,6 +562,62 @@ TOOL_DEFINITIONS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_communities",
+            "description": "List all communities with member and post counts.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_community",
+            "description": "Create a new community (audience/students/followers).",
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_community_announcement",
+            "description": "Post an announcement message to a community (by name or id).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "community_name": {"type": "string"},
+                    "community_id": {"type": "integer"},
+                    "message": {"type": "string"},
+                },
+                "required": ["message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "schedule_community_message",
+            "description": "Schedule a recurring or one-time community announcement.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "community_name": {"type": "string"},
+                    "community_id": {"type": "integer"},
+                    "message": {"type": "string"},
+                    "schedule_kind": {"type": "string", "enum": ["once", "daily", "weekly"]},
+                    "schedule_time": {"type": "string", "description": "HH:MM local time"},
+                    "schedule_weekday": {"type": "integer", "description": "0=Monday for weekly"},
+                    "scheduled_at": {"type": "string", "description": "ISO datetime for once"},
+                },
+                "required": ["message"],
+            },
+        },
+    },
 ]
 
 
@@ -1165,6 +1221,76 @@ def execute_tool(name, arguments, context):
         settings.personal_notes = (args.get("personal_notes") or "").strip()
         db.session.commit()
         return _ok({"message": "Personal planning notes updated."})
+
+    if name == "list_communities":
+        from services.community_service import list_communities, community_dashboard
+
+        rows = list_communities()
+        data = []
+        for c in rows:
+            dash = community_dashboard(c.id)
+            data.append({**c.to_dict(), "stats": dash["stats"]})
+        return _ok({"communities": data})
+
+    if name == "create_community":
+        from services.community_service import create_community
+
+        try:
+            c = create_community(args.get("name"))
+            return _ok({"community": c.to_dict(include_link=True)})
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "send_community_announcement":
+        from models import Community
+        from services.community_service import create_post
+
+        cid = args.get("community_id")
+        if not cid and args.get("community_name"):
+            matches = Community.query.filter(
+                Community.name.ilike(f"%{args['community_name'].strip()}%"),
+                Community.deleted_at.is_(None),
+            ).all()
+            if len(matches) == 1:
+                cid = matches[0].id
+            elif len(matches) > 1:
+                return _err(f"Multiple communities match: {', '.join(c.name for c in matches)}")
+            else:
+                return _err("Community not found.")
+        if not cid:
+            return _err("community_name or community_id is required.")
+        message = (args.get("message") or "").strip()
+        if not message:
+            return _err("message is required.")
+        try:
+            post = create_post(int(cid), message, admin_id=context.get("admin_id"), is_announcement=True)
+            return _ok({"post": post.to_dict(), "message": "Announcement posted."})
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "schedule_community_message":
+        from models import Community
+        from services.community_service import create_scheduled_message
+
+        cid = args.get("community_id")
+        if not cid and args.get("community_name"):
+            matches = Community.query.filter(
+                Community.name.ilike(f"%{args['community_name'].strip()}%"),
+                Community.deleted_at.is_(None),
+            ).all()
+            if len(matches) == 1:
+                cid = matches[0].id
+            elif len(matches) > 1:
+                return _err(f"Multiple communities match: {', '.join(c.name for c in matches)}")
+            else:
+                return _err("Community not found.")
+        if not cid:
+            return _err("community_name or community_id is required.")
+        try:
+            row = create_scheduled_message(int(cid), args)
+            return _ok({"scheduled_message": row.to_dict()})
+        except ValueError as exc:
+            return _err(str(exc))
 
     return _err(f"Unknown tool: {name}")
 

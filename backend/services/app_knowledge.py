@@ -41,8 +41,8 @@ def build_ai_app_knowledge_text():
 
     lines = [
         f"Date: {today.isoformat()} · App week (Mon–Sun): {week_start.isoformat()} to {week_end.isoformat()}",
-        "App pages: Dashboard, Companies, AI Assistant (Chat/Manage), My Timetable, "
-        "and per-company Employees, Tasks, Products, Services, Earnings, Group chat.",
+        "App pages: Dashboard, Companies, Communities, AI Assistant (Chat/Manage), Mentor, "
+        "My Timetable, News, and per-company Employees, Tasks, Products, Services, Earnings, Group chat.",
         "",
     ]
 
@@ -96,6 +96,14 @@ def build_ai_app_knowledge_text():
             lines.append("Services: none listed yet")
 
         lines.append("")
+
+    try:
+        from services.community_service import community_ai_summary
+
+        lines.append(community_ai_summary())
+        lines.append("")
+    except Exception:
+        pass
 
     lines.insert(
         3,

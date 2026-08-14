@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Community</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="group-page-body">
+  <div id="community-root" class="group-root">
+    <section id="auth-screen" class="group-entry">
+      <div class="group-entry-card">
+        <h1 id="community-name-label">Community</h1>
+        <p class="text-muted" id="community-desc-label"></p>
+        <div id="login-form">
+          <h3>Sign in</h3>
+          <input class="form-control" id="login-user" placeholder="Username or email">
+          <input class="form-control" id="login-pass" type="password" placeholder="Password" style="margin-top:8px;">
+          <button type="button" class="btn btn-primary btn-block" id="login-btn" style="margin-top:8px;">Sign in</button>
+          <button type="button" class="btn btn-ghost btn-block" id="show-register-btn">Create account</button>
+        </div>
+        <div id="register-form" class="hidden">
+          <h3>Register</h3>
+          <div id="register-fields"></div>
+          <button type="button" class="btn btn-primary btn-block" id="register-btn" style="margin-top:8px;">Register</button>
+          <button type="button" class="btn btn-ghost btn-block" id="show-login-btn">Back to sign in</button>
+        </div>
+      </div>
+    </section>
+    <section id="feed-screen" class="group-chat hidden">
+      <header class="group-chat-header">
+        <div>
+          <div class="group-chat-title" id="feed-title">COMMUNITY</div>
+          <div class="group-chat-meta" id="member-label"></div>
+        </div>
+        <div class="group-chat-header-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="tab-feed-btn">Feed</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="tab-products-btn">Products</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="logout-member-btn">Logout</button>
+        </div>
+      </header>
+      <div id="feed-panel">
+        <div id="posts-list" class="group-messages-list" style="padding:12px;"></div>
+        <footer class="group-composer">
+          <textarea id="post-input" class="form-control" rows="2" placeholder="Write a post or share a link…"></textarea>
+          <button type="button" class="btn btn-primary" id="post-btn">Post</button>
+        </footer>
+      </div>
+      <div id="products-panel" class="hidden" style="padding:12px;"></div>
+    </section>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/community-portal.js?v=1"></script>
+</body>
+</html>

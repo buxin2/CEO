@@ -25,6 +25,7 @@ _READ_ONLY_TOOL_NAMES = {
     "get_earnings_summary",
     "get_planner_snapshot",
     "list_timetable",
+    "list_communities",
 }
 
 _READ_ONLY_TOOL_DEFINITIONS = [
@@ -57,6 +58,9 @@ _WRITE_TOOL_NAMES = {
     "generate_timetable",
     "create_planner_goal",
     "update_planner_notes",
+    "create_community",
+    "send_community_announcement",
+    "schedule_community_message",
 }
 
 _FAILED_GEN_PATTERNS = [

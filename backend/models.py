@@ -814,3 +814,322 @@ class CloudinarySettings(db.Model):
     encrypted_api_key = db.Column(db.Text, default="")
     encrypted_api_secret = db.Column(db.Text, default="")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ---------- Community ----------
+
+
+DEFAULT_COMMUNITY_REGISTRATION_FIELDS = [
+    {"key": "full_name", "label": "Full name", "type": "text", "required": True, "builtin": True},
+    {"key": "username", "label": "Username", "type": "text", "required": True, "builtin": True},
+    {"key": "email", "label": "Email", "type": "email", "required": True, "builtin": True},
+    {"key": "password", "label": "Password", "type": "password", "required": True, "builtin": True},
+    {"key": "background", "label": "Background", "type": "textarea", "required": False, "builtin": True},
+    {"key": "why_join", "label": "Why do you want to join?", "type": "textarea", "required": False, "builtin": True},
+    {"key": "experience_level", "label": "Experience / skill level", "type": "text", "required": False, "builtin": True},
+]
+
+
+class Community(db.Model):
+    __tablename__ = "communities"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    community_token = db.Column(db.String(64), unique=True, nullable=False, index=True, default=generate_token)
+    description = db.Column(db.Text, default="")
+    approval_required = db.Column(db.Boolean, default=False)
+    members_visible = db.Column(db.Boolean, default=True)
+    registration_fields_json = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    memberships = db.relationship(
+        "CommunityMembership", backref="community", cascade="all, delete-orphan", lazy="dynamic"
+    )
+    posts = db.relationship(
+        "CommunityPost", backref="community", cascade="all, delete-orphan", lazy="dynamic"
+    )
+    products = db.relationship(
+        "CommunityProduct", backref="community", cascade="all, delete-orphan", lazy="dynamic"
+    )
+
+    def registration_fields(self):
+        import json
+
+        if self.registration_fields_json:
+            try:
+                return json.loads(self.registration_fields_json)
+            except json.JSONDecodeError:
+                pass
+        return list(DEFAULT_COMMUNITY_REGISTRATION_FIELDS)
+
+    def to_dict(self, include_link=False):
+        from utils import community_link_for_token
+
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "community_token": self.community_token,
+            "description": self.description or "",
+            "approval_required": bool(self.approval_required),
+            "members_visible": bool(self.members_visible),
+            "registration_fields": self.registration_fields(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_link:
+            data["community_link"] = community_link_for_token(self.community_token)
+        return data
+
+
+class CommunityMemberUser(db.Model):
+    __tablename__ = "community_member_users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    full_name = db.Column(db.String(255), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    memberships = db.relationship("CommunityMembership", backref="member_user", lazy="dynamic")
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self, private=False):
+        data = {
+            "id": self.id,
+            "username": self.username,
+            "full_name": self.full_name or "",
+        }
+        if private:
+            data["email"] = self.email
+        return data
+
+
+class CommunityMembership(db.Model):
+    __tablename__ = "community_memberships"
+    __table_args__ = (
+        db.UniqueConstraint("community_id", "member_user_id", name="uq_community_member"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=False, index=True)
+    member_user_id = db.Column(db.Integer, db.ForeignKey("community_member_users.id"), nullable=False, index=True)
+    status = db.Column(db.String(20), default="active", index=True)  # pending, active, suspended, removed
+    background = db.Column(db.Text, default="")
+    why_join = db.Column(db.Text, default="")
+    experience_level = db.Column(db.String(120), default="")
+    custom_fields_json = db.Column(db.Text, default="{}")
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    suspended_at = db.Column(db.DateTime, nullable=True)
+    last_active_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self, include_private=False):
+        import json
+
+        user = self.member_user
+        data = {
+            "id": self.id,
+            "community_id": self.community_id,
+            "member_user_id": self.member_user_id,
+            "status": self.status,
+            "username": user.username if user else "",
+            "full_name": user.full_name if user else "",
+            "background": self.background or "",
+            "why_join": self.why_join or "",
+            "experience_level": self.experience_level or "",
+            "joined_at": self.joined_at.isoformat() if self.joined_at else None,
+            "last_active_at": self.last_active_at.isoformat() if self.last_active_at else None,
+        }
+        try:
+            data["custom_fields"] = json.loads(self.custom_fields_json or "{}")
+        except json.JSONDecodeError:
+            data["custom_fields"] = {}
+        if include_private and user:
+            data["email"] = user.email
+        return data
+
+
+class CommunityPost(db.Model):
+    __tablename__ = "community_posts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=False, index=True)
+    member_user_id = db.Column(db.Integer, db.ForeignKey("community_member_users.id"), nullable=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=True)
+    content = db.Column(db.Text, default="")
+    image_url = db.Column(db.String(500), nullable=True)
+    is_announcement = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    member_user = db.relationship("CommunityMemberUser")
+    admin = db.relationship("Admin")
+    comments = db.relationship("CommunityComment", backref="post", cascade="all, delete-orphan", lazy="dynamic")
+    likes = db.relationship("CommunityPostLike", backref="post", cascade="all, delete-orphan", lazy="dynamic")
+
+    def author_label(self):
+        if self.admin_id:
+            return "Admin", "Administrator"
+        if self.member_user:
+            return self.member_user.full_name or self.member_user.username, "Member"
+        return "Member", "Member"
+
+    def to_dict(self, viewer_member_id=None):
+        likes = self.likes.count()
+        comments = CommunityComment.query.filter_by(post_id=self.id, deleted_at=None).count()
+        name, role = self.author_label()
+        data = {
+            "id": self.id,
+            "community_id": self.community_id,
+            "content": self.content or "",
+            "image_url": self.image_url or "",
+            "is_announcement": bool(self.is_announcement),
+            "is_admin": self.admin_id is not None,
+            "author_name": name,
+            "author_role": role,
+            "likes": likes,
+            "comment_count": comments,
+            "liked_by_me": False,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        if viewer_member_id:
+            data["liked_by_me"] = CommunityPostLike.query.filter_by(
+                post_id=self.id, member_user_id=viewer_member_id
+            ).first() is not None
+        return data
+
+
+class CommunityComment(db.Model):
+    __tablename__ = "community_comments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey("community_posts.id"), nullable=False, index=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey("community_comments.id"), nullable=True)
+    member_user_id = db.Column(db.Integer, db.ForeignKey("community_member_users.id"), nullable=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=True)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    member_user = db.relationship("CommunityMemberUser")
+    admin = db.relationship("Admin")
+    parent = db.relationship("CommunityComment", remote_side=[id], backref="replies")
+
+    def author_label(self):
+        if self.admin_id:
+            return "Admin", "Administrator"
+        if self.member_user:
+            return self.member_user.full_name or self.member_user.username, "Member"
+        return "Member", "Member"
+
+    def to_dict(self):
+        name, role = self.author_label()
+        return {
+            "id": self.id,
+            "post_id": self.post_id,
+            "parent_id": self.parent_id,
+            "content": self.content,
+            "is_admin": self.admin_id is not None,
+            "author_name": name,
+            "author_role": role,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class CommunityPostLike(db.Model):
+    __tablename__ = "community_post_likes"
+    __table_args__ = (db.UniqueConstraint("post_id", "member_user_id", name="uq_community_post_like"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey("community_posts.id"), nullable=False)
+    member_user_id = db.Column(db.Integer, db.ForeignKey("community_member_users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class CommunityProduct(db.Model):
+    __tablename__ = "community_products"
+
+    id = db.Column(db.Integer, primary_key=True)
+    community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, default="")
+    image_url = db.Column(db.String(500), default="")
+    product_type = db.Column(db.String(20), default="physical")  # physical, digital
+    price = db.Column(db.String(64), default="")
+    currency = db.Column(db.String(10), default="USD")
+    purchase_url = db.Column(db.String(500), default="")
+    status = db.Column(db.String(20), default="available")  # available, unavailable
+    view_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "community_id": self.community_id,
+            "name": self.name,
+            "description": self.description or "",
+            "image_url": self.image_url or "",
+            "product_type": self.product_type or "physical",
+            "price": self.price or "",
+            "currency": self.currency or "USD",
+            "purchase_url": self.purchase_url or "",
+            "status": self.status or "available",
+            "view_count": self.view_count or 0,
+        }
+
+
+class CommunityScheduledMessage(db.Model):
+    __tablename__ = "community_scheduled_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=False, index=True)
+    title = db.Column(db.String(255), default="")
+    message = db.Column(db.Text, nullable=False)
+    schedule_kind = db.Column(db.String(20), default="once")  # once, daily, weekly
+    schedule_time = db.Column(db.String(5), default="09:00")
+    schedule_weekday = db.Column(db.Integer, nullable=True)  # 0=Monday for weekly
+    scheduled_at = db.Column(db.DateTime, nullable=True)  # for once
+    is_active = db.Column(db.Boolean, default=True)
+    is_announcement = db.Column(db.Boolean, default=True)
+    last_sent_at = db.Column(db.DateTime, nullable=True)
+    next_run_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    community = db.relationship("Community", backref="scheduled_messages")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "community_id": self.community_id,
+            "title": self.title or "",
+            "message": self.message,
+            "schedule_kind": self.schedule_kind,
+            "schedule_time": self.schedule_time,
+            "schedule_weekday": self.schedule_weekday,
+            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "is_active": bool(self.is_active),
+            "is_announcement": bool(self.is_announcement),
+            "last_sent_at": self.last_sent_at.isoformat() if self.last_sent_at else None,
+            "next_run_at": self.next_run_at.isoformat() if self.next_run_at else None,
+        }
+
+
+class CommunityNotification(db.Model):
+    __tablename__ = "community_notifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=False, index=True)
+    member_user_id = db.Column(db.Integer, db.ForeignKey("community_member_users.id"), nullable=True, index=True)
+    kind = db.Column(db.String(40), default="info")
+    message = db.Column(db.Text, nullable=False)
+    read_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

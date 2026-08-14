@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Community Admin</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">Community</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="communities.html">&#128101; Communities</a>
+        <a class="sidebar-link active" href="communities.html">Community Admin</a>
+        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+    <main class="main-content community-admin-page">
+      <div class="page-header">
+        <div>
+          <h1 id="community-title">Community</h1>
+          <p class="page-subtitle" id="community-stats">Loading…</p>
+        </div>
+        <div class="flex gap-8 flex-wrap">
+          <button type="button" class="btn btn-secondary btn-sm" id="copy-link-btn">Copy Community Link</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="open-community-btn">Open Community</button>
+        </div>
+      </div>
+      <div class="community-admin-tabs">
+        <button type="button" class="btn btn-secondary btn-sm active" data-tab="overview">Overview</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-tab="members">Members</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-tab="posts">Posts</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-tab="products">Products</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-tab="scheduled">Scheduled</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-tab="settings">Settings</button>
+      </div>
+      <section id="tab-overview" class="community-tab card"></section>
+      <section id="tab-members" class="community-tab card hidden">
+        <input class="form-control" id="member-search" placeholder="Search members…" style="margin-bottom:12px;">
+        <div id="members-admin-list"></div>
+      </section>
+      <section id="tab-posts" class="community-tab card hidden">
+        <div class="flex gap-8" style="margin-bottom:12px;">
+          <textarea class="form-control" id="admin-post-input" rows="2" placeholder="Write announcement or post…"></textarea>
+          <button type="button" class="btn btn-primary" id="admin-post-btn">Post</button>
+          <button type="button" class="btn btn-secondary" id="admin-post-image-btn">&#128247; Image</button>
+          <input type="file" id="admin-post-image-input" accept="image/*" class="hidden">
+        </div>
+        <div id="admin-posts-list"></div>
+      </section>
+      <section id="tab-products" class="community-tab card hidden">
+        <button type="button" class="btn btn-primary btn-sm" id="add-product-btn" style="margin-bottom:12px;">+ Add Product</button>
+        <div id="products-admin-list"></div>
+      </section>
+      <section id="tab-scheduled" class="community-tab card hidden">
+        <button type="button" class="btn btn-primary btn-sm" id="add-scheduled-btn" style="margin-bottom:12px;">+ Schedule Message</button>
+        <div id="scheduled-list"></div>
+      </section>
+      <section id="tab-settings" class="community-tab card hidden">
+        <form id="community-settings-form">
+          <div class="form-group"><label class="form-label">Name</label><input class="form-control" id="settings-name"></div>
+          <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="settings-description" rows="3"></textarea></div>
+          <label><input type="checkbox" id="settings-approval"> Require approval to join</label>
+          <br><label><input type="checkbox" id="settings-members-visible"> Show member list to members</label>
+          <div style="margin-top:12px;"><button type="submit" class="btn btn-primary btn-sm">Save settings</button>
+          <button type="button" class="btn btn-danger btn-sm" id="delete-community-btn">Delete community</button></div>
+        </form>
+      </section>
+    </main>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/community-admin.js?v=1"></script>
+</body>
+</html>

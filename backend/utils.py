@@ -19,6 +19,11 @@ def group_link_for_token(token):
     return frontend_url(f"group.html?token={token}")
 
 
+def community_link_for_token(token):
+    """Community member portal link."""
+    return frontend_url(f"community.html?token={token}")
+
+
 def create_group_for_company(company):
     """Create the company group chat (one per company)."""
     from models import CompanyGroup

@@ -148,6 +148,13 @@ def build_mentor_snapshot(admin_id=None):
 
     planner = build_planner_snapshot(today)
 
+    try:
+        from services.community_service import community_ai_summary
+
+        community_summary = community_ai_summary()
+    except Exception:
+        community_summary = ""
+
     tz_id = get_admin_timezone_id(admin_id) if admin_id else None
     location = get_admin_location_label(admin_id) if admin_id else None
 
@@ -162,6 +169,7 @@ def build_mentor_snapshot(admin_id=None):
         },
         "owner_profile": build_ai_owner_profile_text(admin_id),
         "app_knowledge": build_ai_app_knowledge_text(),
+        "community_summary": community_summary,
         "mentor_context_notes": settings_dict.get("context_notes") or "",
         "period_keys": keys,
         "planner_snapshot": planner,

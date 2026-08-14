@@ -2225,3 +2225,19 @@ textarea.form-control {
     grid-template-columns: 1fr;
   }
 }
+
+.community-admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.community-admin-tabs .btn.active {
+  background: var(--color-primary, #2563eb);
+  color: #fff;
+}
+
+.community-tab.hidden {
+  display: none;
+}

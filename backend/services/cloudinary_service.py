@@ -101,3 +101,27 @@ def upload_group_chat_image(file_storage, company_id):
         "width": result.get("width"),
         "height": result.get("height"),
     }
+
+
+def upload_community_image(file_storage, community_id):
+    """Upload admin community post image."""
+    if not _configure_cloudinary():
+        raise RuntimeError(
+            "Image upload is not configured. Open AI Assistant → Cloudinary settings."
+        )
+    if not file_storage or not file_storage.filename:
+        raise ValueError("No image file provided.")
+    content_type = (file_storage.content_type or "").split(";")[0].strip().lower()
+    if content_type and content_type not in ALLOWED_IMAGE_TYPES:
+        raise ValueError("Only image files are allowed.")
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+    if size > MAX_IMAGE_BYTES:
+        raise ValueError("Image is too large. Maximum size is 10 MB.")
+    folder = f"community-posts/community-{community_id}"
+    result = cloudinary.uploader.upload(file_storage, folder=folder, resource_type="image")
+    url = result.get("secure_url") or result.get("url")
+    if not url:
+        raise RuntimeError("Cloudinary upload failed.")
+    return {"url": url, "public_id": result.get("public_id") or ""}
