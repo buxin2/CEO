@@ -17,14 +17,20 @@ ALLOWED_IMAGE_TYPES = frozenset({
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
-def _configure_cloudinary():
-    url = (current_app.config.get("CLOUDINARY_URL") or "").strip()
+def _configure_from_env():
+    url = (current_app.config.get("CLOUDINARY_URL") or os.environ.get("CLOUDINARY_URL") or "").strip()
     if url:
         cloudinary.config(cloudinary_url=url, secure=True)
         return True
-    cloud_name = (current_app.config.get("CLOUDINARY_CLOUD_NAME") or "").strip()
-    api_key = (current_app.config.get("CLOUDINARY_API_KEY") or "").strip()
-    api_secret = (current_app.config.get("CLOUDINARY_API_SECRET") or "").strip()
+    cloud_name = (
+        (current_app.config.get("CLOUDINARY_CLOUD_NAME") or os.environ.get("CLOUDINARY_CLOUD_NAME") or "")
+    ).strip()
+    api_key = (
+        (current_app.config.get("CLOUDINARY_API_KEY") or os.environ.get("CLOUDINARY_API_KEY") or "")
+    ).strip()
+    api_secret = (
+        (current_app.config.get("CLOUDINARY_API_SECRET") or os.environ.get("CLOUDINARY_API_SECRET") or "")
+    ).strip()
     if cloud_name and api_key and api_secret:
         cloudinary.config(
             cloud_name=cloud_name,
@@ -36,25 +42,35 @@ def _configure_cloudinary():
     return False
 
 
+def _configure_cloudinary():
+    from services.cloudinary_settings_service import get_cloudinary_credentials
+
+    creds = get_cloudinary_credentials()
+    if creds:
+        cloudinary.config(
+            cloud_name=creds["cloud_name"],
+            api_key=creds["api_key"],
+            api_secret=creds["api_secret"],
+            secure=True,
+        )
+        return True
+    return _configure_from_env()
+
+
 def is_cloudinary_configured():
     try:
         return _configure_cloudinary()
     except RuntimeError:
-        return bool(
-            os.environ.get("CLOUDINARY_URL")
-            or (
-                os.environ.get("CLOUDINARY_CLOUD_NAME")
-                and os.environ.get("CLOUDINARY_API_KEY")
-                and os.environ.get("CLOUDINARY_API_SECRET")
-            )
-        )
+        from services.cloudinary_settings_service import is_cloudinary_configured_in_db
+
+        return is_cloudinary_configured_in_db() or bool(os.environ.get("CLOUDINARY_URL"))
 
 
 def upload_group_chat_image(file_storage, company_id):
     """Upload image file; returns secure_url and public_id."""
     if not _configure_cloudinary():
         raise RuntimeError(
-            "Image upload is not configured. Set CLOUDINARY_URL on the server."
+            "Image upload is not configured. Open AI Assistant → Cloudinary settings and save your API keys."
         )
 
     if not file_storage or not file_storage.filename:

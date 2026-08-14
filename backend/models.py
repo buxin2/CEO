@@ -802,3 +802,15 @@ class GroqApiKey(db.Model):
             plain = decrypt_api_key(self.encrypted_key)
             data["masked_key"] = mask_api_key(plain)
         return data
+
+
+class CloudinarySettings(db.Model):
+    """Singleton Cloudinary config for group chat image uploads."""
+
+    __tablename__ = "cloudinary_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cloud_name = db.Column(db.String(80), default="")
+    encrypted_api_key = db.Column(db.Text, default="")
+    encrypted_api_secret = db.Column(db.Text, default="")
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

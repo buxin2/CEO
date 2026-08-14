@@ -419,6 +419,55 @@
       ${status.source === "environment" ? `<div class="text-muted">Using Render environment variable (add a saved key to switch without redeploying).</div>` : ""}`;
   }
 
+  function renderCloudinaryStatus(data) {
+    const el = document.getElementById("cloudinary-status");
+    if (!el) return;
+    if (data.configured) {
+      el.innerHTML = `
+        <div class="groq-current-name">🟢 <strong>Cloudinary connected</strong></div>
+        <div class="text-muted">Cloud: ${escapeHtml(data.cloud_name)}</div>
+        <div class="text-muted">API key: ${escapeHtml(data.masked_api_key)} · Secret: ${escapeHtml(data.masked_api_secret)}</div>
+        <div class="text-muted">Group chat image uploads are enabled.</div>`;
+    } else {
+      el.innerHTML = `<p class="text-muted">Not configured — save your Cloudinary keys below to enable admin image sharing in group chats.</p>`;
+    }
+    const cloudInput = document.getElementById("cloudinary-cloud-name");
+    if (cloudInput && data.cloud_name) cloudInput.value = data.cloud_name;
+  }
+
+  async function loadCloudinarySettings() {
+    try {
+      const data = await apiRequest("/api/ai/cloudinary");
+      renderCloudinaryStatus(data);
+    } catch (e) {
+      const el = document.getElementById("cloudinary-status");
+      if (el) el.innerHTML = `<p class="text-muted">${escapeHtml(e.message)}</p>`;
+    }
+  }
+
+  document.getElementById("cloudinary-settings-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = document.getElementById("cloudinary-settings-error");
+    err.classList.remove("visible");
+    try {
+      const data = await apiRequest("/api/ai/cloudinary", {
+        method: "PUT",
+        body: JSON.stringify({
+          cloud_name: document.getElementById("cloudinary-cloud-name").value.trim(),
+          api_key: document.getElementById("cloudinary-api-key").value.trim(),
+          api_secret: document.getElementById("cloudinary-api-secret").value.trim(),
+        }),
+      });
+      renderCloudinaryStatus(data);
+      document.getElementById("cloudinary-api-key").value = "";
+      document.getElementById("cloudinary-api-secret").value = "";
+      showToast("Cloudinary settings saved — group chat images enabled");
+    } catch (ex) {
+      err.textContent = ex.message || "Failed to save";
+      err.classList.add("visible");
+    }
+  });
+
   function renderGroqKeysList() {
     const list = document.getElementById("groq-keys-list");
     if (!groqKeys.length) {
@@ -697,6 +746,7 @@
   }
 
   startServerWake().then(() => {
+    loadCloudinarySettings();
     loadGroqKeys();
     loadOwnerProfile();
   });

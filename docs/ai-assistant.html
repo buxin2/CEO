@@ -136,6 +136,34 @@
         </form>
       </section>
 
+      <section class="card groq-keys-section" id="cloudinary-section">
+        <div class="page-header" style="margin-bottom:12px;">
+          <h2 class="section-title" style="margin:0;">Cloudinary (Group chat images)</h2>
+        </div>
+        <p class="text-muted" style="margin-bottom:12px;">
+          Only you (admin) can share images in company group chats. Employees can view them.
+        </p>
+        <div class="card-inner" id="cloudinary-status">
+          <div class="text-muted">Loading…</div>
+        </div>
+        <form id="cloudinary-settings-form" style="margin-top:12px;">
+          <div class="form-group">
+            <label class="form-label" for="cloudinary-cloud-name">Cloud name</label>
+            <input class="form-control" id="cloudinary-cloud-name" placeholder="e.g. do7bo97gv" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cloudinary-api-key">API key</label>
+            <input class="form-control" id="cloudinary-api-key" type="password" placeholder="API key" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cloudinary-api-secret">API secret</label>
+            <input class="form-control" id="cloudinary-api-secret" type="password" placeholder="API secret" autocomplete="off">
+          </div>
+          <div class="form-error" id="cloudinary-settings-error"></div>
+          <button type="submit" class="btn btn-primary btn-sm">Save Cloudinary settings</button>
+        </form>
+      </section>
+
       <section class="card groq-keys-section" id="groq-keys-section">
         <div class="page-header" style="margin-bottom:12px;">
           <h2 class="section-title" style="margin:0;">Groq API Keys</h2>
@@ -220,6 +248,6 @@
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="js/ai-voice.js?v=7"></script>
-  <script src="js/ai-assistant.js?v=8"></script>
+  <script src="js/ai-assistant.js?v=9"></script>
 </body>
 </html>

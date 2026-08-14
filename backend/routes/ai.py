@@ -231,3 +231,28 @@ def api_test_groq_key(key_id):
         })
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@ai_bp.route("/api/ai/cloudinary", methods=["GET"])
+@login_required
+def api_cloudinary_get():
+    from services.cloudinary_settings_service import settings_to_dict
+
+    return jsonify(settings_to_dict())
+
+
+@ai_bp.route("/api/ai/cloudinary", methods=["PUT"])
+@login_required
+def api_cloudinary_put():
+    from services.cloudinary_settings_service import update_settings
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = update_settings(
+            cloud_name=data.get("cloud_name"),
+            api_key=data.get("api_key"),
+            api_secret=data.get("api_secret"),
+        )
+        return jsonify(result)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
