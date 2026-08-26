@@ -5,6 +5,7 @@ import json
 from models import db, StoreOrder, StoreOrderItem, StoreProduct, generate_token
 from services.fedex_zones import CARRIER, lookup_fedex
 from services.iso_countries import country_options
+from services.payment.fx_gmd import quote_gmd
 from services.payment.checkout_service import (
     _create_payment_record,
     _init_provider_session,
@@ -109,6 +110,18 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
     shipping = _shipping_quote(requires_shipping, country)
     shipping_cents = shipping["shipping_cents"] if shipping.get("available") else 0
     currency = lines[0]["currency"]
+    totals = {
+        "subtotal_cents": subtotal,
+        "discount_cents": discount_cents,
+        "shipping_cents": shipping_cents,
+        "total_cents": after_discount + shipping_cents if shipping.get("available") else after_discount,
+        "currency": currency,
+    }
+    modem_gmd = None
+    try:
+        modem_gmd = quote_gmd(totals["total_cents"], currency)
+    except Exception:
+        modem_gmd = None
     return {
         "kind": "store",
         "items": [
@@ -126,18 +139,13 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
             }
             for l in lines
         ],
-        "totals": {
-            "subtotal_cents": subtotal,
-            "discount_cents": discount_cents,
-            "shipping_cents": shipping_cents,
-            "total_cents": after_discount + shipping_cents if shipping.get("available") else after_discount,
-            "currency": currency,
-        },
+        "totals": totals,
         "shipping": shipping,
         "coupon_applied": coupon.code if coupon else None,
         "payment_methods": get_payment_methods(currency),
         "destination_countries": country_options(),
         "manual_instructions": manual_payment_instructions(),
+        "modem_gmd": modem_gmd,
     }
 
 

@@ -19,6 +19,7 @@ from models import (
 from services.payment.fulfillment import fulfill_payment, mark_payment_failed
 from services.payment.inventory import lock_product, reserve_stock, InventoryError
 from services.payment.money import generate_reference
+from services.payment.fx_gmd import quote_gmd
 from services.payment.modempay_provider import create_payment_intent, verify_webhook
 from services.payment.paypal_provider import capture_order, create_order as paypal_create_order
 from services.payment.pricing import calculate_community_totals, calculate_product_totals
@@ -50,12 +51,21 @@ def manual_payment_instructions():
 def get_payment_methods(currency):
     methods = []
     if (current_app.config.get("MODEMPAY_SECRET_KEY") or "").strip():
-        methods.append({"id": "modem", "label": "Modem Pay (Mobile Wallet)", "currencies": ["GMD", "USD"]})
+        methods.append({"id": "modem", "label": "Modem Pay (Gambian Dalasi)", "currencies": ["GMD", "USD"]})
     if (current_app.config.get("PAYPAL_CLIENT_ID") or "").strip():
         methods.append({"id": "paypal", "label": "PayPal", "currencies": ["USD", "EUR", "GBP"]})
     methods.append({"id": "manual", "label": "Bank / Money Transfer", "currencies": ["USD", "GMD"]})
     cur = (currency or "USD").upper()
     return [m for m in methods if cur in m["currencies"] or m["id"] == "manual"]
+
+
+def _with_modem_quote(payload, totals):
+    try:
+        payload["modem_gmd"] = quote_gmd(totals.get("total_cents") or 0, totals.get("currency") or "USD")
+    except Exception as exc:
+        logger.warning("GMD quote failed: %s", exc)
+        payload["modem_gmd"] = None
+    return payload
 
 
 def _create_payment_record(
@@ -257,12 +267,12 @@ def get_checkout_preview(product_id=None, membership_id=None, quantity=1, coupon
         if not product:
             raise ValueError("Product not found.")
         totals = calculate_product_totals(product, quantity, coupon_code)
-        return {
+        return _with_modem_quote({
             "kind": "product",
             "product": product.to_dict(),
             "totals": {k: totals[k] for k in ("quantity", "unit_price_cents", "subtotal_cents", "fee_cents", "discount_cents", "total_cents", "currency")},
             "payment_methods": get_payment_methods(totals["currency"]),
-        }
+        }, totals)
     if membership_id:
         membership = CommunityMembership.query.get(membership_id)
         if not membership:
@@ -271,13 +281,13 @@ def get_checkout_preview(product_id=None, membership_id=None, quantity=1, coupon
             raise ValueError("Membership not found.")
         community = Community.query.get(membership.community_id)
         totals = calculate_community_totals(community, coupon_code)
-        return {
+        return _with_modem_quote({
             "kind": "membership",
             "community": community.to_dict(),
             "membership_id": membership.id,
             "totals": {k: totals[k] for k in ("subtotal_cents", "fee_cents", "discount_cents", "total_cents", "currency")},
             "payment_methods": get_payment_methods(totals["currency"]),
-        }
+        }, totals)
     raise ValueError("product_id or membership_id required.")
 
 

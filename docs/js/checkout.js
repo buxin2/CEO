@@ -63,13 +63,36 @@
         <input type="radio" name="paymethod" value="${escapeHtml(m.id)}" ${m.id === selectedMethod ? "checked" : ""}>
         ${escapeHtml(m.label)}
       </label>`).join("");
+    let gmdNote = document.getElementById("modem-gmd-note");
+    if (!gmdNote) {
+      gmdNote = document.createElement("p");
+      gmdNote.id = "modem-gmd-note";
+      gmdNote.className = "text-muted";
+      gmdNote.style.marginTop = "8px";
+      document.getElementById("payment-methods").after(gmdNote);
+    }
     document.querySelectorAll("input[name=paymethod]").forEach((el) => {
       el.addEventListener("change", () => {
         selectedMethod = el.value;
         toggleManualInstructions();
+        toggleModemQuote();
       });
     });
     toggleManualInstructions();
+    toggleModemQuote();
+  }
+
+  function toggleModemQuote() {
+    const el = document.getElementById("modem-gmd-note");
+    const quote = preview && preview.modem_gmd;
+    const show = selectedMethod === "modem" && quote && quote.amount;
+    if (!el) return;
+    el.classList.toggle("hidden", !show);
+    if (show) {
+      const gmd = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(quote.amount);
+      el.textContent = "Modem Pay charges " + gmd + " GMD (1 USD = "
+        + Number(quote.rate || 0).toFixed(2) + " GMD). Whole dalasi only.";
+    }
   }
 
   function toggleManualInstructions() {

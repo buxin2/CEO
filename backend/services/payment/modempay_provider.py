@@ -21,12 +21,10 @@ def _modem_client():
 
 
 def _major_amount(amount_cents, currency=None):
-    """Modem Pay amount is integer major units (GMD 450, USD 35), not cents.
+    """Whole dalasi (or whole units) — Modem Pay rejects fractional amounts."""
+    from services.payment.fx_gmd import quote_gmd
 
-    Their SDK types `amount` as int; sending 34.99 is a common 400.
-    """
-    cents = max(0, int(amount_cents or 0))
-    return max(1, int(round(cents / 100.0)))
+    return int(quote_gmd(amount_cents, currency or "USD")["amount"])
 
 
 def _stringify_metadata(metadata):
@@ -70,14 +68,24 @@ def _modem_error_text(exc):
 
 
 def create_payment_intent(amount_cents, currency, title, metadata, return_url, cancel_url, callback_url, customer=None):
+    from services.payment.fx_gmd import quote_gmd
+
     client = _modem_client()
     customer = customer or {}
-    amount = _major_amount(amount_cents, currency)
+    quote = quote_gmd(amount_cents, currency)
+    amount = int(quote["amount"])
+    meta = dict(metadata or {})
+    meta.update({
+        "original_cents": quote["original_cents"],
+        "original_currency": quote["original_currency"],
+        "gmd_amount": amount,
+        "usd_gmd_rate": quote["rate"],
+    })
     params = {
         "amount": amount,
-        "currency": (currency or "USD").upper(),
+        "currency": "GMD",
         "title": (title or "Payment")[:120],
-        "metadata": _stringify_metadata(metadata),
+        "metadata": _stringify_metadata(meta),
         "skip_url_validation": True,
     }
     if return_url:

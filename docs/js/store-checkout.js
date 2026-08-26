@@ -198,6 +198,7 @@
               ${escapeHtml(m.label)}
             </label>`).join("")}
         </div>
+        <p id="modem-gmd-note" class="text-muted hidden" style="margin-top:8px;"></p>
         <div id="manual-box" class="hidden card card-inner" style="margin-top:12px;"></div>
         <div id="receipt-section" class="hidden" style="margin-top:12px;">
           <label class="form-label">Payment receipt</label>
@@ -215,6 +216,7 @@
         <div class="row"><span>Discount</span><span>− ${money(t.discount_cents, t.currency)}</span></div>
         <div class="row"><span>FedEx Shipping</span><span id="sum-shipping">${shipLabel}</span></div>
         <div class="row total"><span>Total</span><span id="sum-total">${totalLabel}</span></div>
+        <div id="modem-gmd-row" class="row hidden"><span>Modem Pay (Dalasi)</span><span id="modem-gmd-amount"></span></div>
         <p id="sum-note" class="${shipOk ? "text-muted" : "form-error"}" style="margin-top:8px;">${escapeHtml(ship.note || "")}</p>
       </aside>
     `;
@@ -241,7 +243,31 @@
     });
   }
 
+  function formatGmd(n) {
+    return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(n) || 0) + " GMD";
+  }
+
+  function toggleModemQuote() {
+    const quote = preview && preview.modem_gmd;
+    const note = document.getElementById("modem-gmd-note");
+    const row = document.getElementById("modem-gmd-row");
+    const amt = document.getElementById("modem-gmd-amount");
+    const show = selectedMethod === "modem" && quote && quote.amount;
+    if (note) {
+      note.classList.toggle("hidden", !show);
+      if (show) {
+        const rate = Number(quote.rate || 0).toFixed(2);
+        note.textContent = "Modem Pay charges " + formatGmd(quote.amount)
+          + " (converted from " + money(quote.original_cents, quote.original_currency)
+          + " at 1 USD = " + rate + " GMD). Whole dalasi only.";
+      }
+    }
+    if (row) row.classList.toggle("hidden", !show);
+    if (amt && show) amt.textContent = formatGmd(quote.amount);
+  }
+
   function toggleManualPanel() {
+    toggleModemQuote();
     if (selectedMethod === "manual") {
       renderManual(preview.manual_instructions);
     } else {

@@ -139,6 +139,7 @@ class Config:
     MODEMPAY_PUBLIC_KEY = (os.environ.get("MODEMPAY_PUBLIC_KEY") or "").strip()
     MODEMPAY_SECRET_KEY = (os.environ.get("MODEMPAY_SECRET_KEY") or "").strip()
     MODEMPAY_WEBHOOK_SECRET = (os.environ.get("MODEMPAY_WEBHOOK_SECRET") or "").strip()
+    MODEMPAY_USD_TO_GMD = os.environ.get("MODEMPAY_USD_TO_GMD", "").strip()
     MANUAL_PAYMENT_INSTRUCTIONS = _load_manual_payment_instructions()
 
     @property
