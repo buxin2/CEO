@@ -11,6 +11,7 @@
           ${o.requires_shipping ? `${escapeHtml(o.ship_address)}, ${escapeHtml(o.ship_city)}, ${escapeHtml(o.ship_region)}, ${escapeHtml(o.ship_country)} ${escapeHtml(o.ship_postal)}` : "Digital — no shipping address"}
         </div>
         <div>Subtotal ${(o.subtotal_cents / 100).toFixed(2)} · Discount ${(o.discount_cents / 100).toFixed(2)} · Shipping ${(o.shipping_cents / 100).toFixed(2)} · <strong>Total ${(o.total_cents / 100).toFixed(2)} ${escapeHtml(o.currency)}</strong></div>
+        ${o.shipping_carrier ? `<div class="text-muted">${escapeHtml(o.shipping_carrier)} · ${escapeHtml(o.shipping_zone || "")} · ${escapeHtml(o.ship_country || "")} · ${(o.shipping_cents / 100).toFixed(2)}</div>` : ""}
         <div>Payment: ${escapeHtml(o.payment_method)} · ${escapeHtml(o.payment_status)} · Ref ${escapeHtml(o.payment_reference || "")}</div>
         <label>Order status
           <select class="form-control" data-status="${o.id}">

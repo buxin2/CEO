@@ -29,31 +29,15 @@
     <main class="main-content">
       <div class="page-header">
         <div>
-          <h1>Shipping Management</h1>
-          <div class="page-subtitle">Only enabled countries can receive orders. Regional rates override the country default.</div>
+          <h1>FedEx zone shipping</h1>
+          <div class="page-subtitle">Fixed prices for a 0.6 kg parcel from India. Carrier is FedEx only. Change a zone price below — country lists are fixed.</div>
         </div>
       </div>
-      <div class="card" style="padding:16px;margin-bottom:16px;">
-        <h3>Add country</h3>
-        <div class="form-grid admin-product-form">
-          <div class="form-group"><label class="form-label">Country</label><input class="form-control" id="c-name" placeholder="India"></div>
-          <div class="form-group"><label class="form-label">Code</label><input class="form-control" id="c-code" placeholder="IN"></div>
-          <div class="form-group"><label class="form-label">Shipping rate</label><input class="form-control" id="c-rate" placeholder="10"></div>
-          <div class="form-group"><label class="form-label">Currency</label><input class="form-control" id="c-cur" value="USD"></div>
-        </div>
-        <label><input type="checkbox" id="c-enabled" checked> Delivery enabled</label>
-        <label style="margin-left:12px;"><input type="checkbox" id="c-free"> Free shipping</label>
-        <div class="form-group" style="margin-top:8px;max-width:280px;">
-          <label class="form-label">Free shipping minimum (optional amount)</label>
-          <input class="form-control" id="c-free-min" placeholder="100">
-        </div>
-        <button class="btn btn-primary" id="add-country">Add country</button>
-      </div>
-      <div id="country-list"></div>
+      <div id="zone-list"></div>
     </main>
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/admin-shipping.js?v=1"></script>
+  <script src="js/admin-shipping.js?v=3"></script>
 </body>
 </html>

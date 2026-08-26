@@ -64,6 +64,27 @@ def update_settings(data):
     if "free_shipping_min_cents" in data:
         val = data.get("free_shipping_min_cents")
         row.free_shipping_min_cents = int(val) if val not in (None, "") else None
+    for field in (
+        "origin_name", "origin_street", "origin_city", "origin_state", "origin_zip",
+        "origin_phone", "origin_email", "customs_signer",
+    ):
+        if data.get(field) is not None:
+            setattr(row, field, str(data.get(field) or "").strip()[:255])
+    if data.get("origin_country") is not None:
+        from services.iso_countries import resolve_country
+        code, _name = resolve_country(data.get("origin_country"))
+        row.origin_country = (code or "IN")[:8]
+    for field, default in (
+        ("default_weight_kg", 0.6),
+        ("default_length_cm", 20.0),
+        ("default_width_cm", 15.0),
+        ("default_height_cm", 8.0),
+    ):
+        if data.get(field) is not None and data.get(field) != "":
+            try:
+                setattr(row, field, float(data[field]))
+            except (TypeError, ValueError):
+                setattr(row, field, default)
     db.session.commit()
     return row
 
@@ -218,6 +239,16 @@ def _product_fields(product, data, is_create=False):
         product.shipping_required = bool(data["shipping_required"]) and product.product_type != "digital"
     if "free_shipping" in data:
         product.free_shipping = bool(data["free_shipping"])
+    for field in ("weight_kg", "length_cm", "width_cm", "height_cm"):
+        if field in data:
+            val = data.get(field)
+            if val in (None, ""):
+                setattr(product, field, None)
+            else:
+                try:
+                    setattr(product, field, float(val))
+                except (TypeError, ValueError):
+                    pass
     if data.get("status"):
         status = str(data["status"]).strip().lower()
         if status in ("active", "draft", "out_of_stock", "hidden"):

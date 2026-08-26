@@ -4,7 +4,7 @@
   let preview = null;
   let selectedMethod = "manual";
   let currentPaymentRef = paymentRef || "";
-  let countries = [];
+  const UNAVAILABLE = "FedEx shipping is currently unavailable for this destination.";
 
   function showError(msg) {
     const el = document.getElementById("checkout-error");
@@ -55,10 +55,55 @@
     };
   }
 
+  function destinationCountries() {
+    const merged = {};
+    const lists = [
+      window.ISO_DESTINATION_COUNTRIES,
+      preview && preview.destination_countries,
+    ];
+    lists.forEach((raw) => {
+      (raw || []).forEach((c) => {
+        const code = String((c && (c.code || c.country_code)) || "").trim().toUpperCase();
+        const name = String((c && (c.name || c.country_name)) || "").trim();
+        if (code && name) merged[code] = { code, name };
+      });
+    });
+    return Object.keys(merged).map((k) => merged[k]).sort((a, b) => a.name.localeCompare(b.name, "en"));
+  }
+
+  function countryOptionsHtml(selected) {
+    return destinationCountries().map((c) => {
+      const sel = c.code === selected ? " selected" : "";
+      return `<option value="${escapeHtml(c.code)}"${sel}>${escapeHtml(c.name)}</option>`;
+    }).join("");
+  }
+
+  function filterCountryOptions() {
+    const q = ((document.getElementById("ship-country-filter") || {}).value || "").trim().toLowerCase();
+    const select = document.getElementById("ship-country");
+    if (!select) return;
+    const selected = select.value;
+    const list = destinationCountries().filter((c) => {
+      if (!q) return true;
+      return c.name.toLowerCase().indexOf(q) >= 0 || c.code.toLowerCase().indexOf(q) >= 0;
+    });
+    select.innerHTML = `<option value="">Select country</option>` + list.map((c) => {
+      const sel = c.code === selected ? " selected" : "";
+      return `<option value="${escapeHtml(c.code)}"${sel}>${escapeHtml(c.name)}</option>`;
+    }).join("");
+  }
+
+  function needsShipping() {
+    return !!(preview && preview.shipping && preview.shipping.requires_shipping);
+  }
+
+  function snapshotIds() {
+    return ["cust-name", "cust-email", "cust-phone", "ship-country", "ship-region", "ship-city", "ship-address", "ship-postal", "coupon-code", "ship-country-filter"];
+  }
+
   function formSnapshot() {
-    const ids = ["cust-name", "cust-email", "cust-phone", "ship-country", "ship-region", "ship-city", "ship-address", "ship-postal", "coupon-code"];
     const snap = {};
-    ids.forEach((id) => {
+    snapshotIds().forEach((id) => {
       const el = document.getElementById(id);
       if (el) snap[id] = el.value;
     });
@@ -79,17 +124,16 @@
       showRootMessage("<p>Your cart is empty. <a href='store.html'>Browse products</a></p>");
       return;
     }
-    const body = {
-      items: items,
-      coupon_code: (document.getElementById("coupon-code") || {}).value || "",
-      delivery: delivery(),
-      country: delivery().country,
-      region: delivery().region,
-    };
+    const country = (document.getElementById("ship-country") || {}).value || snap["ship-country"] || "";
     const res = await storeFetch("/api/store/checkout/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        items: items,
+        coupon_code: (document.getElementById("coupon-code") || {}).value || snap["coupon-code"] || "",
+        country: country,
+        delivery: { country: country },
+      }),
     });
     let data = {};
     try {
@@ -99,11 +143,10 @@
     }
     if (!res.ok) throw new Error(data.error || "Could not calculate totals");
     preview = data;
-    if (Array.isArray(data.shipping_countries) && data.shipping_countries.length) {
-      countries = data.shipping_countries;
-    }
     render();
     restoreSnapshot(snap);
+    const filter = document.getElementById("ship-country-filter");
+    if (filter && filter.value) filterCountryOptions();
   }
 
   function render() {
@@ -112,6 +155,11 @@
     const needsShip = ship.requires_shipping;
     const methods = preview.payment_methods || [];
     if (!methods.find((m) => m.id === selectedMethod)) selectedMethod = (methods[0] || {}).id || "manual";
+    const shipOk = !needsShip || ship.available === true;
+    const shipLabel = shipOk && needsShip
+      ? money(t.shipping_cents, t.currency)
+      : (needsShip ? "—" : money(0, t.currency));
+    const totalLabel = shipOk ? money(t.total_cents, t.currency) : money(t.subtotal_cents - t.discount_cents, t.currency);
 
     document.getElementById("checkout-root").innerHTML = `
       <form id="checkout-form" class="card" style="padding:20px;">
@@ -120,12 +168,13 @@
         <div class="form-group"><label class="form-label">Email</label><input class="form-control" id="cust-email" type="email" required></div>
         <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="cust-phone" required></div>
         ${needsShip ? `
-        <h2>Delivery</h2>
+        <h2>Shipping address</h2>
         <div class="form-group">
-          <label class="form-label">Country</label>
-          <select class="form-control" id="ship-country">
+          <label class="form-label">Shipping country</label>
+          <input class="form-control" id="ship-country-filter" placeholder="Search country" autocomplete="off" style="margin-bottom:8px;">
+          <select class="form-control" id="ship-country" required>
             <option value="">Select country</option>
-            ${countries.map((c) => `<option value="${escapeHtml(c.country_name)}">${escapeHtml(c.country_name)}</option>`).join("")}
+            ${countryOptionsHtml("")}
           </select>
         </div>
         <div class="form-group"><label class="form-label">State / Region / Province</label><input class="form-control" id="ship-region"></div>
@@ -154,25 +203,25 @@
           <input type="file" id="receipt-file" accept="image/*">
           <button type="button" class="btn btn-secondary" id="submit-receipt" style="margin-top:8px;">Submit receipt</button>
         </div>
-        <button type="submit" class="btn btn-primary btn-block" id="pay-btn" style="margin-top:16px;" ${ship.available === false ? "disabled" : ""}>Place order & pay</button>
+        <button type="submit" class="btn btn-primary btn-block" id="pay-btn" style="margin-top:16px;" ${shipOk ? "" : "disabled"}>Place order & pay</button>
       </form>
       <aside class="checkout-totals">
         <h3>Order summary</h3>
         ${(preview.items || []).map((i) => `
           <div class="row"><span>${escapeHtml(i.title)} × ${i.quantity}</span><span>${money(i.line_total_cents, t.currency)}</span></div>
         `).join("")}
-        <div class="row"><span>Subtotal</span><span>${money(t.subtotal_cents, t.currency)}</span></div>
+        <div class="row"><span>Product</span><span>${money(t.subtotal_cents, t.currency)}</span></div>
         <div class="row"><span>Discount</span><span>− ${money(t.discount_cents, t.currency)}</span></div>
-        <div class="row"><span>Shipping</span><span>${ship.available === false ? "—" : money(t.shipping_cents, t.currency)}</span></div>
-        <div class="row total"><span>Total</span><span>${money(t.total_cents, t.currency)}</span></div>
-        ${ship.note ? `<p class="${ship.available === false ? "form-error" : "text-muted"}" style="margin-top:8px;">${escapeHtml(ship.note)}</p>` : ""}
+        <div class="row"><span>FedEx Shipping</span><span id="sum-shipping">${shipLabel}</span></div>
+        <div class="row total"><span>Total</span><span id="sum-total">${totalLabel}</span></div>
+        <p id="sum-note" class="${shipOk ? "text-muted" : "form-error"}" style="margin-top:8px;">${escapeHtml(ship.note || "")}</p>
       </aside>
     `;
 
-    ["ship-country", "ship-region"].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener("change", () => loadPreview().catch((e) => showError(e.message)));
-    });
+    const countryEl = document.getElementById("ship-country");
+    if (countryEl) countryEl.addEventListener("change", () => loadPreview().catch((e) => showError(e.message)));
+    const countryFilter = document.getElementById("ship-country-filter");
+    if (countryFilter) countryFilter.addEventListener("input", filterCountryOptions);
     document.getElementById("apply-coupon").addEventListener("click", () => loadPreview().catch((e) => showError(e.message)));
     document.querySelectorAll("input[name=paymethod]").forEach((el) => {
       el.addEventListener("change", () => { selectedMethod = el.value; });
@@ -205,6 +254,9 @@
 
   async function startCheckout() {
     showError("");
+    if (needsShipping() && !(preview.shipping && preview.shipping.available)) {
+      throw new Error(UNAVAILABLE);
+    }
     const res = await storeFetch("/api/store/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

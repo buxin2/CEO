@@ -139,5 +139,42 @@ def run_schema_migrations():
 
     _add_column(engine, "coupons", "store_product_id", "store_product_id INTEGER", "store_product_id INTEGER")
 
+    for col, pg, sq in (
+        ("origin_name", "origin_name VARCHAR(120) DEFAULT 'Store'", "origin_name VARCHAR(120) DEFAULT 'Store'"),
+        ("origin_street", "origin_street VARCHAR(255) DEFAULT ''", "origin_street VARCHAR(255) DEFAULT ''"),
+        ("origin_city", "origin_city VARCHAR(120) DEFAULT 'Greater Noida'", "origin_city VARCHAR(120) DEFAULT 'Greater Noida'"),
+        ("origin_state", "origin_state VARCHAR(80) DEFAULT 'UP'", "origin_state VARCHAR(80) DEFAULT 'UP'"),
+        ("origin_zip", "origin_zip VARCHAR(20) DEFAULT '201310'", "origin_zip VARCHAR(20) DEFAULT '201310'"),
+        ("origin_country", "origin_country VARCHAR(8) DEFAULT 'IN'", "origin_country VARCHAR(8) DEFAULT 'IN'"),
+        ("origin_phone", "origin_phone VARCHAR(32) DEFAULT ''", "origin_phone VARCHAR(32) DEFAULT ''"),
+        ("origin_email", "origin_email VARCHAR(255) DEFAULT ''", "origin_email VARCHAR(255) DEFAULT ''"),
+        ("default_weight_kg", "default_weight_kg DOUBLE PRECISION DEFAULT 0.6", "default_weight_kg REAL DEFAULT 0.6"),
+        ("default_length_cm", "default_length_cm DOUBLE PRECISION DEFAULT 20", "default_length_cm REAL DEFAULT 20"),
+        ("default_width_cm", "default_width_cm DOUBLE PRECISION DEFAULT 15", "default_width_cm REAL DEFAULT 15"),
+        ("default_height_cm", "default_height_cm DOUBLE PRECISION DEFAULT 8", "default_height_cm REAL DEFAULT 8"),
+        ("customs_signer", "customs_signer VARCHAR(120) DEFAULT ''", "customs_signer VARCHAR(120) DEFAULT ''"),
+    ):
+        _add_column(engine, "store_settings", col, pg, sq)
+
+    _add_column(engine, "store_products", "weight_kg", "weight_kg DOUBLE PRECISION", "weight_kg REAL")
+    _add_column(engine, "store_products", "length_cm", "length_cm DOUBLE PRECISION", "length_cm REAL")
+    _add_column(engine, "store_products", "width_cm", "width_cm DOUBLE PRECISION", "width_cm REAL")
+    _add_column(engine, "store_products", "height_cm", "height_cm DOUBLE PRECISION", "height_cm REAL")
+
+    for col, pg, sq in (
+        ("shipping_carrier", "shipping_carrier VARCHAR(120) DEFAULT ''", "shipping_carrier VARCHAR(120) DEFAULT ''"),
+        ("shipping_service", "shipping_service VARCHAR(160) DEFAULT ''", "shipping_service VARCHAR(160) DEFAULT ''"),
+        ("shipping_currency", "shipping_currency VARCHAR(10) DEFAULT ''", "shipping_currency VARCHAR(10) DEFAULT ''"),
+        ("shipping_estimated_days", "shipping_estimated_days INTEGER", "shipping_estimated_days INTEGER"),
+        ("shippo_rate_id", "shippo_rate_id VARCHAR(80) DEFAULT ''", "shippo_rate_id VARCHAR(80) DEFAULT ''"),
+        ("shippo_shipment_id", "shippo_shipment_id VARCHAR(80) DEFAULT ''", "shippo_shipment_id VARCHAR(80) DEFAULT ''"),
+        ("shipment_weight_kg", "shipment_weight_kg DOUBLE PRECISION", "shipment_weight_kg REAL"),
+        ("shipment_length_cm", "shipment_length_cm DOUBLE PRECISION", "shipment_length_cm REAL"),
+        ("shipment_width_cm", "shipment_width_cm DOUBLE PRECISION", "shipment_width_cm REAL"),
+        ("shipment_height_cm", "shipment_height_cm DOUBLE PRECISION", "shipment_height_cm REAL"),
+        ("shipping_zone", "shipping_zone VARCHAR(120) DEFAULT ''", "shipping_zone VARCHAR(120) DEFAULT ''"),
+    ):
+        _add_column(engine, "store_orders", col, pg, sq)
+
     db.session.commit()
     logger.info("Schema migrations complete.")

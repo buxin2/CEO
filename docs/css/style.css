@@ -446,6 +446,17 @@ textarea.form-control {
   min-height: 80px;
 }
 
+#ship-country {
+  min-height: 44px;
+  background: #fff;
+  color: #111;
+}
+
+#ship-country option {
+  color: #111;
+  background: #fff;
+}
+
 .form-row {
   display: flex;
   gap: 12px;
@@ -2698,6 +2709,49 @@ body.store-body {
   border-top: 1px solid var(--color-border);
   padding-top: 10px;
   margin-top: 10px;
+}
+
+.ship-rate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+
+.ship-rate-option {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.ship-rate-option:has(input:checked) {
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 1px var(--color-primary, #2563eb);
+}
+
+.ship-rate-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.ship-rate-title {
+  font-weight: 600;
+}
+
+.ship-rate-price {
+  font-weight: 700;
+}
+
+.ship-rate-eta {
+  color: var(--color-muted, #64748b);
+  font-size: 13px;
 }
 
 .sticky-buy {

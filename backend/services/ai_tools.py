@@ -706,20 +706,15 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "set_store_shipping",
-            "description": "Add or update country shipping rates for the store. Optionally set a regional rate.",
+            "description": "Update a FedEx zone's fixed shipping price. Zones and countries are predefined. Carrier is always FedEx. No shipping APIs.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "country_name": {"type": "string"},
-                    "rate": {"type": "string", "description": "Shipping price like 10 or $10"},
-                    "currency": {"type": "string"},
-                    "enabled": {"type": "boolean"},
-                    "free_shipping": {"type": "boolean"},
-                    "region_name": {"type": "string"},
-                    "region_rate": {"type": "string"},
-                    "product_title": {"type": "string", "description": "If set, mark this product as free shipping"},
+                    "zone_slug": {"type": "string", "description": "e.g. west_africa, europe zones like western_europe, north_america"},
+                    "zone_name": {"type": "string", "description": "Zone display name if slug is unknown"},
+                    "rate": {"type": "string", "description": "FedEx price like 52 or 52.00"},
                 },
-                "required": ["country_name"],
+                "required": ["rate"],
             },
         },
     },
@@ -1527,34 +1522,20 @@ def execute_tool(name, arguments, context):
             return _err(str(exc))
 
     if name == "set_store_shipping":
-        from services.store_shipping import create_country, find_country, update_country, add_region
-        from services.store_service import find_product_by_name, update_product
+        from services.fedex_zones import ZONES, update_zone_rate
 
-        country_name = (args.get("country_name") or "").strip()
-        if not country_name:
-            return _err("country_name is required.")
-        existing = find_country(country_name)
-        payload = {
-            "country_name": country_name,
-            "rate": args.get("rate") or 0,
-            "currency": args.get("currency") or "USD",
-        }
-        if args.get("enabled") is not None:
-            payload["is_enabled"] = bool(args.get("enabled"))
-        if args.get("free_shipping") is not None:
-            payload["free_shipping"] = bool(args.get("free_shipping"))
+        slug = (args.get("zone_slug") or "").strip()
+        if not slug and args.get("zone_name"):
+            wanted = str(args.get("zone_name")).strip().lower()
+            for key, zone in ZONES.items():
+                if zone["name"].lower() == wanted or wanted in zone["name"].lower() or wanted in key:
+                    slug = key
+                    break
+        if not slug:
+            return _err("Name a zone such as west_africa or West Africa.")
         try:
-            if existing:
-                row = update_country(existing.id, payload)
-            else:
-                row = create_country(payload)
-            if args.get("region_name"):
-                add_region(row.id, {"region_name": args.get("region_name"), "rate": args.get("region_rate") or args.get("rate")})
-            if args.get("product_title"):
-                product = find_product_by_name(args.get("product_title"))
-                if product:
-                    update_product(product.id, {"free_shipping": True})
-            return _ok({"country": row.to_dict(), "message": f"Shipping for {row.country_name} is {row.rate_cents / 100:.2f} {row.currency}."})
+            row = update_zone_rate(slug, args.get("rate"))
+            return _ok({"zone": row, "message": f"FedEx price for {row['name']} is now {row['rate_cents'] / 100:.2f} USD."})
         except ValueError as exc:
             return _err(str(exc))
 

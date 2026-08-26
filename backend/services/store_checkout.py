@@ -3,6 +3,8 @@
 import json
 
 from models import db, StoreOrder, StoreOrderItem, StoreProduct, generate_token
+from services.fedex_zones import CARRIER, lookup_fedex
+from services.iso_countries import country_options
 from services.payment.checkout_service import (
     _create_payment_record,
     _init_provider_session,
@@ -12,7 +14,6 @@ from services.payment.fulfillment import fulfill_payment
 from services.payment.inventory import InventoryError, lock_store_product, reserve_stock
 from services.payment.money import generate_reference
 from services.payment.pricing import calculate_store_line, validate_and_apply_coupon
-from services.store_shipping import ShippingUnavailable, calculate_shipping, list_enabled_countries
 
 
 def _email_ok(email):
@@ -43,6 +44,51 @@ def _line_items_from_request(items):
     return lines
 
 
+def _shipping_quote(requires_shipping, country):
+    if not requires_shipping:
+        return {
+            "available": True,
+            "requires_shipping": False,
+            "shipping_cents": 0,
+            "carrier": "",
+            "zone_name": "",
+            "note": "Digital order — no shipping.",
+        }
+    if not (country or "").strip():
+        return {
+            "available": False,
+            "requires_shipping": True,
+            "shipping_cents": 0,
+            "carrier": CARRIER,
+            "zone_name": "",
+            "note": "Select a shipping country to add FedEx shipping.",
+        }
+    quote = lookup_fedex(country)
+    if not quote.get("available"):
+        return {
+            "available": False,
+            "requires_shipping": True,
+            "shipping_cents": 0,
+            "carrier": CARRIER,
+            "zone_name": "",
+            "country_code": quote.get("country_code") or "",
+            "country_name": quote.get("country_name") or "",
+            "note": quote.get("error") or "FedEx shipping is currently unavailable for this destination.",
+        }
+    return {
+        "available": True,
+        "requires_shipping": True,
+        "shipping_cents": quote["shipping_cents"],
+        "carrier": quote["carrier"],
+        "zone_slug": quote["zone_slug"],
+        "zone_name": quote["zone_name"],
+        "country_code": quote["country_code"],
+        "country_name": quote["country_name"],
+        "currency": quote.get("currency") or "USD",
+        "note": f"{quote['carrier']} shipping",
+    }
+
+
 def preview_store_checkout(items, coupon_code=None, country=None, region=None):
     lines = _line_items_from_request(items)
     subtotal = sum(l["line_total_cents"] for l in lines)
@@ -56,36 +102,11 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
         },
     )
     after_discount = max(0, subtotal - discount_cents)
-    shipping = {
-        "shipping_cents": 0,
-        "requires_shipping": any(
-            (p.product_type or "physical") != "digital" and p.shipping_required for p in products
-        ),
-        "note": "",
-        "available": True,
-    }
-    if shipping["requires_shipping"] and country:
-        try:
-            ship = calculate_shipping(country, region, after_discount, products)
-            shipping = {
-                "shipping_cents": ship["shipping_cents"],
-                "requires_shipping": True,
-                "note": ship.get("note") or "",
-                "available": True,
-                "free_shipping": ship.get("free_shipping"),
-            }
-        except ShippingUnavailable as exc:
-            shipping = {
-                "shipping_cents": 0,
-                "requires_shipping": True,
-                "note": str(exc),
-                "available": False,
-            }
-    elif shipping["requires_shipping"] and not country:
-        shipping["note"] = "Select a country to calculate shipping."
-        shipping["available"] = None
-
-    total = after_discount + (shipping["shipping_cents"] if shipping.get("available") else 0)
+    requires_shipping = any(
+        (p.product_type or "physical") != "digital" and p.shipping_required for p in products
+    )
+    shipping = _shipping_quote(requires_shipping, country)
+    shipping_cents = shipping["shipping_cents"] if shipping.get("available") else 0
     currency = lines[0]["currency"]
     return {
         "kind": "store",
@@ -107,17 +128,14 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
         "totals": {
             "subtotal_cents": subtotal,
             "discount_cents": discount_cents,
-            "shipping_cents": shipping["shipping_cents"] if shipping.get("available") else 0,
-            "total_cents": total if shipping.get("available") is not False else after_discount,
+            "shipping_cents": shipping_cents,
+            "total_cents": after_discount + shipping_cents if shipping.get("available") else after_discount,
             "currency": currency,
         },
         "shipping": shipping,
         "coupon_applied": coupon.code if coupon else None,
         "payment_methods": get_payment_methods(currency),
-        "shipping_countries": [
-            {"id": c.id, "country_name": c.country_name, "country_code": c.country_code}
-            for c in list_enabled_countries()
-        ],
+        "destination_countries": country_options(),
     }
 
 
@@ -146,13 +164,15 @@ def checkout_store(items, customer, delivery, coupon_code, payment_method):
     address = (delivery.get("address") or "").strip()
     postal = (delivery.get("postal") or delivery.get("zip") or "").strip()
 
+    quote = _shipping_quote(requires_shipping, country)
     if requires_shipping:
         if not country:
             raise ValueError("Country is required for delivery.")
         if not city or not address:
             raise ValueError("City and address are required for delivery.")
+        if not quote.get("available"):
+            raise ValueError(quote.get("note") or "FedEx shipping is currently unavailable for this destination.")
 
-    # Lock + reserve in a consistent id order to reduce deadlocks
     locked = {}
     for pid in sorted({l["product"].id for l in lines}):
         product = lock_store_product(pid)
@@ -178,15 +198,13 @@ def checkout_store(items, customer, delivery, coupon_code, payment_method):
             {"store": True, "store_product_ids": [p.id for p in products]},
         )
         after_discount = max(0, subtotal - discount_cents)
-
-        if requires_shipping:
-            ship = calculate_shipping(country, region, after_discount, [l["product"] for l in lines])
-            shipping_cents = ship["shipping_cents"]
-            ship_note = ship.get("note") or ""
-        else:
-            shipping_cents = 0
-            ship_note = "Digital order — no shipping."
-
+        shipping_cents = quote["shipping_cents"] if requires_shipping else 0
+        ship_note = (
+            f"{quote.get('carrier') or CARRIER} · {quote.get('zone_name') or ''}".strip(" ·")
+            if requires_shipping
+            else "Digital order — no shipping."
+        )
+        country_label = (quote.get("country_name") or country)[:120]
         total = after_discount + shipping_cents
         currency = lines[0]["currency"]
         provider = (payment_method or "manual").lower()
@@ -198,7 +216,7 @@ def checkout_store(items, customer, delivery, coupon_code, payment_method):
             customer_name=name[:255],
             customer_email=email[:255],
             customer_phone=phone[:64],
-            ship_country=country[:120],
+            ship_country=country_label,
             ship_region=region[:160],
             ship_city=city[:160],
             ship_address=address,
@@ -213,6 +231,10 @@ def checkout_store(items, customer, delivery, coupon_code, payment_method):
             order_status="pending_payment",
             requires_shipping=requires_shipping,
             shipping_note=ship_note[:255],
+            shipping_carrier=CARRIER if requires_shipping else "",
+            shipping_service="FedEx International" if requires_shipping else "",
+            shipping_zone=(quote.get("zone_name") or "")[:120],
+            shipping_currency=currency if requires_shipping else "",
             access_token=generate_token(18),
         )
         db.session.add(order)
@@ -278,8 +300,8 @@ def store_order_for_payment(payment):
     return StoreOrder.query.filter_by(payment_id=payment.id).first()
 
 
-def public_order_lookup(order_number, access_token):
+def public_order_lookup(order_number, token):
     order = StoreOrder.query.filter_by(order_number=order_number).first()
-    if not order or order.access_token != access_token:
+    if not order or order.access_token != token:
         raise ValueError("Order not found.")
     return order

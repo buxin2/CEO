@@ -84,6 +84,7 @@
     document.getElementById("p-images").innerHTML = "";
     document.getElementById("p-videos").innerHTML = "";
     document.getElementById("p-ship").checked = true;
+    document.getElementById("p-weight").value = "0.6";
     document.getElementById("product-modal-title").textContent = "Add product";
     openModal("product-modal");
   }
@@ -107,6 +108,10 @@
     document.getElementById("p-specs").value = p.specifications || "";
     document.getElementById("p-ship").checked = !!p.shipping_required;
     document.getElementById("p-free-ship").checked = !!p.free_shipping;
+    document.getElementById("p-weight").value = p.weight_kg != null ? p.weight_kg : "";
+    document.getElementById("p-length").value = p.length_cm != null ? p.length_cm : "";
+    document.getElementById("p-width").value = p.width_cm != null ? p.width_cm : "";
+    document.getElementById("p-height").value = p.height_cm != null ? p.height_cm : "";
     document.getElementById("p-dig-url").value = p.digital_delivery_url || "";
     document.getElementById("p-dig-text").value = p.digital_delivery_text || "";
     document.getElementById("p-options").value = JSON.stringify(p.options || [], null, 2);
@@ -202,6 +207,10 @@
       specifications: document.getElementById("p-specs").value,
       shipping_required: document.getElementById("p-ship").checked,
       free_shipping: document.getElementById("p-free-ship").checked,
+      weight_kg: document.getElementById("p-weight").value,
+      length_cm: document.getElementById("p-length").value,
+      width_cm: document.getElementById("p-width").value,
+      height_cm: document.getElementById("p-height").value,
       digital_delivery_url: document.getElementById("p-dig-url").value,
       digital_delivery_text: document.getElementById("p-dig-text").value,
       options: options,

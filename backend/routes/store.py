@@ -6,6 +6,8 @@ from flask import Blueprint, Response, jsonify, request, session
 
 from models import STORE_ORDER_STATUSES, StoreOrder, StoreProduct, db
 from routes.auth import login_required
+from services.iso_countries import country_options
+from services.fedex_zones import update_zone_rate, zones_for_admin
 from services.payment.checkout_service import (
     manual_payment_instructions,
     payment_by_reference,
@@ -44,8 +46,6 @@ from services.store_shipping import (
     create_country,
     delete_country,
     delete_region,
-    list_all_countries,
-    list_enabled_countries,
     update_country,
     update_region,
 )
@@ -69,6 +69,11 @@ def _store_payment_payload(payment, order=None):
 # ---------- Public ----------
 
 
+@store_bp.route("/api/store/countries", methods=["GET"])
+def api_store_countries():
+    return jsonify({"countries": country_options()})
+
+
 @store_bp.route("/api/store", methods=["GET"])
 def api_public_store():
     settings = get_or_create_settings()
@@ -81,10 +86,7 @@ def api_public_store():
         "store_url": store_link(),
         "categories": [c.to_dict() for c in list_categories()],
         "products": [p.to_public_dict(include_media=True) for p in visible],
-        "shipping_countries": [
-            {"id": c.id, "country_name": c.country_name, "country_code": c.country_code}
-            for c in list_enabled_countries()
-        ],
+        "destination_countries": country_options(),
     })
 
 
@@ -111,9 +113,9 @@ def api_store_preview():
             data.get("items") or [],
             coupon_code=data.get("coupon_code"),
             country=(data.get("country") or (data.get("delivery") or {}).get("country")),
-            region=(data.get("region") or (data.get("delivery") or {}).get("region") or (data.get("delivery") or {}).get("state")),
         )
         preview["store"] = get_or_create_settings().to_dict()
+        preview["destination_countries"] = country_options()
         return jsonify(preview)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
@@ -429,11 +431,21 @@ def api_admin_delete_video(video_id):
 @store_bp.route("/api/admin/shipping", methods=["GET"])
 @login_required
 def api_admin_shipping():
-    settings = get_or_create_settings()
     return jsonify({
-        "settings": settings.to_dict(),
-        "countries": [c.to_dict() for c in list_all_countries()],
+        "carrier": "FedEx",
+        "zones": zones_for_admin(),
     })
+
+
+@store_bp.route("/api/admin/shipping/zones/<slug>", methods=["PUT"])
+@login_required
+def api_admin_shipping_zone(slug):
+    data = request.get_json(silent=True) or {}
+    try:
+        row = update_zone_rate(slug, data.get("rate") if data.get("rate") is not None else data.get("rate_cents"))
+        return jsonify(row)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @store_bp.route("/api/admin/shipping/countries", methods=["POST"])

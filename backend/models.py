@@ -1520,6 +1520,19 @@ class StoreSettings(db.Model):
     logo_url = db.Column(db.String(500), default="")
     currency = db.Column(db.String(10), default="USD")
     free_shipping_min_cents = db.Column(db.Integer, nullable=True)
+    origin_name = db.Column(db.String(120), default="Store")
+    origin_street = db.Column(db.String(255), default="")
+    origin_city = db.Column(db.String(120), default="Greater Noida")
+    origin_state = db.Column(db.String(80), default="UP")
+    origin_zip = db.Column(db.String(20), default="201310")
+    origin_country = db.Column(db.String(8), default="IN")
+    origin_phone = db.Column(db.String(32), default="")
+    origin_email = db.Column(db.String(255), default="")
+    default_weight_kg = db.Column(db.Float, default=0.6)
+    default_length_cm = db.Column(db.Float, default=20.0)
+    default_width_cm = db.Column(db.Float, default=15.0)
+    default_height_cm = db.Column(db.Float, default=8.0)
+    customs_signer = db.Column(db.String(120), default="")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self):
@@ -1530,6 +1543,19 @@ class StoreSettings(db.Model):
             "logo_url": self.logo_url or "",
             "currency": self.currency or "USD",
             "free_shipping_min_cents": self.free_shipping_min_cents,
+            "origin_name": self.origin_name or "Store",
+            "origin_street": self.origin_street or "",
+            "origin_city": self.origin_city or "Greater Noida",
+            "origin_state": self.origin_state or "UP",
+            "origin_zip": self.origin_zip or "201310",
+            "origin_country": self.origin_country or "IN",
+            "origin_phone": self.origin_phone or "",
+            "origin_email": self.origin_email or "",
+            "default_weight_kg": self.default_weight_kg if self.default_weight_kg is not None else 0.6,
+            "default_length_cm": self.default_length_cm if self.default_length_cm is not None else 20,
+            "default_width_cm": self.default_width_cm if self.default_width_cm is not None else 15,
+            "default_height_cm": self.default_height_cm if self.default_height_cm is not None else 8,
+            "customs_signer": self.customs_signer or "",
         }
 
 
@@ -1573,6 +1599,10 @@ class StoreProduct(db.Model):
     quantity_reserved = db.Column(db.Integer, default=0)
     shipping_required = db.Column(db.Boolean, default=True)
     free_shipping = db.Column(db.Boolean, default=False)
+    weight_kg = db.Column(db.Float, nullable=True)
+    length_cm = db.Column(db.Float, nullable=True)
+    width_cm = db.Column(db.Float, nullable=True)
+    height_cm = db.Column(db.Float, nullable=True)
     digital_delivery_url = db.Column(db.String(500), default="")
     digital_delivery_text = db.Column(db.Text, default="")
     keywords = db.Column(db.String(500), default="")
@@ -1648,6 +1678,10 @@ class StoreProduct(db.Model):
             "in_stock": sellable is None or sellable > 0,
             "shipping_required": bool(self.shipping_required if self.product_type != "digital" else False),
             "free_shipping": bool(self.free_shipping),
+            "weight_kg": self.weight_kg,
+            "length_cm": self.length_cm,
+            "width_cm": self.width_cm,
+            "height_cm": self.height_cm,
             "cover_image": cover,
             "images": images,
             "videos": videos,
@@ -1835,6 +1869,17 @@ class StoreOrder(db.Model):
     courier = db.Column(db.String(120), default="")
     tracking_number = db.Column(db.String(120), default="")
     tracking_url = db.Column(db.String(500), default="")
+    shipping_carrier = db.Column(db.String(120), default="")
+    shipping_service = db.Column(db.String(160), default="")
+    shipping_zone = db.Column(db.String(120), default="")
+    shipping_currency = db.Column(db.String(10), default="")
+    shipping_estimated_days = db.Column(db.Integer, nullable=True)
+    shippo_rate_id = db.Column(db.String(80), default="")
+    shippo_shipment_id = db.Column(db.String(80), default="")
+    shipment_weight_kg = db.Column(db.Float, nullable=True)
+    shipment_length_cm = db.Column(db.Float, nullable=True)
+    shipment_width_cm = db.Column(db.Float, nullable=True)
+    shipment_height_cm = db.Column(db.Float, nullable=True)
     digital_delivery_json = db.Column(db.Text, default="[]")
     access_token = db.Column(db.String(64), unique=True, nullable=False, index=True, default=generate_token)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -1874,6 +1919,17 @@ class StoreOrder(db.Model):
             "courier": self.courier or "",
             "tracking_number": self.tracking_number or "",
             "tracking_url": self.tracking_url or "",
+            "shipping_carrier": self.shipping_carrier or "",
+            "shipping_service": self.shipping_service or "",
+            "shipping_zone": self.shipping_zone or "",
+            "shipping_currency": self.shipping_currency or "",
+            "shipping_estimated_days": self.shipping_estimated_days,
+            "shippo_rate_id": self.shippo_rate_id or "",
+            "shippo_shipment_id": self.shippo_shipment_id or "",
+            "shipment_weight_kg": self.shipment_weight_kg,
+            "shipment_length_cm": self.shipment_length_cm,
+            "shipment_width_cm": self.shipment_width_cm,
+            "shipment_height_cm": self.shipment_height_cm,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "product_summary": ", ".join(
                 f"{i.product_title} × {i.quantity}" for i in self.items.all()
@@ -1931,3 +1987,15 @@ class StoreOrderItem(db.Model):
             "options": options,
             "product_type": self.product_type or "physical",
         }
+
+
+class FedexZoneRate(db.Model):
+    """Admin override for a zone's FedEx price. Country mapping stays in fedex_zones.py."""
+    __tablename__ = "fedex_zone_rates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    zone_slug = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    rate_cents = db.Column(db.Integer, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
