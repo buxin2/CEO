@@ -32,10 +32,14 @@ def _frontend_url(path):
 
 
 def _backend_url(path):
-    # Render backend URL for webhooks
-    backend = (current_app.config.get("BACKEND_URL") or "").rstrip("/")
+    # Render backend URL for webhooks — never fall back to GitHub Pages.
+    backend = (
+        current_app.config.get("BACKEND_URL")
+        or current_app.config.get("RENDER_EXTERNAL_URL")
+        or ""
+    ).rstrip("/")
     if not backend:
-        backend = (current_app.config.get("FRONTEND_URL") or "").rstrip("/")
+        return ""
     return f"{backend}/{path.lstrip('/')}"
 
 

@@ -1,5 +1,6 @@
 """Modem Pay provider integration."""
 
+import json
 import logging
 
 from flask import current_app
@@ -19,14 +20,27 @@ def _modem_client():
         raise ValueError("Modem Pay SDK is not installed.")
 
 
-def _major_amount(amount_cents, currency):
-    """Modem Pay amount is in major units (GMD 450, USD 34.99), not cents."""
-    major = max(0, int(amount_cents or 0)) / 100.0
-    cur = (currency or "USD").upper()
-    if cur in ("GMD", "JPY", "KRW", "VND"):
-        return max(1, int(round(major)))
-    value = round(major, 2)
-    return value if value >= 0.5 else 0.5
+def _major_amount(amount_cents, currency=None):
+    """Modem Pay amount is integer major units (GMD 450, USD 35), not cents.
+
+    Their SDK types `amount` as int; sending 34.99 is a common 400.
+    """
+    cents = max(0, int(amount_cents or 0))
+    return max(1, int(round(cents / 100.0)))
+
+
+def _stringify_metadata(metadata):
+    out = {}
+    for key, value in (metadata or {}).items():
+        if value is None:
+            continue
+        if isinstance(value, bool):
+            out[str(key)] = "true" if value else "false"
+        elif isinstance(value, (dict, list)):
+            out[str(key)] = json.dumps(value)
+        else:
+            out[str(key)] = str(value)
+    return out
 
 
 def _as_dict(result):
@@ -40,6 +54,21 @@ def _as_dict(result):
     return {}
 
 
+def _modem_error_text(exc):
+    raw = exc.args[0] if getattr(exc, "args", None) else str(exc)
+    if isinstance(raw, dict):
+        nested = raw.get("message") or raw.get("error") or raw.get("errors")
+        if isinstance(nested, (dict, list)):
+            return json.dumps(nested)
+        if nested:
+            return str(nested)
+        return json.dumps(raw)
+    text = str(raw).strip()
+    if text.startswith("ModemPayError:"):
+        return text
+    return text or "Modem Pay could not start this payment."
+
+
 def create_payment_intent(amount_cents, currency, title, metadata, return_url, cancel_url, callback_url, customer=None):
     client = _modem_client()
     customer = customer or {}
@@ -48,24 +77,35 @@ def create_payment_intent(amount_cents, currency, title, metadata, return_url, c
         "amount": amount,
         "currency": (currency or "USD").upper(),
         "title": (title or "Payment")[:120],
-        "metadata": metadata or {},
-        "return_url": return_url,
-        "cancel_url": cancel_url,
-        "callback_url": callback_url,
-        "from_sdk": False,
+        "metadata": _stringify_metadata(metadata),
         "skip_url_validation": True,
     }
+    if return_url:
+        params["return_url"] = return_url
+    if cancel_url:
+        params["cancel_url"] = cancel_url
+    # Never point the webhook at GitHub Pages; Modem Pay 400s invalid callback URLs.
+    if callback_url and "github.io" not in callback_url:
+        params["callback_url"] = callback_url
     if customer.get("full_name") or customer.get("name"):
         params["customer_name"] = (customer.get("full_name") or customer.get("name") or "")[:120]
     if customer.get("email"):
         params["customer_email"] = customer["email"][:120]
-    if customer.get("phone"):
-        params["customer_phone"] = str(customer["phone"])[:32]
+    phone = str(customer.get("phone") or "").strip()
+    if phone:
+        params["customer_phone"] = phone[:32]
     try:
         result = client.payment_intents.create(params=params)
     except Exception as exc:
-        logger.warning("Modem Pay create failed: %s", exc)
-        raise ValueError("Modem Pay could not start this payment. Please try PayPal or bank transfer.")
+        logger.warning(
+            "Modem Pay create failed amount=%s currency=%s return_url=%s callback_url=%s error=%s",
+            amount,
+            params.get("currency"),
+            return_url,
+            params.get("callback_url"),
+            exc,
+        )
+        raise ValueError(_modem_error_text(exc)) from exc
     body = _as_dict(result)
     data = body.get("data") if isinstance(body.get("data"), dict) else {}
     link = data.get("payment_link") or body.get("payment_link") or ""

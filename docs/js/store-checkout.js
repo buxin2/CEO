@@ -10,6 +10,7 @@
     const el = document.getElementById("checkout-error");
     el.textContent = msg || "";
     el.classList.toggle("hidden", !msg);
+    if (msg) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   function showRootMessage(html) {
@@ -297,8 +298,12 @@
           delivery: delivery(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Checkout failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = data.error;
+        const text = typeof err === "string" ? err : (err && err.message) || "Checkout failed";
+        throw new Error(text);
+      }
       currentPaymentRef = data.payment.payment_reference;
       if (data.payment.status === "succeeded") {
         saveStoreCart([]);
