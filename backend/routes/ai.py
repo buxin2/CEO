@@ -60,6 +60,7 @@ def ai_chat():
     trimmed_history = sanitize_chat_history(history)
 
     context = dict(session.get("ai_context") or {})
+    context["admin_id"] = session.get("admin_id")
     user_messages = list(trimmed_history)
     user_messages.append({"role": "user", "content": message})
 

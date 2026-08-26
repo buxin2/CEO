@@ -70,6 +70,8 @@ def create_app():
     from routes.mentor import mentor_bp
     from routes.community import community_bp
     from routes.payments import payments_bp
+    from routes.ideas import ideas_bp
+    from routes.store import store_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -84,6 +86,8 @@ def create_app():
     app.register_blueprint(mentor_bp)
     app.register_blueprint(community_bp)
     app.register_blueprint(payments_bp)
+    app.register_blueprint(ideas_bp)
+    app.register_blueprint(store_bp)
 
     @app.route("/")
     def index():

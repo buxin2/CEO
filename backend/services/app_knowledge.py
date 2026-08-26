@@ -41,7 +41,8 @@ def build_ai_app_knowledge_text():
 
     lines = [
         f"Date: {today.isoformat()} · App week (Mon–Sun): {week_start.isoformat()} to {week_end.isoformat()}",
-        "App pages: Dashboard, Companies, Communities, AI Assistant (Chat/Manage), Mentor, "
+        "App pages: Dashboard, Companies, Communities, Products (store), Shipping, Store Orders, Payments, "
+        "AI Assistant (Chat/Manage), Mentor, My Ideas, "
         "My Timetable, News, and per-company Employees, Tasks, Products, Services, Earnings, Group chat.",
         "",
     ]
@@ -101,6 +102,24 @@ def build_ai_app_knowledge_text():
         from services.community_service import community_ai_summary
 
         lines.append(community_ai_summary())
+        lines.append("")
+    except Exception:
+        pass
+
+    try:
+        from services.store_service import overall_analytics, list_admin_products
+
+        stats = overall_analytics()
+        lines.append(
+            f"Product store: {stats['total_products']} products ({stats['active_products']} active), "
+            f"{stats['total_orders']} orders, {stats['total_sales']} paid, "
+            f"revenue {stats['total_revenue_cents'] / 100:.2f}."
+        )
+        for prod in list_admin_products()[:12]:
+            lines.append(
+                f"  • Store product: {prod.title} · {prod.unit_price_cents() / 100:.2f} {prod.currency} · "
+                f"{prod.status} · stock {prod.sellable_quantity()} · slug {prod.slug}"
+            )
         lines.append("")
     except Exception:
         pass

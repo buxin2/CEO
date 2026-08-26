@@ -24,6 +24,20 @@ def community_link_for_token(token):
     return frontend_url(f"community.html?token={token}")
 
 
+def store_link():
+    return frontend_url("store.html")
+
+
+def store_product_link(slug):
+    return frontend_url(f"product.html?p={slug}")
+
+
+def store_order_link(order_number, access_token):
+    return frontend_url(
+        f"store-order.html?order={order_number}&token={access_token}"
+    )
+
+
 def create_group_for_company(company):
     """Create the company group chat (one per company)."""
     from models import CompanyGroup

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product</title>
+  <meta name="description" id="meta-desc" content="">
+  <meta property="og:title" id="og-title" content="">
+  <meta property="og:description" id="og-desc" content="">
+  <meta property="og:image" id="og-image" content="">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="store-body">
+  <header class="store-topbar">
+    <div class="store-topbar-inner">
+      <a class="store-brand" href="store.html" id="store-brand">Store</a>
+      <div class="store-search"><a href="store.html" class="text-muted">← All products</a></div>
+      <a class="store-cart-link" href="store-checkout.html">Cart <span class="store-cart-count" id="store-cart-count">0</span></a>
+    </div>
+  </header>
+  <main class="store-wrap" id="product-root">
+    <div class="empty-state"><span class="spinner"></span></div>
+  </main>
+  <div class="sticky-buy hidden" id="sticky-buy"></div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/store-cart.js?v=1"></script>
+  <script src="js/product.js?v=1"></script>
+</body>
+</html>

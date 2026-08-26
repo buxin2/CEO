@@ -26,6 +26,8 @@ _READ_ONLY_TOOL_NAMES = {
     "get_planner_snapshot",
     "list_timetable",
     "list_communities",
+    "list_store_products",
+    "store_product_stats",
 }
 
 _READ_ONLY_TOOL_DEFINITIONS = [
@@ -61,6 +63,9 @@ _WRITE_TOOL_NAMES = {
     "create_community",
     "send_community_announcement",
     "schedule_community_message",
+    "create_store_product",
+    "update_store_product",
+    "set_store_shipping",
 }
 
 _FAILED_GEN_PATTERNS = [

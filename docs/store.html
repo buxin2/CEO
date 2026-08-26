@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Store</title>
+  <meta name="description" content="Browse and buy our products.">
+  <meta property="og:title" content="Store">
+  <meta property="og:description" content="Browse and buy our products.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="store-body">
+  <header class="store-topbar">
+    <div class="store-topbar-inner">
+      <a class="store-brand" href="store.html" id="store-brand">Store</a>
+      <div class="store-search">
+        <input class="form-control" id="store-search" placeholder="Search products…">
+      </div>
+      <a class="store-cart-link" href="store-checkout.html">Cart <span class="store-cart-count" id="store-cart-count">0</span></a>
+    </div>
+  </header>
+  <main class="store-wrap">
+    <section class="store-hero" id="store-hero">
+      <h1 id="hero-title">Store</h1>
+      <p id="hero-tagline">Professional products, simple checkout, worldwide delivery where available.</p>
+    </section>
+    <div class="store-toolbar" id="category-bar"></div>
+    <div id="store-error" class="form-error hidden"></div>
+    <div class="store-grid" id="product-grid">
+      <div class="empty-state"><span class="spinner"></span></div>
+    </div>
+  </main>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/store-cart.js?v=1"></script>
+  <script src="js/store.js?v=1"></script>
+</body>
+</html>

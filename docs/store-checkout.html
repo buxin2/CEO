@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="store-body">
+  <header class="store-topbar">
+    <div class="store-topbar-inner">
+      <a class="store-brand" href="store.html">Store</a>
+      <div class="store-search"><span class="text-muted">Secure checkout</span></div>
+    </div>
+  </header>
+  <div id="checkout-error" class="form-error hidden" style="max-width:880px;margin:12px auto;"></div>
+  <div class="store-checkout" id="checkout-root">
+    <div class="empty-state"><span class="spinner"></span></div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/store-cart.js?v=1"></script>
+  <script src="js/store-checkout.js?v=1"></script>
+</body>
+</html>

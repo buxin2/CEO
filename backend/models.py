@@ -1174,7 +1174,7 @@ class Payment(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     payment_reference = db.Column(db.String(64), unique=True, nullable=False, index=True)
-    payment_kind = db.Column(db.String(32), nullable=False, index=True)  # product_order, community_membership
+    payment_kind = db.Column(db.String(32), nullable=False, index=True)  # product_order, community_membership, store_order
     membership_id = db.Column(db.Integer, db.ForeignKey("community_memberships.id"), nullable=True, index=True)
     community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=True, index=True)
     community_product_id = db.Column(db.Integer, db.ForeignKey("community_products.id"), nullable=True)
@@ -1319,8 +1319,9 @@ class Coupon(db.Model):
     used_count = db.Column(db.Integer, default=0)
     expires_at = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
-    applies_to = db.Column(db.String(20), default="all")  # all, product, community
+    applies_to = db.Column(db.String(20), default="all")  # all, product, community, store, store_product
     community_product_id = db.Column(db.Integer, db.ForeignKey("community_products.id"), nullable=True)
+    store_product_id = db.Column(db.Integer, db.ForeignKey("store_products.id"), nullable=True)
     community_id = db.Column(db.Integer, db.ForeignKey("communities.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -1336,6 +1337,7 @@ class Coupon(db.Model):
             "is_active": bool(self.is_active),
             "applies_to": self.applies_to or "all",
             "community_product_id": self.community_product_id,
+            "store_product_id": self.store_product_id,
             "community_id": self.community_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
@@ -1354,3 +1356,578 @@ class PaymentWebhookEvent(db.Model):
     __table_args__ = (
         db.UniqueConstraint("provider", "event_key", name="uq_payment_webhook_event"),
     )
+
+
+IDEA_STATUSES = (
+    "new", "exploring", "developing", "planning", "in_progress",
+    "on_hold", "completed", "rejected", "archived",
+)
+IDEA_PRIORITIES = ("low", "medium", "high", "critical")
+
+
+class Idea(db.Model):
+    __tablename__ = "ideas"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False, index=True)
+    title = db.Column(db.String(500), nullable=False)
+    preview = db.Column(db.String(500), default="")
+    original_text = db.Column(db.Text, default="")
+    status = db.Column(db.String(30), default="new", index=True)
+    priority = db.Column(db.String(20), default="medium", index=True)
+    tags_json = db.Column(db.Text, default="[]")
+    structured_json = db.Column(db.Text, default="{}")
+    narrative_summary = db.Column(db.Text, default="")
+    archived = db.Column(db.Boolean, default=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    last_worked_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    messages = db.relationship("IdeaMessage", backref="idea", lazy="dynamic", cascade="all, delete-orphan")
+    events = db.relationship("IdeaEvent", backref="idea", lazy="dynamic", cascade="all, delete-orphan")
+    links = db.relationship("IdeaLink", backref="idea", lazy="dynamic", cascade="all, delete-orphan")
+    attachments = db.relationship("IdeaAttachment", backref="idea", lazy="dynamic", cascade="all, delete-orphan")
+
+    def tags(self):
+        import json
+
+        try:
+            return json.loads(self.tags_json or "[]")
+        except json.JSONDecodeError:
+            return []
+
+    def structured(self):
+        import json
+
+        try:
+            return json.loads(self.structured_json or "{}")
+        except json.JSONDecodeError:
+            return {}
+
+    def to_dict(self, include_detail=False):
+        data = {
+            "id": self.id,
+            "title": self.title,
+            "preview": self.preview or "",
+            "original_text": self.original_text or "",
+            "status": self.status or "new",
+            "priority": self.priority or "medium",
+            "tags": self.tags(),
+            "archived": bool(self.archived),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "last_worked_at": self.last_worked_at.isoformat() if self.last_worked_at else None,
+        }
+        if include_detail:
+            data["structured"] = self.structured()
+            data["narrative_summary"] = self.narrative_summary or ""
+            data["events"] = [e.to_dict() for e in self.events.order_by(IdeaEvent.created_at.asc()).all()]
+            data["links"] = [lnk.to_dict() for lnk in self.links.all()]
+            data["attachments"] = [a.to_dict() for a in self.attachments.order_by(IdeaAttachment.created_at.desc()).all()]
+        return data
+
+
+class IdeaMessage(db.Model):
+    __tablename__ = "idea_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    idea_id = db.Column(db.Integer, db.ForeignKey("ideas.id"), nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "idea_id": self.idea_id,
+            "role": self.role,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class IdeaEvent(db.Model):
+    __tablename__ = "idea_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    idea_id = db.Column(db.Integer, db.ForeignKey("ideas.id"), nullable=False, index=True)
+    event_type = db.Column(db.String(40), default="note")
+    description = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "event_type": self.event_type or "note",
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class IdeaLink(db.Model):
+    __tablename__ = "idea_links"
+
+    id = db.Column(db.Integer, primary_key=True)
+    idea_id = db.Column(db.Integer, db.ForeignKey("ideas.id"), nullable=False, index=True)
+    link_type = db.Column(db.String(30), nullable=False)
+    link_id = db.Column(db.Integer, nullable=False)
+    label = db.Column(db.String(255), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "link_type": self.link_type,
+            "link_id": self.link_id,
+            "label": self.label or "",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class IdeaAttachment(db.Model):
+    __tablename__ = "idea_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    idea_id = db.Column(db.Integer, db.ForeignKey("ideas.id"), nullable=False, index=True)
+    url = db.Column(db.String(500), nullable=False)
+    title = db.Column(db.String(255), default="")
+    kind = db.Column(db.String(30), default="url")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "url": self.url,
+            "title": self.title or "",
+            "kind": self.kind or "url",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+STORE_PRODUCT_STATUSES = ("active", "draft", "out_of_stock", "hidden")
+STORE_ORDER_STATUSES = (
+    "pending_payment", "paid", "processing", "packed", "shipped",
+    "delivered", "cancelled", "refunded",
+)
+
+
+class StoreSettings(db.Model):
+    __tablename__ = "store_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_name = db.Column(db.String(255), default="Store")
+    tagline = db.Column(db.String(500), default="")
+    logo_url = db.Column(db.String(500), default="")
+    currency = db.Column(db.String(10), default="USD")
+    free_shipping_min_cents = db.Column(db.Integer, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "store_name": self.store_name or "Store",
+            "tagline": self.tagline or "",
+            "logo_url": self.logo_url or "",
+            "currency": self.currency or "USD",
+            "free_shipping_min_cents": self.free_shipping_min_cents,
+        }
+
+
+class StoreCategory(db.Model):
+    __tablename__ = "store_categories"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    slug = db.Column(db.String(160), unique=True, nullable=False, index=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    products = db.relationship("StoreProduct", backref="category", lazy="dynamic")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "slug": self.slug,
+            "sort_order": self.sort_order or 0,
+        }
+
+
+class StoreProduct(db.Model):
+    __tablename__ = "store_products"
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    slug = db.Column(db.String(180), unique=True, nullable=False, index=True)
+    short_description = db.Column(db.String(500), default="")
+    description = db.Column(db.Text, default="")
+    specifications = db.Column(db.Text, default="")
+    sku = db.Column(db.String(80), default="")
+    category_id = db.Column(db.Integer, db.ForeignKey("store_categories.id"), nullable=True, index=True)
+    product_type = db.Column(db.String(20), default="physical")  # physical, digital
+    status = db.Column(db.String(20), default="draft", index=True)
+    price_cents = db.Column(db.Integer, default=0)
+    sale_price_cents = db.Column(db.Integer, nullable=True)
+    currency = db.Column(db.String(10), default="USD")
+    quantity_available = db.Column(db.Integer, nullable=True)
+    quantity_reserved = db.Column(db.Integer, default=0)
+    shipping_required = db.Column(db.Boolean, default=True)
+    free_shipping = db.Column(db.Boolean, default=False)
+    digital_delivery_url = db.Column(db.String(500), default="")
+    digital_delivery_text = db.Column(db.Text, default="")
+    keywords = db.Column(db.String(500), default="")
+    preview_token = db.Column(db.String(64), default="")
+    view_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    images = db.relationship(
+        "StoreProductImage", backref="product", cascade="all, delete-orphan",
+        lazy="dynamic", order_by="StoreProductImage.sort_order",
+    )
+    videos = db.relationship(
+        "StoreProductVideo", backref="product", cascade="all, delete-orphan",
+        lazy="dynamic", order_by="StoreProductVideo.sort_order",
+    )
+    options = db.relationship(
+        "StoreProductOption", backref="product", cascade="all, delete-orphan",
+        lazy="dynamic", order_by="StoreProductOption.sort_order",
+    )
+
+    def unit_price_cents(self):
+        if self.sale_price_cents is not None and self.sale_price_cents >= 0:
+            return int(self.sale_price_cents)
+        return int(self.price_cents or 0)
+
+    def sellable_quantity(self):
+        if self.quantity_available is None:
+            return None
+        return max(0, (self.quantity_available or 0) - (self.quantity_reserved or 0))
+
+    def is_public(self):
+        return (self.status or "draft") == "active"
+
+    def availability_label(self):
+        if self.status == "hidden":
+            return "Unavailable"
+        if self.status == "draft":
+            return "Draft"
+        sellable = self.sellable_quantity()
+        if sellable is not None and sellable <= 0:
+            return "Out of stock"
+        if self.status == "out_of_stock":
+            return "Out of stock"
+        if sellable is None:
+            return "Available"
+        return f"Available: {sellable}"
+
+    def to_public_dict(self, include_media=True, related=None):
+        images = [i.to_dict() for i in self.images.all()] if include_media else []
+        videos = [v.to_dict() for v in self.videos.all()] if include_media else []
+        options = [o.to_dict() for o in self.options.all()] if include_media else []
+        cover = images[0]["url"] if images else ""
+        sellable = self.sellable_quantity()
+        data = {
+            "id": self.id,
+            "title": self.title,
+            "slug": self.slug,
+            "short_description": self.short_description or "",
+            "description": self.description or "",
+            "specifications": self.specifications or "",
+            "sku": self.sku or "",
+            "category_id": self.category_id,
+            "category_name": self.category.name if self.category else "",
+            "product_type": self.product_type or "physical",
+            "status": "out_of_stock" if (sellable is not None and sellable <= 0) else (self.status or "draft"),
+            "price_cents": self.price_cents or 0,
+            "sale_price_cents": self.sale_price_cents,
+            "unit_price_cents": self.unit_price_cents(),
+            "currency": self.currency or "USD",
+            "quantity_sellable": sellable,
+            "availability": self.availability_label(),
+            "in_stock": sellable is None or sellable > 0,
+            "shipping_required": bool(self.shipping_required if self.product_type != "digital" else False),
+            "free_shipping": bool(self.free_shipping),
+            "cover_image": cover,
+            "images": images,
+            "videos": videos,
+            "options": options,
+            "keywords": self.keywords or "",
+        }
+        if related is not None:
+            data["related"] = related
+        return data
+
+    def to_admin_dict(self):
+        data = self.to_public_dict(include_media=True)
+        data["quantity_available"] = self.quantity_available
+        data["quantity_reserved"] = self.quantity_reserved or 0
+        data["status"] = self.status or "draft"
+        data["digital_delivery_url"] = self.digital_delivery_url or ""
+        data["digital_delivery_text"] = self.digital_delivery_text or ""
+        data["preview_token"] = self.preview_token or ""
+        data["view_count"] = self.view_count or 0
+        data["related_ids"] = [r.related_product_id for r in StoreProductRelated.query.filter_by(product_id=self.id).all()]
+        data["created_at"] = self.created_at.isoformat() if self.created_at else None
+        data["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
+        return data
+
+
+class StoreProductImage(db.Model):
+    __tablename__ = "store_product_images"
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("store_products.id"), nullable=False, index=True)
+    url = db.Column(db.String(500), nullable=False)
+    alt_text = db.Column(db.String(255), default="")
+    sort_order = db.Column(db.Integer, default=0)
+
+    def to_dict(self):
+        return {"id": self.id, "url": self.url, "alt_text": self.alt_text or "", "sort_order": self.sort_order or 0}
+
+
+class StoreProductVideo(db.Model):
+    __tablename__ = "store_product_videos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("store_products.id"), nullable=False, index=True)
+    video_type = db.Column(db.String(20), default="youtube")  # youtube, vimeo, url, upload
+    url = db.Column(db.String(500), nullable=False)
+    embed_url = db.Column(db.String(500), default="")
+    title = db.Column(db.String(255), default="")
+    sort_order = db.Column(db.Integer, default=0)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "video_type": self.video_type or "url",
+            "url": self.url,
+            "embed_url": self.embed_url or "",
+            "title": self.title or "",
+            "sort_order": self.sort_order or 0,
+        }
+
+
+class StoreProductOption(db.Model):
+    __tablename__ = "store_product_options"
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("store_products.id"), nullable=False, index=True)
+    name = db.Column(db.String(80), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+
+    values = db.relationship(
+        "StoreProductOptionValue", backref="option", cascade="all, delete-orphan",
+        lazy="dynamic", order_by="StoreProductOptionValue.sort_order",
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "sort_order": self.sort_order or 0,
+            "values": [v.to_dict() for v in self.values.all()],
+        }
+
+
+class StoreProductOptionValue(db.Model):
+    __tablename__ = "store_product_option_values"
+
+    id = db.Column(db.Integer, primary_key=True)
+    option_id = db.Column(db.Integer, db.ForeignKey("store_product_options.id"), nullable=False, index=True)
+    label = db.Column(db.String(80), nullable=False)
+    extra_cents = db.Column(db.Integer, default=0)
+    sort_order = db.Column(db.Integer, default=0)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "label": self.label,
+            "extra_cents": self.extra_cents or 0,
+            "sort_order": self.sort_order or 0,
+        }
+
+
+class StoreProductRelated(db.Model):
+    __tablename__ = "store_product_related"
+    __table_args__ = (db.UniqueConstraint("product_id", "related_product_id", name="uq_store_related"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("store_products.id"), nullable=False, index=True)
+    related_product_id = db.Column(db.Integer, db.ForeignKey("store_products.id"), nullable=False)
+
+
+class ShippingCountry(db.Model):
+    __tablename__ = "shipping_countries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    country_name = db.Column(db.String(120), nullable=False)
+    country_code = db.Column(db.String(8), default="")
+    rate_cents = db.Column(db.Integer, default=0)
+    currency = db.Column(db.String(10), default="USD")
+    is_enabled = db.Column(db.Boolean, default=True)
+    free_shipping = db.Column(db.Boolean, default=False)
+    free_shipping_min_cents = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    regions = db.relationship(
+        "ShippingRegion", backref="country", cascade="all, delete-orphan", lazy="dynamic"
+    )
+
+    def to_dict(self, include_regions=True):
+        data = {
+            "id": self.id,
+            "country_name": self.country_name,
+            "country_code": self.country_code or "",
+            "rate_cents": self.rate_cents or 0,
+            "currency": self.currency or "USD",
+            "is_enabled": bool(self.is_enabled),
+            "free_shipping": bool(self.free_shipping),
+            "free_shipping_min_cents": self.free_shipping_min_cents,
+        }
+        if include_regions:
+            data["regions"] = [r.to_dict() for r in self.regions.order_by(ShippingRegion.region_name.asc()).all()]
+        return data
+
+
+class ShippingRegion(db.Model):
+    __tablename__ = "shipping_regions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    country_id = db.Column(db.Integer, db.ForeignKey("shipping_countries.id"), nullable=False, index=True)
+    region_name = db.Column(db.String(160), nullable=False)
+    rate_cents = db.Column(db.Integer, default=0)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "country_id": self.country_id,
+            "region_name": self.region_name,
+            "rate_cents": self.rate_cents or 0,
+        }
+
+
+class StoreOrder(db.Model):
+    __tablename__ = "store_orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_number = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True, index=True)
+    customer_name = db.Column(db.String(255), default="")
+    customer_email = db.Column(db.String(255), default="")
+    customer_phone = db.Column(db.String(64), default="")
+    ship_country = db.Column(db.String(120), default="")
+    ship_region = db.Column(db.String(160), default="")
+    ship_city = db.Column(db.String(160), default="")
+    ship_address = db.Column(db.Text, default="")
+    ship_postal = db.Column(db.String(32), default="")
+    subtotal_cents = db.Column(db.Integer, default=0)
+    discount_cents = db.Column(db.Integer, default=0)
+    shipping_cents = db.Column(db.Integer, default=0)
+    total_cents = db.Column(db.Integer, default=0)
+    currency = db.Column(db.String(10), default="USD")
+    payment_method = db.Column(db.String(20), default="")
+    payment_status = db.Column(db.String(30), default="pending")
+    order_status = db.Column(db.String(30), default="pending_payment", index=True)
+    shipping_unavailable = db.Column(db.Boolean, default=False)
+    shipping_note = db.Column(db.String(255), default="")
+    requires_shipping = db.Column(db.Boolean, default=True)
+    courier = db.Column(db.String(120), default="")
+    tracking_number = db.Column(db.String(120), default="")
+    tracking_url = db.Column(db.String(500), default="")
+    digital_delivery_json = db.Column(db.Text, default="[]")
+    access_token = db.Column(db.String(64), unique=True, nullable=False, index=True, default=generate_token)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    items = db.relationship("StoreOrderItem", backref="order", cascade="all, delete-orphan", lazy="dynamic")
+    payment = db.relationship("Payment", foreign_keys=[payment_id], uselist=False)
+
+    def to_dict(self, include_private=False, include_items=True):
+        import json
+
+        try:
+            digital = json.loads(self.digital_delivery_json or "[]")
+        except json.JSONDecodeError:
+            digital = []
+        data = {
+            "id": self.id,
+            "order_number": self.order_number,
+            "payment_id": self.payment_id,
+            "customer_name": self.customer_name or "",
+            "customer_email": self.customer_email or "",
+            "customer_phone": self.customer_phone or "",
+            "ship_country": self.ship_country or "",
+            "ship_region": self.ship_region or "",
+            "ship_city": self.ship_city or "",
+            "ship_address": self.ship_address or "",
+            "ship_postal": self.ship_postal or "",
+            "subtotal_cents": self.subtotal_cents or 0,
+            "discount_cents": self.discount_cents or 0,
+            "shipping_cents": self.shipping_cents or 0,
+            "total_cents": self.total_cents or 0,
+            "currency": self.currency or "USD",
+            "payment_method": self.payment_method or "",
+            "payment_status": self.payment_status or "",
+            "order_status": self.order_status or "",
+            "requires_shipping": bool(self.requires_shipping),
+            "courier": self.courier or "",
+            "tracking_number": self.tracking_number or "",
+            "tracking_url": self.tracking_url or "",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "product_summary": ", ".join(
+                f"{i.product_title} × {i.quantity}" for i in self.items.all()
+            ),
+        }
+        if include_items:
+            data["items"] = [i.to_dict() for i in self.items.all()]
+        if include_private:
+            data["digital_delivery"] = digital
+            data["access_token"] = self.access_token
+            if self.payment:
+                data["payment_reference"] = self.payment.payment_reference
+                data["provider_payment_id"] = self.payment.provider_payment_id or ""
+                data["receipt_url"] = self.payment.receipt_url or ""
+        else:
+            data["digital_delivery"] = digital if self.payment_status in ("succeeded", "paid") else []
+        return data
+
+
+class StoreOrderItem(db.Model):
+    __tablename__ = "store_order_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("store_orders.id"), nullable=False, index=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("store_products.id"), nullable=True, index=True)
+    product_title = db.Column(db.String(255), default="")
+    product_slug = db.Column(db.String(180), default="")
+    sku = db.Column(db.String(80), default="")
+    quantity = db.Column(db.Integer, default=1)
+    unit_price_cents = db.Column(db.Integer, default=0)
+    extra_cents = db.Column(db.Integer, default=0)
+    line_total_cents = db.Column(db.Integer, default=0)
+    options_json = db.Column(db.Text, default="{}")
+    product_type = db.Column(db.String(20), default="physical")
+
+    product = db.relationship("StoreProduct")
+
+    def to_dict(self):
+        import json
+
+        try:
+            options = json.loads(self.options_json or "{}")
+        except json.JSONDecodeError:
+            options = {}
+        return {
+            "id": self.id,
+            "product_id": self.product_id,
+            "product_title": self.product_title or "",
+            "product_slug": self.product_slug or "",
+            "sku": self.sku or "",
+            "quantity": self.quantity or 1,
+            "unit_price_cents": self.unit_price_cents or 0,
+            "extra_cents": self.extra_cents or 0,
+            "line_total_cents": self.line_total_cents or 0,
+            "options": options,
+            "product_type": self.product_type or "physical",
+        }

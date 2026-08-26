@@ -137,5 +137,7 @@ def run_schema_migrations():
 
     _add_column(engine, "community_memberships", "payment_id", "payment_id INTEGER", "payment_id INTEGER")
 
+    _add_column(engine, "coupons", "store_product_id", "store_product_id INTEGER", "store_product_id INTEGER")
+
     db.session.commit()
     logger.info("Schema migrations complete.")

@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payments · Admin</title>
+  <title>Store Orders · Admin</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="mobile-navbar">
     <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
-    <div class="brand">Payments</div>
+    <div class="brand">Store Orders</div>
     <div style="width:36px;"></div>
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -18,24 +18,22 @@
       <div class="sidebar-brand">My Management System</div>
       <nav class="sidebar-nav">
         <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="communities.html">Communities</a>
         <a class="sidebar-link" href="admin-store.html">Products</a>
-        <a class="sidebar-link active" href="payments.html">Payments</a>
-        <a class="sidebar-link" href="orders.html">Orders</a>
+        <a class="sidebar-link" href="admin-shipping.html">Shipping</a>
+        <a class="sidebar-link active" href="admin-store-orders.html">Store Orders</a>
+        <a class="sidebar-link" href="payments.html">Payments</a>
+        <a class="sidebar-link" href="orders.html">Community Orders</a>
         <a class="sidebar-link" href="ai-assistant.html">AI Assistant</a>
       </nav>
       <button class="sidebar-link" id="logout-btn">Logout</button>
     </aside>
     <main class="main-content">
-      <div class="page-header">
-        <h1>Payments</h1>
-      </div>
-      <div id="payments-summary" class="card card-inner"></div>
-      <div id="payments-list" style="margin-top:16px;"></div>
+      <div class="page-header"><h1>Store Orders</h1></div>
+      <div id="orders-list"></div>
     </main>
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/payments.js?v=1"></script>
+  <script src="js/admin-store-orders.js?v=1"></script>
 </body>
 </html>

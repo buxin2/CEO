@@ -31,6 +31,18 @@ def validate_and_apply_coupon(code, subtotal_cents, applies_context):
         cid = applies_context.get("community_id")
         if not cid or coupon.community_id != cid:
             _coupon_error("Coupon does not apply to this community.")
+    elif applies in ("store", "store_product"):
+        if not applies_context.get("store"):
+            _coupon_error("Coupon does not apply to this order.")
+        if applies == "store_product":
+            pids = applies_context.get("store_product_ids") or []
+            if not coupon.store_product_id or coupon.store_product_id not in pids:
+                _coupon_error("Coupon does not apply to this product.")
+    elif applies == "all":
+        pass
+    else:
+        if applies_context.get("store") and applies not in ("all", "store", "store_product"):
+            _coupon_error("Coupon does not apply to store orders.")
 
     discount = 0
     if coupon.discount_type == "percent":
@@ -88,4 +100,39 @@ def calculate_community_totals(community, coupon_code=None):
         "total_cents": total,
         "currency": community.currency or "USD",
         "coupon": coupon,
+    }
+
+
+def calculate_store_line(product, quantity, selected_options):
+    """selected_options: {option_name: value_label}"""
+    qty = int(quantity or 0)
+    if qty < 1:
+        raise ValueError("Quantity must be at least 1.")
+    extra = 0
+    normalized = {}
+    options = list(product.options.all())
+    incoming = selected_options or {}
+    if options:
+        for opt in options:
+            wanted = incoming.get(opt.name) or incoming.get(str(opt.id))
+            if not wanted:
+                raise ValueError(f"Please choose a {opt.name}.")
+            match = None
+            for val in opt.values.all():
+                if val.label.lower() == str(wanted).strip().lower() or str(val.id) == str(wanted):
+                    match = val
+                    break
+            if not match:
+                raise ValueError(f"Invalid {opt.name} selection.")
+            extra += match.extra_cents or 0
+            normalized[opt.name] = match.label
+    unit = product.unit_price_cents() + extra
+    return {
+        "product": product,
+        "quantity": qty,
+        "unit_price_cents": product.unit_price_cents(),
+        "extra_cents": extra,
+        "line_total_cents": unit * qty,
+        "options": normalized,
+        "currency": product.currency or "USD",
     }

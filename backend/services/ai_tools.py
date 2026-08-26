@@ -565,6 +565,34 @@ TOOL_DEFINITIONS = [
     {
         "type": "function",
         "function": {
+            "name": "list_ideas",
+            "description": "List ideas in My Ideas workspace (title, status, priority).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "search": {"type": "string"},
+                    "tag": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_idea",
+            "description": "Capture a new idea in My Ideas from natural language.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string", "description": "The user's idea in natural language"},
+                },
+                "required": ["message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_communities",
             "description": "List all communities with member and post counts.",
             "parameters": {"type": "object", "properties": {}},
@@ -615,6 +643,97 @@ TOOL_DEFINITIONS = [
                     "scheduled_at": {"type": "string", "description": "ISO datetime for once"},
                 },
                 "required": ["message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_store_products",
+            "description": "List products in the public product store (not company catalog products).",
+            "parameters": {"type": "object", "properties": {"search": {"type": "string"}}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_store_product",
+            "description": "Create a sellable store product with price, stock, images, and videos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "short_description": {"type": "string"},
+                    "price": {"type": "string", "description": "Price like 250 or $250"},
+                    "currency": {"type": "string"},
+                    "quantity_available": {"type": "integer"},
+                    "sku": {"type": "string"},
+                    "category_name": {"type": "string"},
+                    "product_type": {"type": "string", "enum": ["physical", "digital"]},
+                    "status": {"type": "string", "enum": ["active", "draft", "hidden", "out_of_stock"]},
+                    "image_urls": {"type": "array", "items": {"type": "string"}},
+                    "video_urls": {"type": "array", "items": {"type": "string"}, "description": "YouTube or video URLs"},
+                    "keywords": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_store_product",
+            "description": "Update a store product by title or id (price, stock, status, description, media).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {"type": "integer"},
+                    "product_title": {"type": "string"},
+                    "title": {"type": "string"},
+                    "price": {"type": "string"},
+                    "quantity_available": {"type": "integer"},
+                    "status": {"type": "string"},
+                    "description": {"type": "string"},
+                    "image_urls": {"type": "array", "items": {"type": "string"}},
+                    "video_urls": {"type": "array", "items": {"type": "string"}},
+                    "product_type": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_store_shipping",
+            "description": "Add or update country shipping rates for the store. Optionally set a regional rate.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "country_name": {"type": "string"},
+                    "rate": {"type": "string", "description": "Shipping price like 10 or $10"},
+                    "currency": {"type": "string"},
+                    "enabled": {"type": "boolean"},
+                    "free_shipping": {"type": "boolean"},
+                    "region_name": {"type": "string"},
+                    "region_rate": {"type": "string"},
+                    "product_title": {"type": "string", "description": "If set, mark this product as free shipping"},
+                },
+                "required": ["country_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "store_product_stats",
+            "description": "Show store sales analytics overall or for one product.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_title": {"type": "string"},
+                    "product_id": {"type": "integer"},
+                },
             },
         },
     },
@@ -1222,6 +1341,41 @@ def execute_tool(name, arguments, context):
         db.session.commit()
         return _ok({"message": "Personal planning notes updated."})
 
+    if name == "list_ideas":
+        from services.ideas_service import list_ideas
+
+        admin_id = context.get("admin_id")
+        if not admin_id:
+            from models import Admin
+
+            admin = Admin.query.order_by(Admin.id.asc()).first()
+            admin_id = admin.id if admin else None
+        rows = list_ideas(admin_id, search=args.get("search"), tag=args.get("tag"))
+        return _ok({"ideas": [i.to_dict() for i in rows]})
+
+    if name == "create_idea":
+        from services.ideas_ai import generate_idea_from_message
+
+        admin_id = context.get("admin_id")
+        if not admin_id:
+            from models import Admin
+
+            admin = Admin.query.order_by(Admin.id.asc()).first()
+            admin_id = admin.id if admin else None
+        message = (args.get("message") or "").strip()
+        if not message:
+            return _err("message is required.")
+        try:
+            idea, reply = generate_idea_from_message(admin_id, message)
+            return _ok({
+                "idea_id": idea.id,
+                "title": idea.title,
+                "message": reply,
+                "page": "ideas.html",
+            })
+        except ValueError as exc:
+            return _err(str(exc))
+
     if name == "list_communities":
         from services.community_service import list_communities, community_dashboard
 
@@ -1291,6 +1445,129 @@ def execute_tool(name, arguments, context):
             return _ok({"scheduled_message": row.to_dict()})
         except ValueError as exc:
             return _err(str(exc))
+
+    if name == "list_store_products":
+        from services.store_service import list_admin_products, admin_links
+
+        rows = list_admin_products(search=args.get("search"))
+        return _ok({
+            "products": [
+                {
+                    "id": p.id,
+                    "title": p.title,
+                    "price_cents": p.unit_price_cents(),
+                    "currency": p.currency,
+                    "status": p.status,
+                    "quantity_available": p.quantity_available,
+                    "slug": p.slug,
+                    "product_url": admin_links(p)["product_url"],
+                }
+                for p in rows
+            ]
+        })
+
+    if name == "create_store_product":
+        from services.store_service import create_category, create_product, list_categories, admin_links
+
+        payload = {
+            "title": args.get("title"),
+            "description": args.get("description") or "",
+            "short_description": args.get("short_description") or "",
+            "price": args.get("price") or 0,
+            "currency": args.get("currency") or "USD",
+            "quantity_available": args.get("quantity_available"),
+            "sku": args.get("sku") or "",
+            "product_type": args.get("product_type") or "physical",
+            "status": args.get("status") or "active",
+            "images": args.get("image_urls") or [],
+            "videos": args.get("video_urls") or [],
+            "keywords": args.get("keywords") or "",
+        }
+        cat_name = (args.get("category_name") or "").strip()
+        if cat_name:
+            existing = [c for c in list_categories() if c.name.lower() == cat_name.lower()]
+            cat = existing[0] if existing else create_category({"name": cat_name})
+            payload["category_id"] = cat.id
+        try:
+            product = create_product(payload)
+            links = admin_links(product)
+            return _ok({
+                "product": product.to_admin_dict(),
+                "product_url": links["product_url"],
+                "store_url": links["store_url"],
+                "message": f"Created store product '{product.title}'.",
+            })
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "update_store_product":
+        from services.store_service import find_product_by_name, update_product, admin_links
+        from models import StoreProduct
+
+        product = None
+        if args.get("product_id"):
+            product = StoreProduct.query.get(args.get("product_id"))
+        if not product and args.get("product_title"):
+            product = find_product_by_name(args.get("product_title"))
+        if not product:
+            return _err("Store product not found. Name a specific product.")
+        payload = {}
+        for key in ("title", "description", "status", "product_type", "price", "quantity_available"):
+            if args.get(key) is not None:
+                payload[key] = args[key]
+        if args.get("image_urls") is not None:
+            payload["images"] = args.get("image_urls")
+        if args.get("video_urls") is not None:
+            payload["videos"] = args.get("video_urls")
+        try:
+            product = update_product(product.id, payload)
+            links = admin_links(product)
+            return _ok({"product": product.to_admin_dict(), "product_url": links["product_url"]})
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "set_store_shipping":
+        from services.store_shipping import create_country, find_country, update_country, add_region
+        from services.store_service import find_product_by_name, update_product
+
+        country_name = (args.get("country_name") or "").strip()
+        if not country_name:
+            return _err("country_name is required.")
+        existing = find_country(country_name)
+        payload = {
+            "country_name": country_name,
+            "rate": args.get("rate") or 0,
+            "currency": args.get("currency") or "USD",
+        }
+        if args.get("enabled") is not None:
+            payload["is_enabled"] = bool(args.get("enabled"))
+        if args.get("free_shipping") is not None:
+            payload["free_shipping"] = bool(args.get("free_shipping"))
+        try:
+            if existing:
+                row = update_country(existing.id, payload)
+            else:
+                row = create_country(payload)
+            if args.get("region_name"):
+                add_region(row.id, {"region_name": args.get("region_name"), "rate": args.get("region_rate") or args.get("rate")})
+            if args.get("product_title"):
+                product = find_product_by_name(args.get("product_title"))
+                if product:
+                    update_product(product.id, {"free_shipping": True})
+            return _ok({"country": row.to_dict(), "message": f"Shipping for {row.country_name} is {row.rate_cents / 100:.2f} {row.currency}."})
+        except ValueError as exc:
+            return _err(str(exc))
+
+    if name == "store_product_stats":
+        from services.store_service import analytics_for_product, find_product_by_name, overall_analytics
+        from models import StoreProduct
+
+        if args.get("product_id") or args.get("product_title"):
+            product = StoreProduct.query.get(args.get("product_id")) if args.get("product_id") else find_product_by_name(args.get("product_title"))
+            if not product:
+                return _err("Store product not found.")
+            return _ok({"product": product.title, "stats": analytics_for_product(product)})
+        return _ok({"stats": overall_analytics()})
 
     return _err(f"Unknown tool: {name}")
 

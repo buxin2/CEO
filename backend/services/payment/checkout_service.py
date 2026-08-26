@@ -80,8 +80,8 @@ def _create_payment_record(
         provider=provider,
         status="pending",
         coupon_id=totals.get("coupon").id if totals.get("coupon") else None,
-        customer_name=(customer_info.get("full_name") or member_user.full_name or "")[:255],
-        customer_email=(customer_info.get("email") or member_user.email or "")[:255],
+        customer_name=(customer_info.get("full_name") or (member_user.full_name if member_user else "") or "")[:255],
+        customer_email=(customer_info.get("email") or (member_user.email if member_user else "") or "")[:255],
         customer_phone=(customer_info.get("phone") or "")[:64],
     )
     db.session.add(payment)
@@ -89,10 +89,10 @@ def _create_payment_record(
     return payment
 
 
-def _init_provider_session(payment, title, metadata):
+def _init_provider_session(payment, title, metadata, return_path=None, cancel_path=None):
     ref = payment.payment_reference
-    return_url = _frontend_url(f"checkout.html?payment_ref={ref}&status=return")
-    cancel_url = _frontend_url(f"checkout.html?payment_ref={ref}&status=cancel")
+    return_url = _frontend_url(return_path or f"checkout.html?payment_ref={ref}&status=return")
+    cancel_url = _frontend_url(cancel_path or f"checkout.html?payment_ref={ref}&status=cancel")
     callback_url = _backend_url("api/webhooks/modempay/callback")
 
     if payment.provider == "modem":

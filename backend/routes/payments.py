@@ -29,6 +29,14 @@ def _payment_response(payment, order=None):
     }
     if order_row:
         data["order"] = order_row.to_dict(include_private=True)
+    if payment.payment_kind == "store_order":
+        from services.store_checkout import store_order_for_payment
+        from utils import store_order_link
+
+        store_order = store_order_for_payment(payment)
+        if store_order:
+            data["store_order"] = store_order.to_dict(include_private=True)
+            data["order_url"] = store_order_link(store_order.order_number, store_order.access_token)
     return data
 
 
@@ -280,6 +288,7 @@ def api_admin_coupons_create():
         applies_to=(data.get("applies_to") or "all")[:20],
         community_id=data.get("community_id"),
         community_product_id=data.get("community_product_id"),
+        store_product_id=data.get("store_product_id"),
     )
     if data.get("expires_at"):
         try:
@@ -305,7 +314,9 @@ def api_admin_coupons_update(coupon_id):
         coupon.discount_value = int(data["discount_value"])
     if data.get("max_uses") is not None:
         coupon.max_uses = data["max_uses"]
-    if data.get("is_active") is not None:
-        coupon.is_active = bool(data["is_active"])
+        if data.get("is_active") is not None:
+            coupon.is_active = bool(data["is_active"])
+    if "store_product_id" in data:
+        coupon.store_product_id = data.get("store_product_id")
     db.session.commit()
     return jsonify(coupon.to_dict())

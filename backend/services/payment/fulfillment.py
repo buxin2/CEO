@@ -10,12 +10,47 @@ from models import (
     Coupon,
     Order,
     Payment,
+    StoreOrder,
 )
 from services.payment.inventory import finalize_stock, release_reserved_stock
 
 logger = logging.getLogger(__name__)
 
 SUCCESS_STATUSES = frozenset({"succeeded", "manual_approved"})
+
+
+def _store_order_for(payment):
+    return StoreOrder.query.filter_by(payment_id=payment.id).first()
+
+
+def _release_store_order_stock(store_order):
+    if not store_order:
+        return
+    for item in store_order.items.all():
+        if item.product:
+            release_reserved_stock(item.product, item.quantity or 1)
+
+
+def _fulfill_store_order(store_order):
+    store_order.payment_status = "succeeded"
+    store_order.order_status = "paid"
+    digital = []
+    for item in store_order.items.all():
+        product = item.product
+        if product:
+            finalize_stock(product, item.quantity or 1)
+            if item.product_type == "digital":
+                digital.append({
+                    "title": item.product_title,
+                    "url": product.digital_delivery_url or "",
+                    "text": product.digital_delivery_text or "",
+                })
+    store_order.digital_delivery_json = json.dumps(digital)
+    if not store_order.requires_shipping:
+        store_order.order_status = "delivered"
+    else:
+        store_order.order_status = "processing"
+    store_order.updated_at = datetime.utcnow()
 
 
 def mark_payment_failed(payment, reason=""):
@@ -30,6 +65,11 @@ def mark_payment_failed(payment, reason=""):
         order.order_status = "cancelled"
         if order.product:
             release_reserved_stock(order.product, order.quantity or 1)
+    store_order = _store_order_for(payment)
+    if store_order:
+        _release_store_order_stock(store_order)
+        store_order.payment_status = "failed"
+        store_order.order_status = "cancelled"
     if payment.membership_id:
         m = CommunityMembership.query.get(payment.membership_id)
         if m and m.status == "pending_payment":
@@ -66,6 +106,11 @@ def fulfill_payment(payment, provider_event_id=None):
                     order.digital_delivery_text = product.digital_delivery_text or ""
             order.updated_at = datetime.utcnow()
 
+    elif payment.payment_kind == "store_order":
+        store_order = _store_order_for(payment)
+        if store_order:
+            _fulfill_store_order(store_order)
+
     elif payment.payment_kind == "community_membership":
         m = CommunityMembership.query.get(payment.membership_id)
         if m:
@@ -95,6 +140,11 @@ def reject_manual_payment(payment, note=""):
         order.order_status = "cancelled"
         if order.product:
             release_reserved_stock(order.product, order.quantity or 1)
+    store_order = _store_order_for(payment)
+    if store_order:
+        _release_store_order_stock(store_order)
+        store_order.payment_status = "failed"
+        store_order.order_status = "cancelled"
     if payment.membership_id:
         m = CommunityMembership.query.get(payment.membership_id)
         if m and m.status == "pending_payment":

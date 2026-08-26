@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Ideas &middot; My Management System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <div class="brand">My Ideas</div>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">My Management System</div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
+        <a class="sidebar-link" href="communities.html">Communities</a>
+        <a class="sidebar-link" href="admin-store.html">Products</a>
+        <a class="sidebar-link" href="ai-assistant.html">AI Assistant</a>
+        <a class="sidebar-link" href="mentor.html">Mentor</a>
+        <a class="sidebar-link active" href="ideas.html">&#128161; My Ideas</a>
+        <a class="sidebar-link" href="timetable.html">My Timetable</a>
+        <a class="sidebar-link" href="news.html">News</a>
+      </nav>
+      <button class="sidebar-link" id="logout-btn">Logout</button>
+    </aside>
+    <main class="main-content ideas-page">
+      <div class="page-header">
+        <h1>&#128161; My Ideas</h1>
+        <p class="page-subtitle">Capture ideas instantly — AI remembers and helps you develop them</p>
+      </div>
+      <div class="ideas-layout">
+        <aside class="ideas-sidebar card card-inner">
+          <button type="button" class="btn btn-primary btn-block" id="new-idea-btn">+ New Idea</button>
+          <input class="form-control" id="ideas-search" placeholder="Search ideas…">
+          <div id="ideas-list" class="ideas-list"></div>
+        </aside>
+        <section class="ideas-workspace" id="ideas-workspace">
+          <div id="ideas-empty" class="card card-inner text-muted">
+            Select an idea or click <strong>+ New Idea</strong> and tell AI your idea in natural language.
+          </div>
+          <div id="ideas-detail" class="hidden">
+            <div class="ideas-workspace-header card card-inner">
+              <div>
+                <h2 id="idea-title-label"></h2>
+                <div class="ideas-meta" id="idea-meta-label"></div>
+              </div>
+              <div class="ideas-actions">
+                <select class="form-control" id="idea-status-select" style="width:auto;">
+                  <option value="new">New</option>
+                  <option value="exploring">Exploring</option>
+                  <option value="developing">Developing</option>
+                  <option value="planning">Planning</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="on_hold">On Hold</option>
+                  <option value="completed">Completed</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <select class="form-control" id="idea-priority-select" style="width:auto;">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+                <button type="button" class="btn btn-secondary btn-sm" id="archive-idea-btn">Archive</button>
+                <button type="button" class="btn btn-danger btn-sm" id="delete-idea-btn">Delete</button>
+              </div>
+            </div>
+            <div class="ideas-actions card card-inner">
+              <button type="button" class="btn btn-secondary btn-sm idea-action" data-action="summarize">&#129504; Summarize</button>
+              <button type="button" class="btn btn-secondary btn-sm idea-action" data-action="analyze">Analyze</button>
+              <button type="button" class="btn btn-secondary btn-sm idea-action" data-action="plan">Create Plan</button>
+              <button type="button" class="btn btn-secondary btn-sm idea-action" data-action="next_steps">Next Steps</button>
+              <button type="button" class="btn btn-secondary btn-sm idea-action" data-action="business_model">Business Model</button>
+            </div>
+            <div class="ideas-panel-grid">
+              <div class="card card-inner ideas-structured-section" id="idea-summary-panel"></div>
+              <div class="card card-inner" id="idea-timeline-panel"><h3 class="section-subtitle">Timeline</h3><div id="idea-timeline"></div></div>
+            </div>
+            <div class="card card-inner ideas-chat-shell">
+              <h3 class="section-subtitle">Conversation</h3>
+              <div id="ideas-chat-messages" class="ideas-chat-messages ai-chat-messages"></div>
+              <div class="ai-chat-composer" style="margin-top:8px;">
+                <div class="ai-chat-composer-inner-row">
+                  <textarea id="ideas-chat-input" class="form-control" rows="2" placeholder="Discuss your idea with AI…"></textarea>
+                  <div class="ai-chat-composer-actions">
+                    <button type="button" class="btn btn-secondary" id="ideas-speak-btn">&#127908;</button>
+                    <button type="button" class="btn btn-primary" id="ideas-send-btn">Send</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/ai-voice.js"></script>
+  <script src="js/ideas.js?v=1"></script>
+</body>
+</html>

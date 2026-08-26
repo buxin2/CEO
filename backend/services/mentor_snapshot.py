@@ -113,6 +113,17 @@ def _saved_opportunities(admin_id, limit=5):
     return result
 
 
+def _ideas_summary(admin_id, limit=8):
+    if not admin_id:
+        return []
+    try:
+        from services.ideas_service import ideas_summary_for_ai
+
+        return ideas_summary_for_ai(admin_id, limit=limit)
+    except Exception:
+        return []
+
+
 def build_mentor_snapshot(admin_id=None):
     now = app_now(admin_id)
     today = now.date()
@@ -194,6 +205,7 @@ def build_mentor_snapshot(admin_id=None):
         "problems": problems,
         "opportunities_today": _today_opportunities(admin_id),
         "saved_opportunities": _saved_opportunities(admin_id) if admin_id else [],
+        "ideas": _ideas_summary(admin_id),
         "settings": settings_dict,
     }
 
@@ -222,6 +234,8 @@ def snapshot_text_for_ai(snapshot, max_chars=12000):
         json.dumps(snapshot.get("problems", []), ensure_ascii=False),
         "TOP OPPORTUNITIES:",
         json.dumps(snapshot.get("opportunities_today", []), ensure_ascii=False),
+        "MY IDEAS (recent):",
+        json.dumps(snapshot.get("ideas", []), ensure_ascii=False),
     ]
     text = "\n\n".join(parts)
     if len(text) > max_chars:
