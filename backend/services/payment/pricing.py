@@ -114,11 +114,14 @@ def calculate_store_line(product, quantity, selected_options):
     incoming = selected_options or {}
     if options:
         for opt in options:
+            values = [v for v in opt.values.all() if (v.label or "").strip()]
+            if not values:
+                continue
             wanted = incoming.get(opt.name) or incoming.get(str(opt.id))
             if not wanted:
                 raise ValueError(f"Please choose a {opt.name}.")
             match = None
-            for val in opt.values.all():
+            for val in values:
                 if val.label.lower() == str(wanted).strip().lower() or str(val.id) == str(wanted):
                     match = val
                     break

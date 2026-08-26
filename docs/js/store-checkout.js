@@ -8,16 +8,41 @@
 
   function showError(msg) {
     const el = document.getElementById("checkout-error");
-    el.textContent = msg;
+    el.textContent = msg || "";
     el.classList.toggle("hidden", !msg);
   }
 
+  function showRootMessage(html) {
+    document.getElementById("checkout-root").innerHTML = html;
+  }
+
+  function queryItems() {
+    const pid = parseInt(getQueryParam("product_id") || "", 10);
+    if (!pid) return [];
+    let options = {};
+    try {
+      const raw = getQueryParam("options");
+      if (raw) options = JSON.parse(raw);
+    } catch (e) {
+      options = {};
+    }
+    return [{
+      product_id: pid,
+      quantity: Math.max(1, parseInt(getQueryParam("qty") || getQueryParam("quantity") || "1", 10) || 1),
+      options: options,
+    }];
+  }
+
   function cartItems() {
-    return getStoreCart().map((i) => ({
+    const fromCart = getStoreCart().map((i) => ({
       product_id: i.product_id,
       quantity: i.quantity,
       options: i.options || {},
-    }));
+    })).filter((i) => i.product_id);
+    const fromQuery = queryItems();
+    if (fromQuery.length && !fromCart.length) return fromQuery;
+    if (fromQuery.length && getQueryParam("buy")) return fromQuery;
+    return fromCart.length ? fromCart : fromQuery;
   }
 
   function delivery() {
@@ -28,12 +53,6 @@
       address: (document.getElementById("ship-address") || {}).value || "",
       postal: (document.getElementById("ship-postal") || {}).value || "",
     };
-  }
-
-  async function loadCountries() {
-    const res = await storeFetch("/api/store");
-    const data = await res.json();
-    countries = data.shipping_countries || [];
   }
 
   function formSnapshot() {
@@ -55,25 +74,34 @@
 
   async function loadPreview() {
     const snap = formSnapshot();
+    const items = cartItems();
+    if (!items.length) {
+      showRootMessage("<p>Your cart is empty. <a href='store.html'>Browse products</a></p>");
+      return;
+    }
     const body = {
-      items: cartItems(),
+      items: items,
       coupon_code: (document.getElementById("coupon-code") || {}).value || "",
       delivery: delivery(),
       country: delivery().country,
       region: delivery().region,
     };
-    if (!body.items.length) {
-      document.getElementById("checkout-root").innerHTML = "<p>Your cart is empty. <a href='store.html'>Browse products</a></p>";
-      return;
-    }
     const res = await storeFetch("/api/store/checkout/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (e) {
+      throw new Error("Checkout is temporarily unavailable. Please try again.");
+    }
     if (!res.ok) throw new Error(data.error || "Could not calculate totals");
     preview = data;
+    if (Array.isArray(data.shipping_countries) && data.shipping_countries.length) {
+      countries = data.shipping_countries;
+    }
     render();
     restoreSnapshot(snap);
   }
@@ -263,10 +291,10 @@
           return;
         }
       }
-      await loadCountries();
       await loadPreview();
     } catch (e) {
       showError(e.message);
+      showRootMessage(`<p>${escapeHtml(e.message || "Could not load checkout.")}</p><p><a href="store.html">Back to store</a></p>`);
     }
   })();
 })();

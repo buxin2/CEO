@@ -1624,7 +1624,7 @@ class StoreProduct(db.Model):
     def to_public_dict(self, include_media=True, related=None):
         images = [i.to_dict() for i in self.images.all()] if include_media else []
         videos = [v.to_dict() for v in self.videos.all()] if include_media else []
-        options = [o.to_dict() for o in self.options.all()] if include_media else []
+        options = [o.to_dict() for o in self.options.all() if o.values.count()] if include_media else []
         cover = images[0]["url"] if images else ""
         sellable = self.sellable_quantity()
         data = {

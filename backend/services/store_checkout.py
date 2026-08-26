@@ -2,7 +2,7 @@
 
 import json
 
-from models import db, Payment, StoreOrder, StoreOrderItem, StoreProduct, generate_token
+from models import db, StoreOrder, StoreOrderItem, StoreProduct, generate_token
 from services.payment.checkout_service import (
     _create_payment_record,
     _init_provider_session,
@@ -12,7 +12,7 @@ from services.payment.fulfillment import fulfill_payment
 from services.payment.inventory import InventoryError, lock_store_product, reserve_stock
 from services.payment.money import generate_reference
 from services.payment.pricing import calculate_store_line, validate_and_apply_coupon
-from services.store_shipping import ShippingUnavailable, calculate_shipping
+from services.store_shipping import ShippingUnavailable, calculate_shipping, list_enabled_countries
 
 
 def _email_ok(email):
@@ -114,6 +114,10 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
         "shipping": shipping,
         "coupon_applied": coupon.code if coupon else None,
         "payment_methods": get_payment_methods(currency),
+        "shipping_countries": [
+            {"id": c.id, "country_name": c.country_name, "country_code": c.country_code}
+            for c in list_enabled_countries()
+        ],
     }
 
 

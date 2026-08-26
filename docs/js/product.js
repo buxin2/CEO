@@ -8,8 +8,9 @@
   function selectedOptions() {
     const opts = {};
     (product.options || []).forEach((opt) => {
-      const el = document.querySelector(`[data-option="${CSS.escape(opt.name)}"]`);
-      if (el) opts[opt.name] = el.value;
+      if (!(opt.values || []).length) return;
+      const el = document.querySelector('[data-option="' + opt.name.replace(/"/g, "") + '"]');
+      if (el && el.value) opts[opt.name] = el.value;
     });
     return opts;
   }
@@ -72,8 +73,16 @@
   }
 
   function buyNow() {
-    saveStoreCart([cartPayload()]);
-    window.location.href = "store-checkout.html?buy=1";
+    const payload = cartPayload();
+    saveStoreCart([payload]);
+    const params = new URLSearchParams();
+    params.set("buy", "1");
+    params.set("product_id", String(payload.product_id));
+    params.set("qty", String(payload.quantity || 1));
+    if (payload.options && Object.keys(payload.options).length) {
+      params.set("options", JSON.stringify(payload.options));
+    }
+    window.location.href = "store-checkout.html?" + params.toString();
   }
 
   function addCart() {
@@ -93,7 +102,7 @@
     media = (product.images || []).map((i) => ({ kind: "image", url: i.url }));
     (product.videos || []).forEach((v) => media.push({ kind: "video", url: v.url, embed: v.embed_url, type: v.video_type }));
 
-    const optionHtml = (product.options || []).map((opt) => `
+    const optionHtml = (product.options || []).filter((opt) => (opt.values || []).length).map((opt) => `
       <div class="option-group">
         <label>${escapeHtml(opt.name)}</label>
         <select class="form-control" data-option="${escapeHtml(opt.name)}">
