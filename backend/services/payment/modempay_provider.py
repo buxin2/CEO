@@ -19,27 +19,64 @@ def _modem_client():
         raise ValueError("Modem Pay SDK is not installed.")
 
 
-def create_payment_intent(amount_cents, currency, title, metadata, return_url, cancel_url, callback_url):
+def _major_amount(amount_cents, currency):
+    """Modem Pay amount is in major units (GMD 450, USD 34.99), not cents."""
+    major = max(0, int(amount_cents or 0)) / 100.0
+    cur = (currency or "USD").upper()
+    if cur in ("GMD", "JPY", "KRW", "VND"):
+        return max(1, int(round(major)))
+    value = round(major, 2)
+    return value if value >= 0.5 else 0.5
+
+
+def _as_dict(result):
+    if isinstance(result, dict):
+        return result
+    data = getattr(result, "data", None)
+    if isinstance(data, dict):
+        return {"data": data, "message": getattr(result, "message", "")}
+    if hasattr(result, "__dict__"):
+        return dict(result.__dict__)
+    return {}
+
+
+def create_payment_intent(amount_cents, currency, title, metadata, return_url, cancel_url, callback_url, customer=None):
     client = _modem_client()
-    amount = max(1, int(amount_cents))
+    customer = customer or {}
+    amount = _major_amount(amount_cents, currency)
     params = {
         "amount": amount,
-        "currency": currency or "GMD",
-        "title": title[:120] if title else "Payment",
+        "currency": (currency or "USD").upper(),
+        "title": (title or "Payment")[:120],
         "metadata": metadata or {},
         "return_url": return_url,
         "cancel_url": cancel_url,
         "callback_url": callback_url,
         "from_sdk": False,
+        "skip_url_validation": True,
     }
-    result = client.payment_intents.create(params=params)
-    data = result.get("data") if isinstance(result, dict) else {}
-    if not data:
-        raise ValueError("Modem Pay did not return payment data.")
+    if customer.get("full_name") or customer.get("name"):
+        params["customer_name"] = (customer.get("full_name") or customer.get("name") or "")[:120]
+    if customer.get("email"):
+        params["customer_email"] = customer["email"][:120]
+    if customer.get("phone"):
+        params["customer_phone"] = str(customer["phone"])[:32]
+    try:
+        result = client.payment_intents.create(params=params)
+    except Exception as exc:
+        logger.warning("Modem Pay create failed: %s", exc)
+        raise ValueError("Modem Pay could not start this payment. Please try PayPal or bank transfer.")
+    body = _as_dict(result)
+    data = body.get("data") if isinstance(body.get("data"), dict) else {}
+    link = data.get("payment_link") or body.get("payment_link") or ""
+    if not link:
+        logger.warning("Modem Pay returned no payment_link: %s", str(body)[:500])
+        msg = body.get("message") or data.get("message") or "Modem Pay did not return a payment page."
+        raise ValueError(str(msg))
     return {
         "provider_payment_id": data.get("intent_secret") or data.get("id") or "",
         "provider_intent_secret": data.get("intent_secret") or "",
-        "payment_link": data.get("payment_link") or "",
+        "payment_link": link,
     }
 
 

@@ -199,11 +199,11 @@
         </div>
         <div id="manual-box" class="hidden card card-inner" style="margin-top:12px;"></div>
         <div id="receipt-section" class="hidden" style="margin-top:12px;">
-          <label class="form-label">Upload payment receipt</label>
+          <label class="form-label">Payment receipt</label>
           <input type="file" id="receipt-file" accept="image/*">
-          <button type="button" class="btn btn-secondary" id="submit-receipt" style="margin-top:8px;">Submit receipt</button>
+          <p class="text-muted" style="margin-top:6px;">Attach your transfer receipt, then click Place order &amp; pay. The order and receipt are submitted together.</p>
         </div>
-        <button type="submit" class="btn btn-primary btn-block" id="pay-btn" style="margin-top:16px;" ${shipOk ? "" : "disabled"}>Place order & pay</button>
+        <button type="submit" class="btn btn-primary btn-block" id="pay-btn" style="margin-top:16px;">Place order & pay</button>
       </form>
       <aside class="checkout-totals">
         <h3>Order summary</h3>
@@ -224,8 +224,12 @@
     if (countryFilter) countryFilter.addEventListener("input", filterCountryOptions);
     document.getElementById("apply-coupon").addEventListener("click", () => loadPreview().catch((e) => showError(e.message)));
     document.querySelectorAll("input[name=paymethod]").forEach((el) => {
-      el.addEventListener("change", () => { selectedMethod = el.value; });
+      el.addEventListener("change", () => {
+        selectedMethod = el.value;
+        toggleManualPanel();
+      });
     });
+    toggleManualPanel();
     document.getElementById("checkout-form").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       try {
@@ -234,8 +238,17 @@
         showError(e.message);
       }
     });
-    const rec = document.getElementById("submit-receipt");
-    if (rec) rec.addEventListener("click", submitReceipt);
+  }
+
+  function toggleManualPanel() {
+    if (selectedMethod === "manual") {
+      renderManual(preview.manual_instructions);
+    } else {
+      const box = document.getElementById("manual-box");
+      const rec = document.getElementById("receipt-section");
+      if (box) box.classList.add("hidden");
+      if (rec) rec.classList.add("hidden");
+    }
   }
 
   function renderManual(instr) {
@@ -255,59 +268,88 @@
   async function startCheckout() {
     showError("");
     if (needsShipping() && !(preview.shipping && preview.shipping.available)) {
-      throw new Error(UNAVAILABLE);
-    }
-    const res = await storeFetch("/api/store/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        items: cartItems(),
-        coupon_code: document.getElementById("coupon-code").value.trim() || undefined,
-        payment_method: selectedMethod,
-        customer: {
-          full_name: document.getElementById("cust-name").value.trim(),
-          email: document.getElementById("cust-email").value.trim(),
-          phone: document.getElementById("cust-phone").value.trim(),
-        },
-        delivery: delivery(),
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Checkout failed");
-    currentPaymentRef = data.payment.payment_reference;
-    if (data.payment.status === "succeeded") {
-      saveStoreCart([]);
-      window.location.href = data.order_url || ("store-order.html?order=" + encodeURIComponent(data.order.order_number));
-      return;
-    }
-    if ((selectedMethod === "modem" || selectedMethod === "paypal") && data.payment.payment_link) {
-      window.location.href = data.payment.payment_link;
-      return;
+      throw new Error("Select a shipping country first so FedEx shipping can be added.");
     }
     if (selectedMethod === "manual") {
-      renderManual(data.manual_instructions);
-      showToast("Complete the transfer, then upload your receipt.");
+      const file = (document.getElementById("receipt-file") || {}).files;
+      if (!file || !file[0]) {
+        throw new Error("Attach your payment receipt, then click Place order & pay.");
+      }
+    }
+    const payBtn = document.getElementById("pay-btn");
+    if (payBtn) {
+      payBtn.disabled = true;
+      payBtn.textContent = "Please wait…";
+    }
+    try {
+      const res = await storeFetch("/api/store/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: cartItems(),
+          coupon_code: document.getElementById("coupon-code").value.trim() || undefined,
+          payment_method: selectedMethod,
+          customer: {
+            full_name: document.getElementById("cust-name").value.trim(),
+            email: document.getElementById("cust-email").value.trim(),
+            phone: document.getElementById("cust-phone").value.trim(),
+          },
+          delivery: delivery(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Checkout failed");
+      currentPaymentRef = data.payment.payment_reference;
+      if (data.payment.status === "succeeded") {
+        saveStoreCart([]);
+        window.location.href = data.order_url || ("store-order.html?order=" + encodeURIComponent(data.order.order_number));
+        return;
+      }
+      if (selectedMethod === "modem" || selectedMethod === "paypal") {
+        const link = data.payment && data.payment.payment_link;
+        if (link) {
+          window.location.href = link;
+          return;
+        }
+        throw new Error(selectedMethod === "modem"
+          ? "Modem Pay could not open a payment page. Please try PayPal or bank transfer."
+          : "PayPal could not open a payment page. Please try again.");
+      }
+      if (selectedMethod === "manual") {
+        try {
+          await submitReceipt(currentPaymentRef);
+        } catch (e) {
+          throw new Error((e && e.message ? e.message : "Receipt upload failed") + " The order was created — open Store Orders to check it.");
+        }
+        saveStoreCart([]);
+        showToast("Order placed and receipt submitted.");
+        if (data.order_url) {
+          window.location.href = data.order_url;
+          return;
+        }
+      }
+    } finally {
+      if (payBtn) {
+        payBtn.disabled = false;
+        payBtn.textContent = "Place order & pay";
+      }
     }
   }
 
-  async function submitReceipt() {
-    if (!currentPaymentRef) {
-      showError("Start checkout first.");
-      return;
-    }
-    const file = document.getElementById("receipt-file").files[0];
+  async function submitReceipt(paymentRefValue) {
+    const ref = paymentRefValue || currentPaymentRef;
+    if (!ref) throw new Error("Checkout did not start.");
+    const file = (document.getElementById("receipt-file") || {}).files[0];
+    if (!file) throw new Error("Attach your payment receipt.");
     const form = new FormData();
-    if (file) form.append("receipt", file);
-    const res = await storeFetch("/api/store/checkout/receipt/" + encodeURIComponent(currentPaymentRef), {
+    form.append("receipt", file);
+    const res = await storeFetch("/api/store/checkout/receipt/" + encodeURIComponent(ref), {
       method: "POST",
       body: form,
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Upload failed");
-    showToast("Receipt submitted. Your order is pending payment approval.");
-    if (data.order_url) {
-      setTimeout(() => { window.location.href = data.order_url; }, 800);
-    }
+    if (!res.ok) throw new Error(data.error || "Receipt upload failed");
+    return data;
   }
 
   async function verifyReturn() {

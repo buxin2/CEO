@@ -1934,6 +1934,7 @@ class StoreOrder(db.Model):
             "product_summary": ", ".join(
                 f"{i.product_title} × {i.quantity}" for i in self.items.all()
             ),
+            "receipt_url": (self.payment.receipt_url if self.payment else "") or "",
         }
         if include_items:
             data["items"] = [i.to_dict() for i in self.items.all()]

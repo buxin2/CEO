@@ -9,6 +9,7 @@ from services.payment.checkout_service import (
     _create_payment_record,
     _init_provider_session,
     get_payment_methods,
+    manual_payment_instructions,
 )
 from services.payment.fulfillment import fulfill_payment
 from services.payment.inventory import InventoryError, lock_store_product, reserve_stock
@@ -136,6 +137,7 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
         "coupon_applied": coupon.code if coupon else None,
         "payment_methods": get_payment_methods(currency),
         "destination_countries": country_options(),
+        "manual_instructions": manual_payment_instructions(),
     }
 
 

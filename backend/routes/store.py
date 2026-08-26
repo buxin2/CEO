@@ -176,6 +176,9 @@ def api_store_receipt(payment_ref):
         return jsonify({"error": "Receipt URL or file is required."}), 400
     payment.receipt_url = receipt_url[:500]
     payment.status = "manual_pending"
+    order = store_order_for_payment(payment)
+    if order:
+        order.payment_status = "manual_pending"
     db.session.commit()
     return jsonify(_store_payment_payload(payment))
 

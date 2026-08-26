@@ -104,10 +104,17 @@ def _init_provider_session(payment, title, metadata, return_path=None, cancel_pa
             return_url,
             cancel_url,
             callback_url,
+            customer={
+                "full_name": payment.customer_name,
+                "email": payment.customer_email,
+                "phone": payment.customer_phone,
+            },
         )
         payment.provider_payment_id = result.get("provider_payment_id") or ""
         payment.provider_intent_secret = result.get("provider_intent_secret") or ""
         payment.payment_link = result.get("payment_link") or ""
+        if not payment.payment_link:
+            raise ValueError("Modem Pay did not return a payment page. Please try PayPal or bank transfer.")
         payment.status = "processing"
     elif payment.provider == "paypal":
         result = paypal_create_order(
