@@ -16,11 +16,17 @@
           <div class="text-muted">${escapeHtml(c.email || "")} · ${escapeHtml(c.phone || "")}${c.google ? " · Google" : ""}</div>
           <div class="text-muted">${c.order_count || 0} order(s)</div>
         </div>
-        <button class="btn btn-secondary btn-sm" data-view="${c.id}">View</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" data-view="${c.id}">View</button>
+          <button class="btn btn-danger btn-sm" data-delete="${c.id}">Delete</button>
+        </div>
       </div>
     `).join("") || "<p class='text-muted'>No store users yet.</p>";
     document.querySelectorAll("[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => openUser(parseInt(btn.dataset.view, 10)));
+    });
+    document.querySelectorAll("[data-delete]").forEach((btn) => {
+      btn.addEventListener("click", () => deleteUser(parseInt(btn.dataset.delete, 10)));
     });
   }
 
@@ -46,6 +52,7 @@
       ${orders.length ? orders.map((o) => `
         <p>${escapeHtml(o.order_number || "")} · ${escapeHtml(o.product_summary || "")} · ${escapeHtml(o.order_status || "")}</p>
       `).join("") : "<p class='text-muted'>No orders yet.</p>"}
+      <button class="btn btn-danger" id="delete-user" style="margin-top:20px;">Delete user</button>
     `;
     document.getElementById("save-password").addEventListener("click", async () => {
       try {
@@ -74,7 +81,23 @@
         showToast(e.message);
       }
     });
+    document.getElementById("delete-user").addEventListener("click", () => deleteUser(id, true));
     openModal("user-modal");
+  }
+
+  async function deleteUser(id, fromModal) {
+    const c = customers.find((row) => row.id === id);
+    const label = (c && (c.full_name || c.email)) || "this user";
+    if (!confirm("Delete " + label + "? Their orders stay in Store Orders, unlinked. This cannot be undone.")) return;
+    try {
+      await apiRequest("/api/admin/store/customers/" + id, { method: "DELETE" });
+      customers = customers.filter((row) => row.id !== id);
+      if (fromModal) closeModal("user-modal");
+      renderList();
+      showToast("User deleted");
+    } catch (e) {
+      showToast(e.message);
+    }
   }
 
   async function load() {
@@ -88,5 +111,16 @@
   }
 
   document.getElementById("user-search").addEventListener("input", renderList);
+  document.getElementById("clear-users-btn").addEventListener("click", async () => {
+    if (!confirm("Delete ALL store users? Orders stay in Store Orders. This cannot be undone.")) return;
+    try {
+      await apiRequest("/api/admin/store/customers/clear", { method: "POST" });
+      closeModal("user-modal");
+      showToast("All store users cleared");
+      await load();
+    } catch (e) {
+      showToast(e.message);
+    }
+  });
   load().catch((e) => showToast(e.message));
 })();

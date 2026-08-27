@@ -7,7 +7,7 @@ from flask import current_app, request, session
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
-from models import db, StoreAccountHelpRequest, StoreCustomer, StoreCustomerNotice, StoreOrder
+from models import db, Payment, PaymentWebhookEvent, StoreAccountHelpRequest, StoreCustomer, StoreCustomerNotice, StoreOrder, StoreOrderItem
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -466,3 +466,56 @@ def list_customer_orders(customer):
         .order_by(StoreOrder.created_at.desc())
         .all()
     )
+
+
+def delete_store_order(order_id):
+    order = StoreOrder.query.get(order_id)
+    if not order:
+        raise ValueError("Order not found.")
+    payment_id = order.payment_id
+    order.payment_id = None
+    StoreOrderItem.query.filter_by(order_id=order.id).delete(synchronize_session=False)
+    db.session.delete(order)
+    if payment_id:
+        PaymentWebhookEvent.query.filter_by(payment_id=payment_id).delete(synchronize_session=False)
+        pay = Payment.query.get(payment_id)
+        if pay and (pay.payment_kind or "") == "store_order":
+            db.session.delete(pay)
+    db.session.commit()
+
+
+def delete_all_store_orders():
+    payment_ids = [
+        row[0]
+        for row in db.session.query(StoreOrder.payment_id).filter(StoreOrder.payment_id.isnot(None)).all()
+        if row[0]
+    ]
+    StoreOrderItem.query.delete(synchronize_session=False)
+    StoreOrder.query.delete(synchronize_session=False)
+    if payment_ids:
+        PaymentWebhookEvent.query.filter(PaymentWebhookEvent.payment_id.in_(payment_ids)).delete(synchronize_session=False)
+        Payment.query.filter(
+            Payment.id.in_(payment_ids),
+            Payment.payment_kind == "store_order",
+        ).delete(synchronize_session=False)
+    db.session.commit()
+    return True
+
+
+def delete_store_customer(customer_id):
+    customer = get_store_customer(customer_id)
+    StoreCustomerNotice.query.filter_by(store_customer_id=customer.id).delete(synchronize_session=False)
+    StoreOrder.query.filter_by(store_customer_id=customer.id).update(
+        {StoreOrder.store_customer_id: None},
+        synchronize_session=False,
+    )
+    db.session.delete(customer)
+    db.session.commit()
+
+
+def delete_all_store_customers():
+    StoreCustomerNotice.query.delete(synchronize_session=False)
+    StoreOrder.query.update({StoreOrder.store_customer_id: None}, synchronize_session=False)
+    StoreCustomer.query.delete(synchronize_session=False)
+    db.session.commit()
+    return True

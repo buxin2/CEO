@@ -25,6 +25,10 @@ from services.store_customer_service import (
     change_store_password,
     create_help_request,
     current_store_customer,
+    delete_all_store_customers,
+    delete_all_store_orders,
+    delete_store_customer,
+    delete_store_order,
     get_store_customer,
     google_client_id,
     help_request_dict,
@@ -339,6 +343,23 @@ def api_admin_store_customer_message(customer_id):
         return jsonify({"success": True, "notice": row.to_dict()})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/admin/store/customers/clear", methods=["POST"])
+@login_required
+def api_admin_store_customers_clear():
+    delete_all_store_customers()
+    return jsonify({"success": True})
+
+
+@store_bp.route("/api/admin/store/customers/<int:customer_id>", methods=["DELETE"])
+@login_required
+def api_admin_store_customer_delete(customer_id):
+    try:
+        delete_store_customer(customer_id)
+        return jsonify({"success": True})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
 
 
 @store_bp.route("/api/admin/store/account-help", methods=["GET"])
@@ -777,6 +798,23 @@ def api_admin_store_orders():
         q = q.filter(StoreOrder.order_status == status)
     rows = q.limit(500).all()
     return jsonify({"orders": [o.to_dict(include_private=True) for o in rows]})
+
+
+@store_bp.route("/api/admin/store/orders/clear", methods=["POST"])
+@login_required
+def api_admin_store_orders_clear():
+    delete_all_store_orders()
+    return jsonify({"success": True})
+
+
+@store_bp.route("/api/admin/store/orders/<int:order_id>", methods=["DELETE"])
+@login_required
+def api_admin_store_order_delete(order_id):
+    try:
+        delete_store_order(order_id)
+        return jsonify({"success": True})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
 
 
 @store_bp.route("/api/admin/store/orders/<int:order_id>", methods=["PUT"])

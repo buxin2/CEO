@@ -20,12 +20,18 @@
           <div><strong>${escapeHtml(o.product_summary || "Store order")}</strong></div>
           <div class="text-muted">${escapeHtml(o.customer_name || "Customer")} · ${escapeHtml(o.order_number || "")} · ${escapeHtml(o.order_status || "")}</div>
         </div>
-        <button class="btn btn-secondary btn-sm" data-view="${o.id}">View</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" data-view="${o.id}">View</button>
+          <button class="btn btn-danger btn-sm" data-delete="${o.id}">Delete</button>
+        </div>
       </div>
     `).join("") || "<p class='text-muted'>No matching store orders.</p>";
 
     document.querySelectorAll("[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => openOrder(parseInt(btn.dataset.view, 10)));
+    });
+    document.querySelectorAll("[data-delete]").forEach((btn) => {
+      btn.addEventListener("click", () => deleteOrder(parseInt(btn.dataset.delete, 10)));
     });
   }
 
@@ -66,6 +72,7 @@
         <input class="form-control" id="modal-turl" placeholder="Tracking URL" value="${escapeHtml(o.tracking_url || "")}">
       </div>
       <button class="btn btn-primary" id="modal-save" style="margin-top:12px;">Save</button>
+      <button class="btn btn-danger" id="modal-delete" style="margin-top:12px;margin-left:8px;">Delete order</button>
     `;
     document.getElementById("modal-status").addEventListener("change", async () => {
       await apiRequest("/api/admin/store/orders/" + o.id, {
@@ -90,7 +97,23 @@
       o.tracking_url = document.getElementById("modal-turl").value;
       showToast("Tracking saved");
     });
+    document.getElementById("modal-delete").addEventListener("click", () => deleteOrder(o.id, true));
     openModal("order-modal");
+  }
+
+  async function deleteOrder(id, fromModal) {
+    const o = orders.find((row) => row.id === id);
+    const label = (o && (o.order_number || o.product_summary)) || "this order";
+    if (!confirm("Delete " + label + "? This cannot be undone.")) return;
+    try {
+      await apiRequest("/api/admin/store/orders/" + id, { method: "DELETE" });
+      orders = orders.filter((row) => row.id !== id);
+      if (fromModal) closeModal("order-modal");
+      renderList();
+      showToast("Order deleted");
+    } catch (e) {
+      showToast(e.message);
+    }
   }
 
   async function loadHelp() {
@@ -132,6 +155,17 @@
   }
 
   document.getElementById("order-search").addEventListener("input", renderList);
+  document.getElementById("clear-orders-btn").addEventListener("click", async () => {
+    if (!confirm("Delete ALL store orders? This cannot be undone.")) return;
+    try {
+      await apiRequest("/api/admin/store/orders/clear", { method: "POST" });
+      closeModal("order-modal");
+      showToast("All store orders cleared");
+      await load();
+    } catch (e) {
+      showToast(e.message);
+    }
+  });
   load().catch((e) => showToast(e.message));
   loadHelp().catch((e) => showToast(e.message));
 })();
