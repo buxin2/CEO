@@ -178,7 +178,10 @@ def api_store_google_config():
 def api_store_google_login():
     data = request.get_json(silent=True) or {}
     try:
-        customer = login_with_google_credential(data.get("credential") or data.get("id_token") or "")
+        customer = login_with_google_credential(
+            data.get("credential") or data.get("id_token") or "",
+            nonce=data.get("nonce"),
+        )
         return jsonify({"customer": customer.to_dict()})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 401

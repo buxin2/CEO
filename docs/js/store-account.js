@@ -27,6 +27,69 @@
     return `<div class="auth-or"><span>${label || "or"}</span></div>`;
   }
 
+  function isPhoneBrowser() {
+    const ua = navigator.userAgent || "";
+    return /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)
+      || ((navigator.maxTouchPoints || 0) > 1 && Math.min(window.innerWidth, window.innerHeight) < 900);
+  }
+
+  function googleRedirectUri() {
+    const url = new URL("store-account.html", window.location.href);
+    url.search = "";
+    url.hash = "";
+    return url.href;
+  }
+
+  function takeGoogleIdToken() {
+    const hash = (window.location.hash || "").replace(/^#/, "");
+    if (!hash) return "";
+    const params = new URLSearchParams(hash);
+    if (params.get("error")) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      throw new Error("Google sign-in was cancelled. Try again.");
+    }
+    const token = params.get("id_token") || "";
+    if (token) history.replaceState(null, "", window.location.pathname + window.location.search);
+    return token;
+  }
+
+  async function completeGoogleSignIn(credential) {
+    const nonce = sessionStorage.getItem("google_nonce") || "";
+    const res = await storeFetch("/api/store/auth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential: credential, nonce: nonce || undefined }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Google sign-in failed.");
+    const next = sessionStorage.getItem("google_next") || nextUrl;
+    sessionStorage.removeItem("google_nonce");
+    sessionStorage.removeItem("google_next");
+    window.location.replace(safeNext(next));
+  }
+
+  function startGoogleRedirect(clientId) {
+    const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    sessionStorage.setItem("google_nonce", nonce);
+    sessionStorage.setItem("google_next", nextUrl);
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: googleRedirectUri(),
+      response_type: "id_token",
+      scope: "openid email profile",
+      nonce: nonce,
+      prompt: "select_account",
+    });
+    window.location.href = "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString();
+  }
+
+  function phoneGoogleButtonHtml() {
+    return `<button type="button" class="google-continue-btn" id="google-continue-btn">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3.1l5.7-5.7C34.2 6.1 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.8 1.2 8 3.1l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.1 3.2-3.5 5.8-6.6 7.2l6.3 5.3C37.3 38.2 44 33 44 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
+      Continue with Google
+    </button>`;
+  }
+
   function loadGsi() {
     if (window.google && window.google.accounts && window.google.accounts.id) {
       return Promise.resolve();
@@ -66,20 +129,19 @@
         if (orEl) orEl.remove();
         return;
       }
+      if (isPhoneBrowser()) {
+        box.innerHTML = phoneGoogleButtonHtml();
+        const btn = document.getElementById("google-continue-btn");
+        if (btn) btn.addEventListener("click", () => startGoogleRedirect(googleClientId));
+        return;
+      }
       await loadGsi();
       window.google.accounts.id.initialize({
         client_id: googleClientId,
         callback: async (response) => {
           showError("");
           try {
-            const res = await storeFetch("/api/store/auth/google", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ credential: response.credential }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || "Google sign-in failed.");
-            window.location.href = safeNext(nextUrl);
+            await completeGoogleSignIn(response.credential);
           } catch (e) {
             showError(e.message);
           }
@@ -370,6 +432,12 @@
 
   (async function init() {
     try {
+      const returning = takeGoogleIdToken();
+      if (returning) {
+        showError("");
+        await completeGoogleSignIn(returning);
+        return;
+      }
       const customer = await me();
       if (customer) await renderLoggedIn(customer);
       else renderLoggedOut(getQueryParam("tab") || "email");

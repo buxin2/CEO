@@ -140,7 +140,7 @@ def google_client_id():
     return (current_app.config.get("GOOGLE_CLIENT_ID") or "").strip()
 
 
-def login_with_google_credential(credential):
+def login_with_google_credential(credential, nonce=None):
     import secrets
 
     client_id = google_client_id()
@@ -158,6 +158,9 @@ def login_with_google_credential(credential):
         raise ValueError("Google sign-in failed. Try again.") from exc
     if info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
         raise ValueError("Google sign-in failed. Try again.")
+    expected_nonce = (nonce or "").strip()
+    if expected_nonce and info.get("nonce") and info.get("nonce") != expected_nonce:
+        raise ValueError("Google sign-in expired. Try again.")
     email = (info.get("email") or "").strip().lower()
     if not email or not info.get("email_verified"):
         raise ValueError("Google did not share a verified email. Use another Google account.")

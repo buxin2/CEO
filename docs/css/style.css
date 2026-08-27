@@ -2555,10 +2555,27 @@ body.store-body {
   margin: 4px 0 8px;
 }
 
-.google-signin-wrap > div {
+.google-continue-btn {
   width: 100%;
+  min-height: 48px;
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 10px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f1f1f;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.google-continue-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
 }
 
 .store-account-actions {
