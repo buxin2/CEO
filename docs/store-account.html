@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Checkout</title>
+  <title>Account</title>
   <link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body class="store-body">
   <header class="store-topbar">
     <div class="store-topbar-inner">
       <a class="store-brand" href="store.html">Store</a>
-      <div class="store-search"><span class="text-muted">Secure checkout</span></div>
+      <div class="store-search"><span class="text-muted">Your account</span></div>
       <a class="store-cart-link" href="store-checkout.html">Cart <span class="store-cart-count" id="store-cart-count">0</span></a>
     </div>
   </header>
-  <div id="checkout-error" class="form-error hidden" style="max-width:880px;margin:12px auto;"></div>
-  <div class="store-checkout" id="checkout-root">
-    <div class="empty-state"><span class="spinner"></span></div>
-  </div>
+  <main class="store-wrap" style="max-width:640px;">
+    <div id="account-error" class="form-error hidden"></div>
+    <div id="account-root">
+      <div class="empty-state"><span class="spinner"></span></div>
+    </div>
+  </main>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="js/store-cart.js?v=4"></script>
-  <script src="js/iso-countries.js?v=1"></script>
-  <script src="js/paypal-buttons.js?v=1"></script>
   <script src="js/store-contact.js?v=1"></script>
-  <script src="js/store-checkout.js?v=11"></script>
+  <script src="js/store-account.js?v=1"></script>
 </body>
 </html>

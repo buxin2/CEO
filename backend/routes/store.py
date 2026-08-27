@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from flask import Blueprint, Response, jsonify, request, session
+from flask import Blueprint, Response, jsonify, request
 
 from models import STORE_ORDER_STATUSES, StoreOrder, StoreProduct, db
 from routes.auth import login_required
@@ -18,6 +18,17 @@ from services.store_checkout import (
     preview_store_checkout,
     public_order_lookup,
     store_order_for_payment,
+)
+from services.store_customer_service import (
+    create_help_request,
+    current_store_customer,
+    list_customer_orders,
+    list_help_requests,
+    login_with_email,
+    login_with_phone,
+    logout_store_customer,
+    mark_help_request,
+    register_store_customer,
 )
 from services.store_service import (
     add_image_url,
@@ -121,16 +132,99 @@ def api_store_preview():
         return jsonify({"error": str(exc)}), 400
 
 
+@store_bp.route("/api/store/auth/register", methods=["POST"])
+def api_store_register():
+    data = request.get_json(silent=True) or {}
+    try:
+        customer = register_store_customer(data)
+        return jsonify({"customer": customer.to_dict()}), 201
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/store/auth/login", methods=["POST"])
+def api_store_login():
+    data = request.get_json(silent=True) or {}
+    try:
+        if (data.get("phone") or "").strip() and not (data.get("email") or "").strip():
+            customer = login_with_phone(data.get("phone"), data.get("password"))
+        else:
+            customer = login_with_email(data.get("email"), data.get("password"))
+        return jsonify({"customer": customer.to_dict()})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 401
+
+
+@store_bp.route("/api/store/auth/logout", methods=["POST"])
+def api_store_logout():
+    logout_store_customer()
+    return jsonify({"success": True})
+
+
+@store_bp.route("/api/store/auth/me", methods=["GET"])
+def api_store_me():
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"authenticated": False}), 401
+    return jsonify({"authenticated": True, "customer": customer.to_dict()})
+
+
+@store_bp.route("/api/store/auth/help", methods=["POST"])
+def api_store_help():
+    data = request.get_json(silent=True) or {}
+    try:
+        row = create_help_request(data)
+        return jsonify({"success": True, "request": row.to_dict()}), 201
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/store/account/orders", methods=["GET"])
+def api_store_my_orders():
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in to see your orders."}), 401
+    orders = list_customer_orders(customer)
+    return jsonify({"orders": [o.to_dict(include_private=True) for o in orders]})
+
+
+@store_bp.route("/api/admin/store/account-help", methods=["GET"])
+@login_required
+def api_admin_store_help():
+    return jsonify({"requests": [r.to_dict() for r in list_help_requests()]})
+
+
+@store_bp.route("/api/admin/store/account-help/<int:request_id>", methods=["PUT"])
+@login_required
+def api_admin_store_help_update(request_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        row = mark_help_request(request_id, data.get("status") or "done")
+        return jsonify(row.to_dict())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @store_bp.route("/api/store/checkout", methods=["POST"])
 def api_store_checkout():
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in to buy. Create an account or log in first."}), 401
     data = request.get_json(silent=True) or {}
+    guest = data.get("customer") or {}
+    merged = {
+        "full_name": (guest.get("full_name") or customer.full_name or "").strip() or customer.full_name,
+        "email": customer.email,
+        "phone": customer.phone,
+    }
     try:
         payment, order = checkout_store(
             data.get("items") or [],
-            data.get("customer") or {},
+            merged,
             data.get("delivery") or {},
             data.get("coupon_code"),
             data.get("payment_method"),
+            store_customer=customer,
         )
         return jsonify(_store_payment_payload(payment, order)), 201
     except ValueError as exc:

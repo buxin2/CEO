@@ -203,6 +203,10 @@
       return;
     }
     product = data;
+    window.STORE_CONTACT_PRODUCT = {
+      title: product.title,
+      url: location.href,
+    };
     render();
   })().catch((e) => {
     document.getElementById("product-root").innerHTML = `<p>${escapeHtml(e.message)}</p>`;

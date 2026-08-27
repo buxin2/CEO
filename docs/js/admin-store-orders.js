@@ -93,6 +93,37 @@
     openModal("order-modal");
   }
 
+  async function loadHelp() {
+    const box = document.getElementById("help-list");
+    if (!box) return;
+    const data = await apiRequest("/api/admin/store/account-help");
+    const rows = data.requests || [];
+    const pending = rows.filter((r) => r.status !== "done");
+    const shown = pending.length ? pending : rows.slice(0, 5);
+    if (!rows.length) {
+      box.innerHTML = "";
+      return;
+    }
+    box.innerHTML = `<h2>Account help</h2>` + shown.map((r) => `
+      <div class="card" style="padding:14px 16px;margin-bottom:10px;">
+        <div><strong>${escapeHtml(r.full_name || "Customer")}</strong> · ${escapeHtml(r.status || "pending")}</div>
+        <div class="text-muted">${escapeHtml(r.email || "")} · ${escapeHtml(r.phone || "")}</div>
+        <p style="margin:8px 0 0;">${escapeHtml(r.message || "")}</p>
+        ${r.status === "done" ? "" : `<button class="btn btn-secondary btn-sm" data-help="${r.id}" style="margin-top:8px;">Mark done</button>`}
+      </div>
+    `).join("");
+    box.querySelectorAll("[data-help]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await apiRequest("/api/admin/store/account-help/" + btn.getAttribute("data-help"), {
+          method: "PUT",
+          body: JSON.stringify({ status: "done" }),
+        });
+        showToast("Marked done");
+        loadHelp().catch((e) => showToast(e.message));
+      });
+    });
+  }
+
   async function load() {
     const data = await apiRequest("/api/admin/store/orders");
     orders = data.orders || [];
@@ -101,4 +132,5 @@
 
   document.getElementById("order-search").addEventListener("input", renderList);
   load().catch((e) => showToast(e.message));
+  loadHelp().catch((e) => showToast(e.message));
 })();

@@ -151,7 +151,7 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
     }
 
 
-def checkout_store(items, customer, delivery, coupon_code, payment_method):
+def checkout_store(items, customer, delivery, coupon_code, payment_method, store_customer=None):
     customer = customer or {}
     delivery = delivery or {}
     name = (customer.get("full_name") or customer.get("name") or "").strip()
@@ -225,6 +225,7 @@ def checkout_store(items, customer, delivery, coupon_code, payment_method):
 
         order = StoreOrder(
             order_number=generate_reference("BX"),
+            store_customer_id=store_customer.id if store_customer else None,
             customer_name=name[:255],
             customer_email=email[:255],
             customer_phone=phone[:64],

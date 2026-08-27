@@ -176,5 +176,13 @@ def run_schema_migrations():
     ):
         _add_column(engine, "store_orders", col, pg, sq)
 
+    _add_column(
+        engine,
+        "store_orders",
+        "store_customer_id",
+        "store_customer_id INTEGER",
+        "store_customer_id INTEGER",
+    )
+
     db.session.commit()
     logger.info("Schema migrations complete.")

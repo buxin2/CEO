@@ -17,6 +17,8 @@
     ).join("")}</span>`;
   }
 
+  let storeCustomer = null;
+
   function showError(msg) {
     const el = document.getElementById("checkout-error");
     el.textContent = msg || "";
@@ -157,6 +159,13 @@
     preview = data;
     render();
     restoreSnapshot(snap);
+    if (storeCustomer) {
+      ["cust-name", "cust-email", "cust-phone"].forEach((id, i) => {
+        const el = document.getElementById(id);
+        const val = [storeCustomer.full_name, storeCustomer.email, storeCustomer.phone][i];
+        if (el && val && !snap[id]) el.value = val;
+      });
+    }
     const filter = document.getElementById("ship-country-filter");
     if (filter && filter.value) filterCountryOptions();
     mountPaypalButtons();
@@ -496,6 +505,17 @@
     return false;
   }
 
+  function showSignInGate() {
+    const next = "store-checkout.html" + (location.search || "");
+    showRootMessage(`
+      <div class="card" style="padding:24px;max-width:520px;margin:0 auto;">
+        <h2>Sign in to buy</h2>
+        <p>Create an account or sign in with your email and password, or with your phone number. Then you can complete this order, and see your purchases anytime you come back.</p>
+        <p><a class="btn btn-primary btn-block" href="${storeAccountHref(next)}">Sign in or create account</a></p>
+        <p class="text-muted" style="margin-top:12px;"><a href="store.html">Back to store</a></p>
+      </div>`);
+  }
+
   (async function init() {
     try {
       if (paymentRef && returnStatus === "return") {
@@ -509,6 +529,11 @@
           window.location.href = data.order_url;
           return;
         }
+      }
+      storeCustomer = await getStoreCustomer();
+      if (!storeCustomer) {
+        showSignInGate();
+        return;
       }
       await loadPreview();
     } catch (e) {

@@ -7,4 +7,6 @@
  */
 window.APP_CONFIG = {
   API_BASE_URL: "https://ceo-wt07.onrender.com",
+  WHATSAPP_NUMBER: "918800510790",
+  CONTACT_EMAIL: "abdoukadrjabbi1@gmail.com",
 };

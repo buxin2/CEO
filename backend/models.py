@@ -1841,12 +1841,64 @@ class ShippingRegion(db.Model):
         }
 
 
+class StoreCustomer(db.Model):
+    __tablename__ = "store_customers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(255), nullable=False, default="")
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    phone = db.Column(db.String(32), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    orders = db.relationship("StoreOrder", backref="customer", lazy="dynamic")
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "full_name": self.full_name or "",
+            "email": self.email or "",
+            "phone": self.phone or "",
+        }
+
+
+class StoreAccountHelpRequest(db.Model):
+    __tablename__ = "store_account_help_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(255), default="")
+    email = db.Column(db.String(255), default="")
+    phone = db.Column(db.String(64), default="")
+    message = db.Column(db.Text, default="")
+    status = db.Column(db.String(20), default="pending", index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "full_name": self.full_name or "",
+            "email": self.email or "",
+            "phone": self.phone or "",
+            "message": self.message or "",
+            "status": self.status or "pending",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class StoreOrder(db.Model):
     __tablename__ = "store_orders"
 
     id = db.Column(db.Integer, primary_key=True)
     order_number = db.Column(db.String(64), unique=True, nullable=False, index=True)
     payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True, index=True)
+    store_customer_id = db.Column(db.Integer, db.ForeignKey("store_customers.id"), nullable=True, index=True)
     customer_name = db.Column(db.String(255), default="")
     customer_email = db.Column(db.String(255), default="")
     customer_phone = db.Column(db.String(64), default="")
@@ -1899,6 +1951,7 @@ class StoreOrder(db.Model):
             "id": self.id,
             "order_number": self.order_number,
             "payment_id": self.payment_id,
+            "store_customer_id": self.store_customer_id,
             "customer_name": self.customer_name or "",
             "customer_email": self.customer_email or "",
             "customer_phone": self.customer_phone or "",

@@ -53,4 +53,40 @@ function storeFetch(path, options) {
   return fetch(apiUrl(path), Object.assign({ credentials: "include" }, options || {}));
 }
 
-document.addEventListener("DOMContentLoaded", updateStoreCartBadge);
+function storeAccountHref(nextPath) {
+  const next = nextPath || (location.pathname.split("/").pop() || "store.html") + (location.search || "");
+  return "store-account.html?next=" + encodeURIComponent(next);
+}
+
+async function getStoreCustomer() {
+  try {
+    const res = await storeFetch("/api/store/auth/me");
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.customer || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function mountStoreAccountNav() {
+  const inner = document.querySelector(".store-topbar-inner");
+  if (!inner || document.getElementById("store-account-nav")) return;
+  const customer = await getStoreCustomer();
+  const nav = document.createElement("div");
+  nav.id = "store-account-nav";
+  nav.className = "store-account-nav";
+  if (customer) {
+    nav.innerHTML = `<a href="store-account.html">Account</a><a href="store-account.html">Orders</a>`;
+  } else {
+    nav.innerHTML = `<a class="store-signin-link" href="${storeAccountHref()}">Sign in</a>`;
+  }
+  const cart = inner.querySelector(".store-cart-link");
+  if (cart) inner.insertBefore(nav, cart);
+  else inner.appendChild(nav);
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  updateStoreCartBadge();
+  mountStoreAccountNav();
+});
