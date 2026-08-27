@@ -2516,6 +2516,134 @@ body.store-body {
   padding: 24px 20px 80px;
 }
 
+.store-account-wrap {
+  max-width: 560px;
+  padding: 16px 16px 110px;
+}
+
+.store-account-card {
+  padding: 20px;
+}
+
+.store-auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.google-signin-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+
+.google-signin-wrap > div {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.store-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.store-account-alert.form-error {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-danger-light);
+}
+
+.store-account-alert.form-error.visible {
+  display: block;
+}
+
+.store-notice {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 10px;
+  background: #fff;
+}
+
+.store-notice.is-unread {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.store-notice-body {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+
+.store-order-link {
+  display: block;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  text-decoration: none;
+}
+
+.store-account-nav .notice-badge {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 11px;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .store-account-wrap {
+    padding: 12px 12px 120px;
+  }
+  .store-account-card {
+    padding: 16px;
+  }
+  .store-auth-tabs {
+    grid-template-columns: 1fr 1fr;
+  }
+  .store-topbar-inner .store-search {
+    display: none;
+  }
+  .store-account-nav {
+    font-size: 13px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 420px) {
+  .store-auth-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
 .store-hero {
   background: linear-gradient(135deg, #111827, #312e81);
   color: #fff;

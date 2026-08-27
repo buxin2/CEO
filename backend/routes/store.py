@@ -20,15 +20,28 @@ from services.store_checkout import (
     store_order_for_payment,
 )
 from services.store_customer_service import (
+    admin_message_customer,
+    admin_set_customer_password,
+    change_store_password,
     create_help_request,
     current_store_customer,
+    get_store_customer,
+    google_client_id,
+    help_request_dict,
+    list_customer_notices,
     list_customer_orders,
     list_help_requests,
+    list_store_customers,
     login_with_email,
+    login_with_google_credential,
     login_with_phone,
     logout_store_customer,
+    mark_all_notices_read,
     mark_help_request,
+    mark_notice_read,
     register_store_customer,
+    unread_notice_count,
+    update_customer_phone,
 )
 from services.store_service import (
     add_image_url,
@@ -155,6 +168,35 @@ def api_store_login():
         return jsonify({"error": str(exc)}), 401
 
 
+@store_bp.route("/api/store/auth/google-config", methods=["GET"])
+def api_store_google_config():
+    client_id = google_client_id()
+    return jsonify({"client_id": client_id, "enabled": bool(client_id)})
+
+
+@store_bp.route("/api/store/auth/google", methods=["POST"])
+def api_store_google_login():
+    data = request.get_json(silent=True) or {}
+    try:
+        customer = login_with_google_credential(data.get("credential") or data.get("id_token") or "")
+        return jsonify({"customer": customer.to_dict()})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 401
+
+
+@store_bp.route("/api/store/account/phone", methods=["POST"])
+def api_store_account_phone():
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in first."}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        update_customer_phone(customer, data.get("phone") or "")
+        return jsonify({"customer": customer.to_dict()})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @store_bp.route("/api/store/auth/logout", methods=["POST"])
 def api_store_logout():
     logout_store_customer()
@@ -166,7 +208,11 @@ def api_store_me():
     customer = current_store_customer()
     if not customer:
         return jsonify({"authenticated": False}), 401
-    return jsonify({"authenticated": True, "customer": customer.to_dict()})
+    return jsonify({
+        "authenticated": True,
+        "customer": customer.to_dict(),
+        "unread_notices": unread_notice_count(customer),
+    })
 
 
 @store_bp.route("/api/store/auth/help", methods=["POST"])
@@ -174,7 +220,7 @@ def api_store_help():
     data = request.get_json(silent=True) or {}
     try:
         row = create_help_request(data)
-        return jsonify({"success": True, "request": row.to_dict()}), 201
+        return jsonify({"success": True, "request": help_request_dict(row)}), 201
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -188,10 +234,105 @@ def api_store_my_orders():
     return jsonify({"orders": [o.to_dict(include_private=True) for o in orders]})
 
 
+@store_bp.route("/api/store/account/password", methods=["POST"])
+def api_store_change_password():
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in first."}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        change_store_password(customer, data.get("current_password") or "", data.get("new_password") or "")
+        return jsonify({"success": True})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/store/account/notices", methods=["GET"])
+def api_store_notices():
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in to see messages."}), 401
+    rows = list_customer_notices(customer)
+    return jsonify({
+        "notices": [n.to_dict() for n in rows],
+        "unread_notices": unread_notice_count(customer),
+    })
+
+
+@store_bp.route("/api/store/account/notices/<int:notice_id>/read", methods=["POST"])
+def api_store_notice_read(notice_id):
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in first."}), 401
+    try:
+        row = mark_notice_read(customer, notice_id)
+        return jsonify(row.to_dict())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/store/account/notices/read-all", methods=["POST"])
+def api_store_notices_read_all():
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in first."}), 401
+    mark_all_notices_read(customer)
+    return jsonify({"success": True})
+
+
+@store_bp.route("/api/admin/store/customers", methods=["GET"])
+@login_required
+def api_admin_store_customers():
+    rows = list_store_customers(request.args.get("q") or "")
+    return jsonify({"customers": [c.to_dict(include_admin=True) for c in rows]})
+
+
+@store_bp.route("/api/admin/store/customers/<int:customer_id>", methods=["GET"])
+@login_required
+def api_admin_store_customer(customer_id):
+    try:
+        customer = get_store_customer(customer_id)
+        orders = list_customer_orders(customer)
+        notices = list_customer_notices(customer)
+        return jsonify({
+            "customer": customer.to_dict(include_admin=True),
+            "orders": [o.to_dict(include_private=True, include_items=False) for o in orders],
+            "notices": [n.to_dict() for n in notices],
+        })
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@store_bp.route("/api/admin/store/customers/<int:customer_id>/password", methods=["POST"])
+@login_required
+def api_admin_store_customer_password(customer_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        customer = admin_set_customer_password(
+            customer_id,
+            data.get("password") or "",
+            data.get("message") or "",
+        )
+        return jsonify({"success": True, "customer": customer.to_dict(include_admin=True)})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/admin/store/customers/<int:customer_id>/message", methods=["POST"])
+@login_required
+def api_admin_store_customer_message(customer_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        row = admin_message_customer(customer_id, data.get("title") or "", data.get("body") or data.get("message") or "")
+        return jsonify({"success": True, "notice": row.to_dict()})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @store_bp.route("/api/admin/store/account-help", methods=["GET"])
 @login_required
 def api_admin_store_help():
-    return jsonify({"requests": [r.to_dict() for r in list_help_requests()]})
+    return jsonify({"requests": [help_request_dict(r) for r in list_help_requests()]})
 
 
 @store_bp.route("/api/admin/store/account-help/<int:request_id>", methods=["PUT"])
@@ -212,10 +353,16 @@ def api_store_checkout():
         return jsonify({"error": "Sign in to buy. Create an account or log in first."}), 401
     data = request.get_json(silent=True) or {}
     guest = data.get("customer") or {}
+    phone = (guest.get("phone") or "").strip() or (customer.phone or "")
+    if phone and not (customer.phone or "").strip():
+        try:
+            update_customer_phone(customer, phone)
+        except ValueError:
+            pass
     merged = {
         "full_name": (guest.get("full_name") or customer.full_name or "").strip() or customer.full_name,
         "email": customer.email,
-        "phone": customer.phone,
+        "phone": phone or customer.phone,
     }
     try:
         payment, order = checkout_store(

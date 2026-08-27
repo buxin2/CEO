@@ -12,3 +12,4 @@ APScheduler>=3.10.4
 requests>=2.31.0
 cloudinary>=1.41.0
 modempay>=1.0.4
+google-auth>=2.29.0

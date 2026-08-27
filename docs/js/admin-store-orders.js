@@ -109,6 +109,7 @@
         <div><strong>${escapeHtml(r.full_name || "Customer")}</strong> · ${escapeHtml(r.status || "pending")}</div>
         <div class="text-muted">${escapeHtml(r.email || "")} · ${escapeHtml(r.phone || "")}</div>
         <p style="margin:8px 0 0;">${escapeHtml(r.message || "")}</p>
+        ${r.customer ? `<p class="text-muted">Matched account: ${escapeHtml(r.customer.email || "")} · <a href="admin-store-users.html?id=${r.customer.id}">Open user</a></p>` : "<p class='text-muted'>No matching store account for this email/phone.</p>"}
         ${r.status === "done" ? "" : `<button class="btn btn-secondary btn-sm" data-help="${r.id}" style="margin-top:8px;">Mark done</button>`}
       </div>
     `).join("");

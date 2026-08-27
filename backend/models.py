@@ -1866,8 +1866,10 @@ class StoreCustomer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     full_name = db.Column(db.String(255), nullable=False, default="")
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    phone = db.Column(db.String(32), unique=True, nullable=False, index=True)
+    phone = db.Column(db.String(32), unique=True, nullable=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    google_sub = db.Column(db.String(64), unique=True, nullable=True, index=True)
+    has_password = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1879,13 +1881,19 @@ class StoreCustomer(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include_admin=False):
+        data = {
             "id": self.id,
             "full_name": self.full_name or "",
             "email": self.email or "",
             "phone": self.phone or "",
+            "google": bool(self.google_sub),
+            "has_password": bool(self.has_password),
         }
+        if include_admin:
+            data["created_at"] = self.created_at.isoformat() if self.created_at else None
+            data["order_count"] = self.orders.count()
+        return data
 
 
 class StoreAccountHelpRequest(db.Model):
@@ -1908,6 +1916,30 @@ class StoreAccountHelpRequest(db.Model):
             "message": self.message or "",
             "status": self.status or "pending",
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class StoreCustomerNotice(db.Model):
+    __tablename__ = "store_customer_notices"
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_customer_id = db.Column(db.Integer, db.ForeignKey("store_customers.id"), nullable=False, index=True)
+    title = db.Column(db.String(255), default="")
+    body = db.Column(db.Text, default="")
+    kind = db.Column(db.String(40), default="message")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+
+    customer = db.relationship("StoreCustomer", backref="notices")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title or "",
+            "body": self.body or "",
+            "kind": self.kind or "message",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "read": bool(self.read_at),
         }
 
 

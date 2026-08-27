@@ -1,11 +1,13 @@
 """Public store customer accounts (email+password or phone+password)."""
 
 import re
+from datetime import datetime
 
 from flask import session
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 
-from models import db, StoreAccountHelpRequest, StoreCustomer, StoreOrder
+from models import db, StoreAccountHelpRequest, StoreCustomer, StoreCustomerNotice, StoreOrder
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -65,21 +67,27 @@ def register_store_customer(data):
     phone = normalize_phone(data.get("phone"))
     password = data.get("password") or ""
     if not name:
-        raise ValueError("Full name is required.")
+        raise ValueError("Enter your full name.")
+    if not email:
+        raise ValueError("Enter your email.")
     if not _email_ok(email):
-        raise ValueError("A valid email is required.")
+        raise ValueError("Enter a valid email address.")
     if not phone:
-        raise ValueError("A valid phone number is required.")
+        raise ValueError("Enter a valid phone number.")
     if len(password) < 6:
         raise ValueError("Password must be at least 6 characters.")
     if StoreCustomer.query.filter_by(email=email).first():
-        raise ValueError("An account with this email already exists. Sign in instead.")
+        raise ValueError("This email has already been used. Sign in instead.")
     if StoreCustomer.query.filter_by(phone=phone).first():
-        raise ValueError("An account with this phone number already exists. Sign in instead.")
-    customer = StoreCustomer(full_name=name[:255], email=email[:255], phone=phone[:32])
+        raise ValueError("This phone number has already been used. Sign in instead.")
+    customer = StoreCustomer(full_name=name[:255], email=email[:255], phone=phone[:32], has_password=True)
     customer.set_password(password)
     db.session.add(customer)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        raise ValueError("This email or phone number has already been used. Sign in instead.")
     attach_orders_to_customer(customer)
     login_store_customer(customer)
     return customer
@@ -87,26 +95,241 @@ def register_store_customer(data):
 
 def login_with_email(email, password):
     email = (email or "").strip().lower()
-    if not _email_ok(email) or not password:
-        raise ValueError("Email and password are required.")
+    if not email:
+        raise ValueError("Enter your email.")
+    if not _email_ok(email):
+        raise ValueError("Enter a valid email address.")
+    if not password:
+        raise ValueError("Enter your password.")
     customer = StoreCustomer.query.filter_by(email=email).first()
-    if not customer or not customer.check_password(password):
-        raise ValueError("Invalid email or password.")
+    if not customer:
+        raise ValueError("No account with this email. Create an account first.")
+    if customer.google_sub and not customer.has_password:
+        raise ValueError("This account uses Google. Click Sign in with Google.")
+    if not customer.check_password(password):
+        raise ValueError("This is the wrong password.")
     attach_orders_to_customer(customer)
     login_store_customer(customer)
     return customer
 
 
 def login_with_phone(phone, password):
-    phone = normalize_phone(phone)
-    if not phone or not password:
-        raise ValueError("Phone number and password are required.")
+    raw = str(phone or "").strip()
+    if not raw:
+        raise ValueError("Enter your phone number.")
+    phone = normalize_phone(raw)
+    if not phone:
+        raise ValueError("Enter a valid phone number.")
+    if not password:
+        raise ValueError("Enter your password.")
     customer = StoreCustomer.query.filter_by(phone=phone).first()
-    if not customer or not customer.check_password(password):
-        raise ValueError("Invalid phone number or password.")
+    if not customer:
+        raise ValueError("No account with this phone number. Create an account first.")
+    if customer.google_sub and not customer.has_password:
+        raise ValueError("This account uses Google. Click Sign in with Google.")
+    if not customer.check_password(password):
+        raise ValueError("This is the wrong password.")
     attach_orders_to_customer(customer)
     login_store_customer(customer)
     return customer
+
+
+def google_client_id():
+    from flask import current_app
+
+    return (current_app.config.get("GOOGLE_CLIENT_ID") or "").strip()
+
+
+def login_with_google_credential(credential):
+    import secrets
+
+    client_id = google_client_id()
+    if not client_id:
+        raise ValueError("Google sign-in is not configured yet.")
+    token = (credential or "").strip()
+    if not token:
+        raise ValueError("Google sign-in did not finish. Try again.")
+    try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_requests
+
+        info = id_token.verify_oauth2_token(token, google_requests.Request(), client_id)
+    except Exception as exc:
+        raise ValueError("Google sign-in failed. Try again.") from exc
+    if info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise ValueError("Google sign-in failed. Try again.")
+    email = (info.get("email") or "").strip().lower()
+    if not email or not info.get("email_verified"):
+        raise ValueError("Google did not share a verified email. Use another Google account.")
+    sub = str(info.get("sub") or "").strip()
+    if not sub:
+        raise ValueError("Google sign-in failed. Try again.")
+    name = (info.get("name") or email.split("@")[0]).strip()[:255]
+
+    customer = StoreCustomer.query.filter_by(google_sub=sub).first()
+    if not customer:
+        customer = StoreCustomer.query.filter_by(email=email).first()
+        if customer:
+            customer.google_sub = sub
+            if not (customer.full_name or "").strip():
+                customer.full_name = name
+        else:
+            customer = StoreCustomer(
+                full_name=name,
+                email=email[:255],
+                phone=None,
+                google_sub=sub,
+                has_password=False,
+            )
+            customer.set_password(secrets.token_urlsafe(32))
+            db.session.add(customer)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        raise ValueError("Could not create this Google account. Try email sign-in.")
+    attach_orders_to_customer(customer)
+    login_store_customer(customer)
+    return customer
+
+
+def update_customer_phone(customer, phone):
+    phone = normalize_phone(phone)
+    if not phone:
+        raise ValueError("Enter a valid phone number.")
+    other = StoreCustomer.query.filter(StoreCustomer.phone == phone, StoreCustomer.id != customer.id).first()
+    if other:
+        raise ValueError("This phone number has already been used.")
+    customer.phone = phone[:32]
+    db.session.commit()
+    return customer
+
+
+def change_store_password(customer, current_password, new_password):
+    if not current_password:
+        raise ValueError("Enter the password you use now.")
+    if not customer.check_password(current_password):
+        raise ValueError("This is the wrong password. Use the password you sign in with now.")
+    if len(new_password or "") < 6:
+        raise ValueError("New password must be at least 6 characters.")
+    if current_password == new_password:
+        raise ValueError("Choose a different new password.")
+    customer.set_password(new_password)
+    customer.has_password = True
+    db.session.commit()
+    return customer
+
+
+def create_customer_notice(customer, title, body, kind="message"):
+    row = StoreCustomerNotice(
+        store_customer_id=customer.id,
+        title=(title or "Message from store admin")[:255],
+        body=(body or "")[:4000],
+        kind=(kind or "message")[:40],
+    )
+    db.session.add(row)
+    db.session.commit()
+    return row
+
+
+def list_customer_notices(customer):
+    return (
+        StoreCustomerNotice.query.filter_by(store_customer_id=customer.id)
+        .order_by(StoreCustomerNotice.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+
+def unread_notice_count(customer):
+    if not customer:
+        return 0
+    return StoreCustomerNotice.query.filter_by(store_customer_id=customer.id, read_at=None).count()
+
+
+def mark_notice_read(customer, notice_id):
+    row = StoreCustomerNotice.query.filter_by(id=notice_id, store_customer_id=customer.id).first()
+    if not row:
+        raise ValueError("Message not found.")
+    if not row.read_at:
+        row.read_at = datetime.utcnow()
+        db.session.commit()
+    return row
+
+
+def mark_all_notices_read(customer):
+    rows = StoreCustomerNotice.query.filter_by(store_customer_id=customer.id, read_at=None).all()
+    now = datetime.utcnow()
+    for row in rows:
+        row.read_at = now
+    if rows:
+        db.session.commit()
+    return len(rows)
+
+
+def find_customer_by_contact(email=None, phone=None):
+    email = (email or "").strip().lower()
+    if email:
+        row = StoreCustomer.query.filter_by(email=email).first()
+        if row:
+            return row
+    phone = normalize_phone(phone)
+    if phone:
+        return StoreCustomer.query.filter_by(phone=phone).first()
+    return None
+
+
+def list_store_customers(query=""):
+    q = StoreCustomer.query.order_by(StoreCustomer.created_at.desc())
+    text = (query or "").strip().lower()
+    if text:
+        like = f"%{text}%"
+        q = q.filter(
+            or_(
+                func.lower(StoreCustomer.full_name).like(like),
+                func.lower(StoreCustomer.email).like(like),
+                StoreCustomer.phone.like(like),
+            )
+        )
+    return q.limit(300).all()
+
+
+def get_store_customer(customer_id):
+    row = StoreCustomer.query.get(customer_id)
+    if not row:
+        raise ValueError("User not found.")
+    return row
+
+
+def admin_set_customer_password(customer_id, password, extra_message=""):
+    if len(password or "") < 6:
+        raise ValueError("Password must be at least 6 characters.")
+    customer = get_store_customer(customer_id)
+    customer.set_password(password)
+    customer.has_password = True
+    note = (extra_message or "").strip()
+    body = note + ("\n\n" if note else "")
+    body += (
+        "Your new password is: "
+        + password
+        + "\n\nSign in with this password. If you want to change it, enter this password first, then choose a new one."
+    )
+    db.session.add(StoreCustomerNotice(
+        store_customer_id=customer.id,
+        title="New password from store admin",
+        body=body[:4000],
+        kind="password",
+    ))
+    db.session.commit()
+    return customer
+
+
+def admin_message_customer(customer_id, title, body):
+    customer = get_store_customer(customer_id)
+    text = (body or "").strip()
+    if not text:
+        raise ValueError("Write a message for the customer.")
+    return create_customer_notice(customer, title or "Message from store admin", text, "message")
 
 
 def create_help_request(data):
@@ -115,9 +338,11 @@ def create_help_request(data):
     phone = (data.get("phone") or "").strip()
     message = (data.get("message") or "").strip()
     if not name:
-        raise ValueError("Your name is required.")
+        raise ValueError("Enter your name.")
     if not email and not phone:
         raise ValueError("Add your email or phone number so we can find your account.")
+    if email and not _email_ok(email.lower()):
+        raise ValueError("Enter a valid email address, or leave email blank and use your phone.")
     if len(message) < 8:
         raise ValueError("Tell us what you need help with (at least a short sentence).")
     row = StoreAccountHelpRequest(
@@ -130,6 +355,14 @@ def create_help_request(data):
     db.session.add(row)
     db.session.commit()
     return row
+
+
+def help_request_dict(row):
+    data = row.to_dict()
+    matched = find_customer_by_contact(row.email, row.phone)
+    if matched:
+        data["customer"] = matched.to_dict(include_admin=True)
+    return data
 
 
 def list_help_requests():

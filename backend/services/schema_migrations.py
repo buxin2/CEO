@@ -61,6 +61,38 @@ def _ensure_cloudinary_settings_table(engine):
         conn.execute(text(ddl))
 
 
+def _ensure_store_customer_notices_table(engine):
+    if _table_exists(engine, "store_customer_notices"):
+        return
+    logger.info("Creating store_customer_notices table")
+    if _is_postgres(engine):
+        ddl = (
+            "CREATE TABLE store_customer_notices ("
+            "id SERIAL PRIMARY KEY, "
+            "store_customer_id INTEGER NOT NULL, "
+            "title VARCHAR(255) DEFAULT '', "
+            "body TEXT DEFAULT '', "
+            "kind VARCHAR(40) DEFAULT 'message', "
+            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+            "read_at TIMESTAMP"
+            ")"
+        )
+    else:
+        ddl = (
+            "CREATE TABLE store_customer_notices ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "store_customer_id INTEGER NOT NULL, "
+            "title VARCHAR(255) DEFAULT '', "
+            "body TEXT DEFAULT '', "
+            "kind VARCHAR(40) DEFAULT 'message', "
+            "created_at DATETIME, "
+            "read_at DATETIME"
+            ")"
+        )
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _ensure_payment_settings_table(engine):
     if _table_exists(engine, "payment_settings"):
         return
@@ -101,6 +133,29 @@ def _ensure_payment_settings_table(engine):
         )
     with engine.begin() as conn:
         conn.execute(text(ddl))
+
+
+def _migrate_store_customer_google(engine):
+    if not _table_exists(engine, "store_customers"):
+        return
+    _add_column(engine, "store_customers", "google_sub", "google_sub VARCHAR(64)", "google_sub VARCHAR(64)")
+    _add_column(
+        engine,
+        "store_customers",
+        "has_password",
+        "has_password BOOLEAN DEFAULT TRUE",
+        "has_password BOOLEAN DEFAULT 1",
+    )
+    if _is_postgres(engine):
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE store_customers ALTER COLUMN phone DROP NOT NULL"))
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_store_customers_google_sub "
+                    "ON store_customers (google_sub)"
+                ))
+        except Exception as exc:
+            logger.info("store_customers google migration note: %s", exc)
 
 
 def run_schema_migrations():
@@ -226,6 +281,9 @@ def run_schema_migrations():
         "store_customer_id INTEGER",
         "store_customer_id INTEGER",
     )
+
+    _ensure_store_customer_notices_table(engine)
+    _migrate_store_customer_google(engine)
 
     db.session.commit()
     logger.info("Schema migrations complete.")

@@ -63,7 +63,9 @@ async function getStoreCustomer() {
     const res = await storeFetch("/api/store/auth/me");
     if (!res.ok) return null;
     const data = await res.json();
-    return data.customer || null;
+    const customer = data.customer || null;
+    if (customer) customer.unread_notices = data.unread_notices || 0;
+    return customer;
   } catch (e) {
     return null;
   }
@@ -77,7 +79,7 @@ async function mountStoreAccountNav() {
   nav.id = "store-account-nav";
   nav.className = "store-account-nav";
   if (customer) {
-    nav.innerHTML = `<a href="store-account.html">Account</a><a href="store-account.html">Orders</a>`;
+    nav.innerHTML = `<a href="store-account.html">Account${customer.unread_notices ? `<span class="notice-badge">${customer.unread_notices}</span>` : ""}</a><a href="store-account.html">Orders</a>`;
   } else {
     nav.innerHTML = `<a class="store-signin-link" href="${storeAccountHref()}">Sign in</a>`;
   }
