@@ -2,19 +2,72 @@
   const paymentRef = getQueryParam("payment_ref");
   const returnStatus = getQueryParam("status");
   let preview = null;
-  let selectedMethod = "manual";
+  let selectedMethod = "";
   let currentPaymentRef = paymentRef || "";
   const UNAVAILABLE = "FedEx shipping is currently unavailable for this destination.";
 
-  function walletChipsHtml() {
+  function hasMethod(id) {
+    return !!(preview && (preview.payment_methods || []).some((m) => m.id === id));
+  }
+
+  function walletLogoSvg(network) {
+    if (network === "wave") {
+      return `<svg viewBox="0 0 64 32" aria-hidden="true"><path fill="#fff" d="M4 20c6-10 12-10 18 0 6-10 12-10 18 0 6-10 12-10 18 0v6H4v-6z"/><circle fill="#fff" cx="18" cy="10" r="5"/><circle fill="#00b4c8" cx="20" cy="10" r="2"/></svg>`;
+    }
+    if (network === "afrimoney") {
+      return `<svg viewBox="0 0 64 32" aria-hidden="true"><text x="32" y="22" text-anchor="middle" fill="#fff" font-size="14" font-family="Arial,sans-serif" font-weight="700">Afri</text></svg>`;
+    }
+    return `<svg viewBox="0 0 64 32" aria-hidden="true"><text x="32" y="23" text-anchor="middle" fill="#fff" font-size="18" font-family="Arial,sans-serif" font-weight="800">Q</text></svg>`;
+  }
+
+  function paypalSectionHtml() {
+    if (!hasMethod("paypal")) return "";
+    return `
+      <div class="pay-section" id="paypal-box">
+        <h3 class="pay-section-title">PayPal payment</h3>
+        <div id="paypal-button-container"></div>
+      </div>`;
+  }
+
+  function walletSectionHtml() {
+    if (!hasMethod("modem")) return "";
     const wallets = [
-      { name: "Wave", bg: "#e6f7fb", fg: "#0b6b7a" },
-      { name: "AfriMoney", bg: "#f3e8ff", fg: "#5b21b6" },
-      { name: "QMoney", bg: "#f3f4f6", fg: "#111827" },
+      { network: "wave", name: "Wave", cls: "wave" },
+      { network: "afrimoney", name: "AfriMoney", cls: "afrimoney" },
+      { network: "qmoney", name: "QMoney", cls: "qmoney" },
     ];
-    return `<span style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0 22px;">${wallets.map((w) =>
-      `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:${w.bg};color:${w.fg};font-size:13px;font-weight:600;">${escapeHtml(w.name)}</span>`
-    ).join("")}</span>`;
+    return `
+      <div class="pay-section">
+        <h3 class="pay-section-title">Mobile money</h3>
+        <p id="modem-gmd-note" class="text-muted hidden"></p>
+        <div class="pay-wallet-grid">
+          ${wallets.map((w) => `
+            <button type="button" class="pay-wallet-btn pay-wallet-${w.cls}" data-wallet="${w.network}">
+              <span class="pay-wallet-logo">${walletLogoSvg(w.network)}</span>
+              <span class="pay-wallet-name">${escapeHtml(w.name)}</span>
+              <span class="pay-wallet-hint">Pay now</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>`;
+  }
+
+  function bankSectionHtml() {
+    if (!hasMethod("manual")) return "";
+    return `
+      <div class="pay-section">
+        <button type="button" class="pay-bank-toggle" id="choose-bank">
+          <strong>Bank / money transfer</strong>
+          <span class="text-muted">Pay from your bank, then upload a receipt and place the order</span>
+        </button>
+        <div id="manual-box" class="hidden card card-inner" style="margin-top:12px;"></div>
+        <div id="receipt-section" class="hidden" style="margin-top:12px;">
+          <label class="form-label">Payment receipt</label>
+          <input type="file" id="receipt-file" accept="image/*">
+          <p class="text-muted" style="margin-top:6px;">Attach your transfer receipt, then click Place order &amp; pay.</p>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block hidden" id="pay-btn" style="margin-top:16px;">Place order &amp; pay</button>
+      </div>`;
   }
 
   let storeCustomer = null;
@@ -168,7 +221,6 @@
     }
     const filter = document.getElementById("ship-country-filter");
     if (filter && filter.value) filterCountryOptions();
-    mountPaypalButtons();
   }
 
   function render() {
@@ -176,7 +228,8 @@
     const ship = preview.shipping || {};
     const needsShip = ship.requires_shipping;
     const methods = preview.payment_methods || [];
-    if (!methods.find((m) => m.id === selectedMethod)) selectedMethod = (methods[0] || {}).id || "manual";
+    if (selectedMethod === "paypal" || selectedMethod === "modem") selectedMethod = "";
+    if (selectedMethod && !methods.find((m) => m.id === selectedMethod)) selectedMethod = "";
     const shipOk = !needsShip || ship.available === true;
     const shipLabel = shipOk && needsShip
       ? money(t.shipping_cents, t.currency)
@@ -211,28 +264,10 @@
             <button type="button" class="btn btn-secondary" id="apply-coupon">Apply</button>
           </div>
         </div>
-        <h2>Payment method</h2>
-        <div id="payment-methods">
-          ${methods.map((m) => `
-            <label style="display:block;margin-bottom:12px;">
-              <input type="radio" name="paymethod" value="${escapeHtml(m.id)}" ${m.id === selectedMethod ? "checked" : ""}>
-              <strong>${escapeHtml(m.label)}</strong>
-              ${m.description ? `<span class="text-muted" style="display:block;font-weight:normal;margin:4px 0 0 22px;">${escapeHtml(m.description)}</span>` : ""}
-              ${m.id === "modem" ? walletChipsHtml() : ""}
-            </label>`).join("")}
-        </div>
-        <p id="modem-gmd-note" class="text-muted hidden" style="margin-top:8px;"></p>
-        <div id="paypal-box" class="hidden" style="margin-top:12px;">
-          <p class="text-muted" style="margin-bottom:10px;">Pay with a debit or credit card, or with PayPal. You do not need a PayPal account to pay by card — use <strong>Debit or Credit Card</strong> under the gold button.</p>
-          <div id="paypal-button-container"></div>
-        </div>
-        <div id="manual-box" class="hidden card card-inner" style="margin-top:12px;"></div>
-        <div id="receipt-section" class="hidden" style="margin-top:12px;">
-          <label class="form-label">Payment receipt</label>
-          <input type="file" id="receipt-file" accept="image/*">
-          <p class="text-muted" style="margin-top:6px;">Attach your transfer receipt, then click Place order &amp; pay. The order and receipt are submitted together.</p>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block" id="pay-btn" style="margin-top:16px;">Place order & pay</button>
+        <h2>Payment</h2>
+        ${paypalSectionHtml()}
+        ${walletSectionHtml()}
+        ${bankSectionHtml()}
       </form>
       <aside class="checkout-totals">
         <h3>Order summary</h3>
@@ -253,18 +288,32 @@
     const countryFilter = document.getElementById("ship-country-filter");
     if (countryFilter) countryFilter.addEventListener("input", filterCountryOptions);
     document.getElementById("apply-coupon").addEventListener("click", () => loadPreview().catch((e) => showError(e.message)));
-    document.querySelectorAll("input[name=paymethod]").forEach((el) => {
-      el.addEventListener("change", () => {
-        selectedMethod = el.value;
+    const chooseBank = document.getElementById("choose-bank");
+    if (chooseBank) {
+      chooseBank.addEventListener("click", () => {
+        selectedMethod = selectedMethod === "manual" ? "" : "manual";
         toggleManualPanel();
+      });
+    }
+    document.querySelectorAll("[data-wallet]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        showError("");
+        btn.disabled = true;
+        try {
+          await startCheckout({ paymentMethod: "modem", walletNetwork: btn.getAttribute("data-wallet") });
+        } catch (e) {
+          showError(e.message);
+        } finally {
+          btn.disabled = false;
+        }
       });
     });
     toggleManualPanel();
     document.getElementById("checkout-form").addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      if (selectedMethod === "paypal") return;
+      if (selectedMethod !== "manual") return;
       try {
-        await startCheckout();
+        await startCheckout({ paymentMethod: "manual" });
       } catch (e) {
         showError(e.message);
       }
@@ -280,7 +329,7 @@
     const note = document.getElementById("modem-gmd-note");
     const row = document.getElementById("modem-gmd-row");
     const amt = document.getElementById("modem-gmd-amount");
-    const show = selectedMethod === "modem" && quote && quote.amount;
+    const show = hasMethod("modem") && quote && quote.amount;
     if (note) {
       note.classList.toggle("hidden", !show);
       if (show) {
@@ -297,10 +346,10 @@
 
   function toggleManualPanel() {
     toggleModemQuote();
-    const paypalBox = document.getElementById("paypal-box");
     const payBtn = document.getElementById("pay-btn");
-    if (paypalBox) paypalBox.classList.toggle("hidden", selectedMethod !== "paypal");
-    if (payBtn) payBtn.classList.toggle("hidden", selectedMethod === "paypal");
+    const chooseBank = document.getElementById("choose-bank");
+    if (payBtn) payBtn.classList.toggle("hidden", selectedMethod !== "manual");
+    if (chooseBank) chooseBank.classList.toggle("is-open", selectedMethod === "manual");
     if (selectedMethod === "manual") {
       renderManual(preview.manual_instructions);
     } else {
@@ -309,13 +358,15 @@
       if (box) box.classList.add("hidden");
       if (rec) rec.classList.add("hidden");
     }
-    if (selectedMethod === "paypal") mountPaypalButtons();
+    if (hasMethod("paypal")) mountPaypalButtons();
   }
 
   function renderManual(instr) {
     const box = document.getElementById("manual-box");
+    const rec = document.getElementById("receipt-section");
+    if (!box || !rec) return;
     box.classList.remove("hidden");
-    document.getElementById("receipt-section").classList.remove("hidden");
+    rec.classList.remove("hidden");
     if (!instr) {
       box.innerHTML = "<p>Follow the payment instructions, then upload your receipt.</p>";
       return;
@@ -343,21 +394,21 @@
 
   async function mountPaypalButtons() {
     const box = document.getElementById("paypal-button-container");
-    if (!box || selectedMethod !== "paypal") return;
+    if (!box || !hasMethod("paypal")) return;
     if (!window.PaypalCheckoutUi) {
       box.innerHTML = "<p class='form-error'>PayPal checkout failed to load. Refresh the page.</p>";
       return;
     }
     const cfg = preview && preview.paypal_sdk;
     if (!cfg || !cfg.client_id) {
-      box.innerHTML = "<p class='form-error'>Card / PayPal is not configured on the server.</p>";
+      box.innerHTML = "<p class='form-error'>PayPal is not configured on the server.</p>";
       return;
     }
     const token = ++paypalMountToken;
-    box.innerHTML = "<p class='text-muted'>Loading card and PayPal options…</p>";
+    box.innerHTML = "<p class='text-muted'>Loading PayPal…</p>";
     try {
       await PaypalCheckoutUi.loadSdk(cfg.client_id, cfg.currency || (preview.totals && preview.totals.currency) || "USD");
-      if (token !== paypalMountToken || selectedMethod !== "paypal") return;
+      if (token !== paypalMountToken) return;
       await PaypalCheckoutUi.renderButtons("#paypal-button-container", {
         createOrder: async function () {
           showError("");
@@ -395,7 +446,7 @@
           window.location.href = body.order_url || ("store-order.html?order=" + encodeURIComponent((body.order || {}).order_number || ""));
         },
         onCancel: function () {
-          showError("Payment was cancelled. You can pay by card or PayPal again.");
+          showError("Payment was cancelled. You can pay with PayPal again.");
         },
         onError: function (err) {
           showError((err && err.message) || "PayPal could not complete this payment.");
@@ -403,23 +454,30 @@
       });
     } catch (e) {
       if (token !== paypalMountToken) return;
-      showError(e.message || "Could not open card / PayPal checkout.");
+      showError(e.message || "Could not open PayPal checkout.");
     }
   }
 
-  async function startCheckout() {
+  async function startCheckout(opts) {
+    opts = opts || {};
+    const method = opts.paymentMethod || selectedMethod;
+    const network = opts.walletNetwork || "";
     showError("");
+    const form = document.getElementById("checkout-form");
+    if (form && !form.reportValidity()) {
+      throw new Error("Fill in your name, email, phone, and shipping details before paying.");
+    }
     if (needsShipping() && !(preview.shipping && preview.shipping.available)) {
       throw new Error("Select a shipping country first so FedEx shipping can be added.");
     }
-    if (selectedMethod === "manual") {
+    if (method === "manual") {
       const file = (document.getElementById("receipt-file") || {}).files;
       if (!file || !file[0]) {
         throw new Error("Attach your payment receipt, then click Place order & pay.");
       }
     }
     const payBtn = document.getElementById("pay-btn");
-    if (payBtn) {
+    if (payBtn && method === "manual") {
       payBtn.disabled = true;
       payBtn.textContent = "Please wait…";
     }
@@ -427,7 +485,10 @@
       const res = await storeFetch("/api/store/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.assign(checkoutPayload(), { payment_method: selectedMethod })),
+        body: JSON.stringify(Object.assign(checkoutPayload(), {
+          payment_method: method,
+          wallet_network: network || undefined,
+        })),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -441,15 +502,15 @@
         window.location.href = data.order_url || ("store-order.html?order=" + encodeURIComponent(data.order.order_number));
         return;
       }
-      if (selectedMethod === "modem") {
+      if (method === "modem") {
         const link = data.payment && data.payment.payment_link;
         if (link) {
           window.location.href = link;
           return;
         }
-        throw new Error("Wave / AfriMoney / QMoney checkout did not open. Please try card/PayPal or bank transfer.");
+        throw new Error("Mobile money checkout did not open. Please try PayPal or bank transfer.");
       }
-      if (selectedMethod === "manual") {
+      if (method === "manual") {
         try {
           await submitReceipt(currentPaymentRef);
         } catch (e) {
@@ -463,7 +524,7 @@
         }
       }
     } finally {
-      if (payBtn) {
+      if (payBtn && method === "manual") {
         payBtn.disabled = false;
         payBtn.textContent = "Place order & pay";
       }

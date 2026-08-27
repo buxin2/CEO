@@ -80,6 +80,7 @@ def api_checkout_product():
             data.get("coupon_code"),
             data.get("payment_method"),
             customer_info=data.get("customer") or {},
+            wallet_network=data.get("wallet_network"),
         )
         return jsonify(_payment_response(payment, order)), 201
     except ValueError as exc:
@@ -97,6 +98,7 @@ def api_checkout_membership():
             data.get("coupon_code"),
             data.get("payment_method"),
             customer_info=data.get("customer") or {},
+            wallet_network=data.get("wallet_network"),
         )
         return jsonify(_payment_response(payment)), 201
     except ValueError as exc:

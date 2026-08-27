@@ -12,6 +12,7 @@ from services.payment.checkout_service import (
     get_payment_methods,
     manual_payment_instructions,
     paypal_sdk_config,
+    resolve_payment_provider,
 )
 from services.payment.fulfillment import fulfill_payment
 from services.payment.inventory import InventoryError, lock_store_product, reserve_stock
@@ -151,7 +152,7 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
     }
 
 
-def checkout_store(items, customer, delivery, coupon_code, payment_method, store_customer=None):
+def checkout_store(items, customer, delivery, coupon_code, payment_method, store_customer=None, wallet_network=None):
     customer = customer or {}
     delivery = delivery or {}
     name = (customer.get("full_name") or customer.get("name") or "").strip()
@@ -219,9 +220,10 @@ def checkout_store(items, customer, delivery, coupon_code, payment_method, store
         country_label = (quote.get("country_name") or country)[:120]
         total = after_discount + shipping_cents
         currency = lines[0]["currency"]
-        provider = (payment_method or "manual").lower()
+        provider, wallet_network = resolve_payment_provider(payment_method, wallet_network)
         if total <= 0:
             provider = "coupon"
+            wallet_network = None
 
         order = StoreOrder(
             order_number=generate_reference("BX"),
@@ -299,6 +301,7 @@ def checkout_store(items, customer, delivery, coupon_code, payment_method, store
             {"payment_reference": payment.payment_reference, "store_order_id": order.id},
             return_path=f"store-checkout.html?payment_ref={payment.payment_reference}&status=return",
             cancel_path=f"store-checkout.html?payment_ref={payment.payment_reference}&status=cancel",
+            wallet_network=wallet_network,
         )
         db.session.commit()
         return payment, order

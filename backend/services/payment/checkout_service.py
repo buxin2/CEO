@@ -49,23 +49,43 @@ def manual_payment_instructions():
     return current_app.config.get("MANUAL_PAYMENT_INSTRUCTIONS") or {}
 
 
+WALLET_NETWORKS = ("wave", "afrimoney", "qmoney")
+
+
+def resolve_payment_provider(payment_method, wallet_network=None):
+    raw = (payment_method or "manual").strip().lower()
+    net = (wallet_network or "").strip().lower()
+    if raw in WALLET_NETWORKS:
+        net = raw
+        raw = "modem"
+    if raw not in ("paypal", "modem", "manual"):
+        raise ValueError("Choose a valid payment method.")
+    if raw == "modem":
+        if net and net not in WALLET_NETWORKS:
+            raise ValueError("Choose Wave, AfriMoney, or QMoney.")
+        return raw, net or None
+    return raw, None
+
+
 def get_payment_methods(currency):
     methods = []
     creds = get_active_credentials()
-    if (creds.get("modem_secret_key") or "").strip():
-        methods.append({
-            "id": "modem",
-            "label": "Wave, AfriMoney, or QMoney",
-            "description": "Pay with Gambian mobile money. Choose Wave, AfriMoney, or QMoney on the next screen.",
-            "wallets": ["Wave", "AfriMoney", "QMoney"],
-            "currencies": ["GMD", "USD"],
-        })
     if (creds.get("paypal_client_id") or "").strip():
         methods.append({
             "id": "paypal",
-            "label": "Card or PayPal",
-            "description": "Pay with a debit or credit card, or with PayPal. No PayPal account needed to pay by card.",
+            "label": "PayPal",
             "currencies": ["USD", "EUR", "GBP"],
+        })
+    if (creds.get("modem_secret_key") or "").strip():
+        methods.append({
+            "id": "modem",
+            "label": "Mobile money",
+            "wallets": [
+                {"id": "wave", "label": "Wave"},
+                {"id": "afrimoney", "label": "AfriMoney"},
+                {"id": "qmoney", "label": "QMoney"},
+            ],
+            "currencies": ["GMD", "USD"],
         })
     methods.append({"id": "manual", "label": "Bank / Money Transfer", "currencies": ["USD", "GMD"]})
     cur = (currency or "USD").upper()
@@ -129,18 +149,21 @@ def _create_payment_record(
     return payment
 
 
-def _init_provider_session(payment, title, metadata, return_path=None, cancel_path=None):
+def _init_provider_session(payment, title, metadata, return_path=None, cancel_path=None, wallet_network=None):
     ref = payment.payment_reference
     return_url = _frontend_url(return_path or f"checkout.html?payment_ref={ref}&status=return")
     cancel_url = _frontend_url(cancel_path or f"checkout.html?payment_ref={ref}&status=cancel")
     callback_url = _backend_url("api/webhooks/modempay/callback")
+    meta = dict(metadata or {})
+    if wallet_network:
+        meta["wallet_network"] = wallet_network
 
     if payment.provider == "modem":
         result = create_payment_intent(
             payment.total_cents,
             payment.currency,
             title,
-            metadata,
+            meta,
             return_url,
             cancel_url,
             callback_url,
@@ -149,12 +172,13 @@ def _init_provider_session(payment, title, metadata, return_path=None, cancel_pa
                 "email": payment.customer_email,
                 "phone": payment.customer_phone,
             },
+            network=wallet_network,
         )
         payment.provider_payment_id = result.get("provider_payment_id") or ""
         payment.provider_intent_secret = result.get("provider_intent_secret") or ""
         payment.payment_link = result.get("payment_link") or ""
         if not payment.payment_link:
-            raise ValueError("Mobile money checkout did not open. Please try card/PayPal or bank transfer.")
+            raise ValueError("Mobile money checkout did not open. Please try PayPal or bank transfer.")
         payment.status = "processing"
     elif payment.provider == "paypal":
         result = paypal_create_order(
@@ -176,7 +200,7 @@ def _init_provider_session(payment, title, metadata, return_path=None, cancel_pa
     return payment
 
 
-def checkout_product(member_user_id, product_id, quantity, coupon_code, payment_method, customer_info=None):
+def checkout_product(member_user_id, product_id, quantity, coupon_code, payment_method, customer_info=None, wallet_network=None):
     member = CommunityMemberUser.query.get(member_user_id)
     if not member:
         raise ValueError("Please log in to purchase.")
@@ -198,9 +222,10 @@ def checkout_product(member_user_id, product_id, quantity, coupon_code, payment_
     if totals.get("coupon"):
         totals["coupon"] = totals["coupon"]  # keep for _create_payment_record
 
-    provider = (payment_method or "manual").lower()
+    provider, wallet_network = resolve_payment_provider(payment_method, wallet_network)
     if totals["total_cents"] <= 0:
         provider = "coupon"
+        wallet_network = None
 
     payment = _create_payment_record(
         "product_order",
@@ -239,12 +264,13 @@ def checkout_product(member_user_id, product_id, quantity, coupon_code, payment_
         payment,
         product.name,
         {"payment_reference": payment.payment_reference, "product_id": product.id},
+        wallet_network=wallet_network,
     )
     db.session.commit()
     return payment, order
 
 
-def checkout_community_membership(member_user_id, membership_id, coupon_code, payment_method, customer_info=None):
+def checkout_community_membership(member_user_id, membership_id, coupon_code, payment_method, customer_info=None, wallet_network=None):
     member = CommunityMemberUser.query.get(member_user_id)
     if not member:
         raise ValueError("Please log in to continue.")
@@ -260,9 +286,10 @@ def checkout_community_membership(member_user_id, membership_id, coupon_code, pa
         raise ValueError("Community not found.")
 
     totals = calculate_community_totals(community, coupon_code)
-    provider = (payment_method or "manual").lower()
+    provider, wallet_network = resolve_payment_provider(payment_method, wallet_network)
     if totals["total_cents"] <= 0:
         provider = "coupon"
+        wallet_network = None
 
     payment = _create_payment_record(
         "community_membership",
@@ -282,6 +309,7 @@ def checkout_community_membership(member_user_id, membership_id, coupon_code, pa
         payment,
         f"{community.name} membership",
         {"payment_reference": payment.payment_reference, "membership_id": membership.id},
+        wallet_network=wallet_network,
     )
     db.session.commit()
     return payment, None

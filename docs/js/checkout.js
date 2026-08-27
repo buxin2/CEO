@@ -5,22 +5,25 @@
   const paymentRef = getQueryParam("payment_ref");
   const returnStatus = getQueryParam("status");
   let preview = null;
-  let selectedMethod = "manual";
+  let selectedMethod = "";
   let currentPaymentRef = paymentRef || "";
 
   function cents(n) {
     return ((n || 0) / 100).toFixed(2);
   }
 
-  function walletChipsHtml() {
-    const wallets = [
-      { name: "Wave", bg: "#e6f7fb", fg: "#0b6b7a" },
-      { name: "AfriMoney", bg: "#f3e8ff", fg: "#5b21b6" },
-      { name: "QMoney", bg: "#f3f4f6", fg: "#111827" },
-    ];
-    return `<span style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0 22px;">${wallets.map((w) =>
-      `<span style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:8px;background:${w.bg};color:${w.fg};font-size:13px;font-weight:600;">${escapeHtml(w.name)}</span>`
-    ).join("")}</span>`;
+  function hasMethod(id) {
+    return !!(preview && (preview.payment_methods || []).some((m) => m.id === id));
+  }
+
+  function walletLogoSvg(network) {
+    if (network === "wave") {
+      return `<svg viewBox="0 0 64 32" aria-hidden="true"><path fill="#fff" d="M4 20c6-10 12-10 18 0 6-10 12-10 18 0 6-10 12-10 18 0v6H4v-6z"/><circle fill="#fff" cx="18" cy="10" r="5"/><circle fill="#00b4c8" cx="20" cy="10" r="2"/></svg>`;
+    }
+    if (network === "afrimoney") {
+      return `<svg viewBox="0 0 64 32" aria-hidden="true"><text x="32" y="22" text-anchor="middle" fill="#fff" font-size="14" font-family="Arial,sans-serif" font-weight="700">Afri</text></svg>`;
+    }
+    return `<svg viewBox="0 0 64 32" aria-hidden="true"><text x="32" y="23" text-anchor="middle" fill="#fff" font-size="18" font-family="Arial,sans-serif" font-weight="800">Q</text></svg>`;
   }
 
   function showError(msg) {
@@ -69,61 +72,96 @@
         <p><strong>Total: ${cents(t.total_cents)} ${escapeHtml(t.currency)}</strong></p>`;
     }
     document.getElementById("checkout-summary").innerHTML = summary;
-    document.getElementById("payment-methods").innerHTML = (preview.payment_methods || []).map((m) => `
-      <label style="display:block;margin-bottom:12px;">
-        <input type="radio" name="paymethod" value="${escapeHtml(m.id)}" ${m.id === selectedMethod ? "checked" : ""}>
-        <strong>${escapeHtml(m.label)}</strong>
-        ${m.description ? `<span class="text-muted" style="display:block;font-weight:normal;margin:4px 0 0 22px;">${escapeHtml(m.description)}</span>` : ""}
-        ${m.id === "modem" ? walletChipsHtml() : ""}
-      </label>`).join("");
-    let gmdNote = document.getElementById("modem-gmd-note");
-    if (!gmdNote) {
-      gmdNote = document.createElement("p");
-      gmdNote.id = "modem-gmd-note";
-      gmdNote.className = "text-muted";
-      gmdNote.style.marginTop = "8px";
-      document.getElementById("payment-methods").after(gmdNote);
+    const methods = preview.payment_methods || [];
+    if (selectedMethod === "paypal" || selectedMethod === "modem") selectedMethod = "";
+    const paypalHtml = methods.some((m) => m.id === "paypal") ? `
+      <div class="pay-section" id="paypal-section">
+        <h3 class="pay-section-title">PayPal payment</h3>
+      </div>` : "";
+    const modemHtml = methods.some((m) => m.id === "modem") ? `
+      <div class="pay-section">
+        <h3 class="pay-section-title">Mobile money</h3>
+        <p id="modem-gmd-note" class="text-muted hidden"></p>
+        <div class="pay-wallet-grid">
+          ${[{ network: "wave", name: "Wave", cls: "wave" }, { network: "afrimoney", name: "AfriMoney", cls: "afrimoney" }, { network: "qmoney", name: "QMoney", cls: "qmoney" }].map((w) => `
+            <button type="button" class="pay-wallet-btn pay-wallet-${w.cls}" data-wallet="${w.network}">
+              <span class="pay-wallet-logo">${walletLogoSvg(w.network)}</span>
+              <span class="pay-wallet-name">${escapeHtml(w.name)}</span>
+              <span class="pay-wallet-hint">Pay now</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>` : "";
+    const bankHtml = methods.some((m) => m.id === "manual") ? `
+      <button type="button" class="pay-bank-toggle" id="choose-bank">
+        <strong>Bank / money transfer</strong>
+        <span class="text-muted">Pay from your bank, then upload a receipt</span>
+      </button>` : "";
+    document.getElementById("payment-methods").innerHTML = paypalHtml + modemHtml + bankHtml;
+    const paypalBox = document.getElementById("paypal-box");
+    if (paypalBox) {
+      paypalBox.classList.toggle("hidden", !methods.some((m) => m.id === "paypal"));
+      const section = document.getElementById("paypal-section");
+      if (section && paypalBox.parentNode) {
+        section.appendChild(paypalBox);
+        paypalBox.classList.remove("hidden");
+      }
     }
-    document.querySelectorAll("input[name=paymethod]").forEach((el) => {
-      el.addEventListener("change", () => {
-        selectedMethod = el.value;
+    document.querySelectorAll("[data-wallet]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        showError("");
+        btn.disabled = true;
+        try {
+          selectedMethod = "modem";
+          await startCheckout({ paymentMethod: "modem", walletNetwork: btn.getAttribute("data-wallet") });
+        } catch (e) {
+          showError(e.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+    const chooseBank = document.getElementById("choose-bank");
+    if (chooseBank) {
+      chooseBank.addEventListener("click", () => {
+        selectedMethod = selectedMethod === "manual" ? "" : "manual";
         toggleManualInstructions();
         toggleModemQuote();
         togglePaypalBox();
       });
-    });
+    }
     toggleManualInstructions();
     toggleModemQuote();
     togglePaypalBox();
   }
 
   function togglePaypalBox() {
-    const box = document.getElementById("paypal-box");
     const payBtn = document.getElementById("pay-btn");
-    if (box) box.classList.toggle("hidden", selectedMethod !== "paypal");
-    if (payBtn) payBtn.classList.toggle("hidden", selectedMethod === "paypal");
-    if (selectedMethod === "paypal") mountPaypalButtons();
+    const chooseBank = document.getElementById("choose-bank");
+    if (payBtn) payBtn.classList.toggle("hidden", selectedMethod !== "manual");
+    if (chooseBank) chooseBank.classList.toggle("is-open", selectedMethod === "manual");
+    if (hasMethod("paypal")) mountPaypalButtons();
   }
 
   let paypalMountToken = 0;
 
   async function mountPaypalButtons() {
     const box = document.getElementById("paypal-button-container");
-    if (!box || selectedMethod !== "paypal") return;
+    if (!box || !hasMethod("paypal")) return;
     const cfg = preview && preview.paypal_sdk;
     if (!window.PaypalCheckoutUi || !cfg || !cfg.client_id) {
-      if (box) box.innerHTML = "<p class='form-error'>Card / PayPal is not configured.</p>";
+      if (box) box.innerHTML = "<p class='form-error'>PayPal is not configured.</p>";
       return;
     }
     const token = ++paypalMountToken;
-    box.innerHTML = "<p class='text-muted'>Loading card and PayPal options…</p>";
+    box.innerHTML = "<p class='text-muted'>Loading PayPal…</p>";
     try {
       await PaypalCheckoutUi.loadSdk(cfg.client_id, cfg.currency || (preview.totals && preview.totals.currency) || "USD");
-      if (token !== paypalMountToken || selectedMethod !== "paypal") return;
+      if (token !== paypalMountToken) return;
       await PaypalCheckoutUi.renderButtons("#paypal-button-container", {
         createOrder: async function () {
           showError("");
-          const data = await startCheckout(true);
+          const data = await startCheckout({ paymentMethod: "paypal", forPaypalButtons: true });
           const orderId = data && data.payment && data.payment.provider_payment_id;
           if (!orderId) throw new Error("PayPal did not start. Please try again.");
           return orderId;
@@ -140,7 +178,7 @@
           showSuccess(body);
         },
         onCancel: function () {
-          showError("Payment was cancelled. You can pay by card or PayPal again.");
+          showError("Payment was cancelled. You can pay with PayPal again.");
         },
         onError: function (err) {
           showError((err && err.message) || "PayPal could not complete this payment.");
@@ -155,7 +193,7 @@
   function toggleModemQuote() {
     const el = document.getElementById("modem-gmd-note");
     const quote = preview && preview.modem_gmd;
-    const show = selectedMethod === "modem" && quote && quote.amount;
+    const show = hasMethod("modem") && quote && quote.amount;
     if (!el) return;
     el.classList.toggle("hidden", !show);
     if (show) {
@@ -185,10 +223,15 @@
     document.getElementById("receipt-section").classList.remove("hidden");
   }
 
-  async function startCheckout(forPaypalButtons) {
+  async function startCheckout(opts) {
+    opts = opts || {};
+    const method = opts.paymentMethod || selectedMethod;
+    const network = opts.walletNetwork || "";
+    const forPaypalButtons = !!opts.forPaypalButtons;
     const body = {
       coupon_code: document.getElementById("coupon-code").value.trim() || undefined,
-      payment_method: selectedMethod,
+      payment_method: method,
+      wallet_network: network || undefined,
       customer: {
         full_name: document.getElementById("customer-name").value.trim(),
         phone: document.getElementById("customer-phone").value.trim(),
@@ -216,17 +259,17 @@
       return showSuccess(data);
     }
     if (forPaypalButtons) return data;
-    if (selectedMethod === "modem") {
+    if (method === "modem") {
       if (data.payment.payment_link) {
         window.location.href = data.payment.payment_link;
         return;
       }
     }
-    if (selectedMethod === "paypal" && data.payment.payment_link) {
+    if (method === "paypal" && data.payment.payment_link) {
       window.location.href = data.payment.payment_link;
       return data;
     }
-    if (selectedMethod === "manual") {
+    if (method === "manual") {
       showToast("Complete payment externally, then upload your receipt below.");
     }
     return data;
@@ -252,9 +295,9 @@
 
   document.getElementById("apply-coupon-btn").addEventListener("click", () => loadPreview().catch((e) => showError(e.message)));
   document.getElementById("pay-btn").addEventListener("click", async () => {
-    if (selectedMethod === "paypal") return;
+    if (selectedMethod !== "manual") return;
     try {
-      await startCheckout();
+      await startCheckout({ paymentMethod: "manual" });
     } catch (e) {
       showError(e.message);
     }

@@ -225,6 +225,7 @@ def api_store_checkout():
             data.get("coupon_code"),
             data.get("payment_method"),
             store_customer=customer,
+            wallet_network=data.get("wallet_network"),
         )
         return jsonify(_store_payment_payload(payment, order)), 201
     except ValueError as exc:

@@ -71,7 +71,7 @@ def _modem_error_text(exc):
     return text or "Modem Pay could not start this payment."
 
 
-def create_payment_intent(amount_cents, currency, title, metadata, return_url, cancel_url, callback_url, customer=None):
+def create_payment_intent(amount_cents, currency, title, metadata, return_url, cancel_url, callback_url, customer=None, network=None):
     from services.payment.fx_gmd import quote_gmd
 
     client = _modem_client()
@@ -106,18 +106,37 @@ def create_payment_intent(amount_cents, currency, title, metadata, return_url, c
     phone = str(customer.get("phone") or "").strip()
     if phone:
         params["customer_phone"] = phone[:32]
+    net = (network or "").strip().lower()
+    if net in ("wave", "afrimoney", "qmoney", "aps"):
+        params["network"] = net
     try:
         result = client.payment_intents.create(params=params)
     except Exception as exc:
-        logger.warning(
-            "Modem Pay create failed amount=%s currency=%s return_url=%s callback_url=%s error=%s",
-            amount,
-            params.get("currency"),
-            return_url,
-            params.get("callback_url"),
-            exc,
-        )
-        raise ValueError(_modem_error_text(exc)) from exc
+        if params.get("network"):
+            logger.warning("Modem Pay create with network=%s failed, retrying without: %s", params.get("network"), exc)
+            params.pop("network", None)
+            try:
+                result = client.payment_intents.create(params=params)
+            except Exception as exc2:
+                logger.warning(
+                    "Modem Pay create failed amount=%s currency=%s return_url=%s callback_url=%s error=%s",
+                    amount,
+                    params.get("currency"),
+                    return_url,
+                    params.get("callback_url"),
+                    exc2,
+                )
+                raise ValueError(_modem_error_text(exc2)) from exc2
+        else:
+            logger.warning(
+                "Modem Pay create failed amount=%s currency=%s return_url=%s callback_url=%s error=%s",
+                amount,
+                params.get("currency"),
+                return_url,
+                params.get("callback_url"),
+                exc,
+            )
+            raise ValueError(_modem_error_text(exc)) from exc
     body = _as_dict(result)
     data = body.get("data") if isinstance(body.get("data"), dict) else {}
     link = data.get("payment_link") or body.get("payment_link") or ""
