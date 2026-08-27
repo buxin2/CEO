@@ -2835,8 +2835,12 @@ body.store-body {
   margin: 12px 0;
 }
 
+.qty-row select {
+  width: 140px;
+}
+
 .qty-row input {
-  width: 80px;
+  width: 88px;
 }
 
 .option-group {
@@ -2945,6 +2949,7 @@ body.store-body {
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
 
+.pay-wallets-card.is-selected,
 .pay-wallets-card:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);

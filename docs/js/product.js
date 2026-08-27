@@ -16,7 +16,26 @@
   }
 
   function qty() {
-    return Math.max(1, parseInt(document.getElementById("qty-input").value, 10) || 1);
+    const select = document.getElementById("qty-select");
+    if (select && select.value !== "custom") {
+      return Math.max(1, parseInt(select.value, 10) || 1);
+    }
+    const custom = document.getElementById("qty-input");
+    return Math.max(1, Math.min(999, parseInt((custom && custom.value) || "1", 10) || 1));
+  }
+
+  function syncQtyCustom() {
+    const select = document.getElementById("qty-select");
+    const custom = document.getElementById("qty-input");
+    if (!select || !custom) return;
+    const isCustom = select.value === "custom";
+    custom.classList.toggle("hidden", !isCustom);
+    if (isCustom) {
+      const n = parseInt(custom.value, 10);
+      if (!n || n < 11) custom.value = "11";
+      custom.focus();
+      custom.select();
+    }
   }
 
   function extraCents() {
@@ -149,8 +168,12 @@
           <div class="store-avail ${oos ? "oos" : ""}">${escapeHtml(product.availability)}</div>
           ${optionHtml}
           <div class="qty-row">
-            <label>Quantity</label>
-            <input class="form-control" id="qty-input" type="number" min="1" value="1" ${oos ? "disabled" : ""}>
+            <label for="qty-select">Quantity</label>
+            <select class="form-control" id="qty-select" ${oos ? "disabled" : ""}>
+              ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<option value="${n}">${n}</option>`).join("")}
+              <option value="custom">Custom</option>
+            </select>
+            <input class="form-control hidden" id="qty-input" type="number" min="11" max="999" inputmode="numeric" placeholder="11+" ${oos ? "disabled" : ""}>
           </div>
           <div class="buy-actions">
             <button class="btn btn-primary btn-block" id="buy-now" ${oos ? "disabled" : ""}>Buy now</button>
@@ -181,6 +204,8 @@
       el.addEventListener("click", () => setMedia(Number(el.dataset.i)));
     });
     document.querySelectorAll("[data-option]").forEach((el) => el.addEventListener("change", renderPrice));
+    const qtySelect = document.getElementById("qty-select");
+    if (qtySelect) qtySelect.addEventListener("change", syncQtyCustom);
     document.getElementById("buy-now").addEventListener("click", buyNow);
     document.getElementById("add-cart").addEventListener("click", addCart);
     const sticky = document.getElementById("sticky-buy");

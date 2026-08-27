@@ -63,7 +63,7 @@
     }
     document.getElementById("checkout-summary").innerHTML = summary;
     const methods = preview.payment_methods || [];
-    if (selectedMethod === "paypal" || selectedMethod === "modem") selectedMethod = "";
+    if (selectedMethod === "paypal") selectedMethod = "";
     const paypalHtml = methods.some((m) => m.id === "paypal") ? `
       <div class="pay-section" id="paypal-section">
         <h3 class="pay-section-title">PayPal payment</h3>
@@ -101,6 +101,13 @@
     if (walletsBtn) {
       walletsBtn.addEventListener("click", async () => {
         showError("");
+        if (selectedMethod !== "modem") {
+          selectedMethod = "modem";
+          toggleManualInstructions();
+          toggleModemQuote();
+          togglePaypalBox();
+          return;
+        }
         walletsBtn.disabled = true;
         try {
           selectedMethod = "modem";
@@ -184,9 +191,11 @@
   function toggleModemQuote() {
     const el = document.getElementById("modem-gmd-note");
     const quote = preview && preview.modem_gmd;
-    const show = hasMethod("modem") && quote && quote.amount;
+    const show = selectedMethod === "modem" && quote && quote.amount;
     if (!el) return;
     el.classList.toggle("hidden", !show);
+    const walletsBtn = document.getElementById("pay-wallets-btn");
+    if (walletsBtn) walletsBtn.classList.toggle("is-selected", selectedMethod === "modem");
     if (show) {
       const gmd = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(quote.amount);
       el.textContent = "You will pay " + gmd + " GMD with Wave, AfriMoney, or QMoney (1 USD = "

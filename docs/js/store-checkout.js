@@ -213,7 +213,7 @@
     const ship = preview.shipping || {};
     const needsShip = ship.requires_shipping;
     const methods = preview.payment_methods || [];
-    if (selectedMethod === "paypal" || selectedMethod === "modem") selectedMethod = "";
+    if (selectedMethod === "paypal") selectedMethod = "";
     if (selectedMethod && !methods.find((m) => m.id === selectedMethod)) selectedMethod = "";
     const shipOk = !needsShip || ship.available === true;
     const shipLabel = shipOk && needsShip
@@ -263,7 +263,6 @@
         <div class="row"><span>Discount</span><span>− ${money(t.discount_cents, t.currency)}</span></div>
         <div class="row"><span>FedEx Shipping</span><span id="sum-shipping">${shipLabel}</span></div>
         <div class="row total"><span>Total</span><span id="sum-total">${totalLabel}</span></div>
-        <div id="modem-gmd-row" class="row hidden"><span>Mobile money (Dalasi)</span><span id="modem-gmd-amount"></span></div>
         <p id="sum-note" class="${shipOk ? "text-muted" : "form-error"}" style="margin-top:8px;">${escapeHtml(ship.note || "")}</p>
       </aside>
     `;
@@ -284,6 +283,11 @@
     if (walletsBtn) {
       walletsBtn.addEventListener("click", async () => {
         showError("");
+        if (selectedMethod !== "modem") {
+          selectedMethod = "modem";
+          toggleManualPanel();
+          return;
+        }
         walletsBtn.disabled = true;
         try {
           await startCheckout({ paymentMethod: "modem" });
@@ -313,9 +317,11 @@
   function toggleModemQuote() {
     const quote = preview && preview.modem_gmd;
     const note = document.getElementById("modem-gmd-note");
-    const row = document.getElementById("modem-gmd-row");
-    const amt = document.getElementById("modem-gmd-amount");
-    const show = hasMethod("modem") && quote && quote.amount;
+    const walletsBtn = document.getElementById("pay-wallets-btn");
+    const hint = walletsBtn && walletsBtn.querySelector(".pay-wallet-hint");
+    const show = selectedMethod === "modem" && quote && quote.amount;
+    if (walletsBtn) walletsBtn.classList.toggle("is-selected", selectedMethod === "modem");
+    if (hint) hint.textContent = selectedMethod === "modem" ? "Tap again to pay" : "Pay now";
     if (note) {
       note.classList.toggle("hidden", !show);
       if (show) {
@@ -326,8 +332,6 @@
           + " at 1 USD = " + rate + " GMD).";
       }
     }
-    if (row) row.classList.toggle("hidden", !show);
-    if (amt && show) amt.textContent = formatGmd(quote.amount);
   }
 
   function toggleManualPanel() {
