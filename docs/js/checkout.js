@@ -16,16 +16,6 @@
     return !!(preview && (preview.payment_methods || []).some((m) => m.id === id));
   }
 
-  function walletLogoSvg(network) {
-    if (network === "wave") {
-      return `<svg viewBox="0 0 64 32" aria-hidden="true"><path fill="#fff" d="M4 20c6-10 12-10 18 0 6-10 12-10 18 0 6-10 12-10 18 0v6H4v-6z"/><circle fill="#fff" cx="18" cy="10" r="5"/><circle fill="#00b4c8" cx="20" cy="10" r="2"/></svg>`;
-    }
-    if (network === "afrimoney") {
-      return `<svg viewBox="0 0 64 32" aria-hidden="true"><text x="32" y="22" text-anchor="middle" fill="#fff" font-size="14" font-family="Arial,sans-serif" font-weight="700">Afri</text></svg>`;
-    }
-    return `<svg viewBox="0 0 64 32" aria-hidden="true"><text x="32" y="23" text-anchor="middle" fill="#fff" font-size="18" font-family="Arial,sans-serif" font-weight="800">Q</text></svg>`;
-  }
-
   function showError(msg) {
     const el = document.getElementById("checkout-error");
     el.textContent = msg;
@@ -82,15 +72,15 @@
       <div class="pay-section">
         <h3 class="pay-section-title">Mobile money</h3>
         <p id="modem-gmd-note" class="text-muted hidden"></p>
-        <div class="pay-wallet-grid">
-          ${[{ network: "wave", name: "Wave", cls: "wave" }, { network: "afrimoney", name: "AfriMoney", cls: "afrimoney" }, { network: "qmoney", name: "QMoney", cls: "qmoney" }].map((w) => `
-            <button type="button" class="pay-wallet-btn pay-wallet-${w.cls}" data-wallet="${w.network}">
-              <span class="pay-wallet-logo">${walletLogoSvg(w.network)}</span>
-              <span class="pay-wallet-name">${escapeHtml(w.name)}</span>
-              <span class="pay-wallet-hint">Pay now</span>
-            </button>
-          `).join("")}
-        </div>
+        <button type="button" class="pay-wallets-card" id="pay-wallets-btn">
+          <span class="pay-wallets-logos">
+            <span class="pay-logo-tile wave"><img src="img/wallets/wave.jpg" alt="Wave"></span>
+            <span class="pay-logo-tile afrimoney"><img src="img/wallets/afrimoney.png" alt="AfriMoney"></span>
+            <span class="pay-logo-tile qmoney"><img src="img/wallets/qmoney.jpg" alt="QMoney"></span>
+          </span>
+          <span class="pay-wallets-caption">Wave · AfriMoney · QMoney</span>
+          <span class="pay-wallet-hint">Pay now</span>
+        </button>
       </div>` : "";
     const bankHtml = methods.some((m) => m.id === "manual") ? `
       <button type="button" class="pay-bank-toggle" id="choose-bank">
@@ -107,20 +97,21 @@
         paypalBox.classList.remove("hidden");
       }
     }
-    document.querySelectorAll("[data-wallet]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+    const walletsBtn = document.getElementById("pay-wallets-btn");
+    if (walletsBtn) {
+      walletsBtn.addEventListener("click", async () => {
         showError("");
-        btn.disabled = true;
+        walletsBtn.disabled = true;
         try {
           selectedMethod = "modem";
-          await startCheckout({ paymentMethod: "modem", walletNetwork: btn.getAttribute("data-wallet") });
+          await startCheckout({ paymentMethod: "modem" });
         } catch (e) {
           showError(e.message);
         } finally {
-          btn.disabled = false;
+          walletsBtn.disabled = false;
         }
       });
-    });
+    }
     const chooseBank = document.getElementById("choose-bank");
     if (chooseBank) {
       chooseBank.addEventListener("click", () => {
