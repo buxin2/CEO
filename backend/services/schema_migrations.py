@@ -234,6 +234,20 @@ def run_schema_migrations():
     _add_column(engine, "community_products", "fee_percent", "fee_percent DOUBLE PRECISION DEFAULT 0", "fee_percent REAL DEFAULT 0")
 
     _add_column(engine, "community_memberships", "payment_id", "payment_id INTEGER", "payment_id INTEGER")
+    _add_column(
+        engine,
+        "communities",
+        "image_url",
+        "image_url VARCHAR(500) DEFAULT ''",
+        "image_url VARCHAR(500) DEFAULT ''",
+    )
+    _add_column(
+        engine,
+        "community_memberships",
+        "paid_until",
+        "paid_until TIMESTAMP",
+        "paid_until DATETIME",
+    )
 
     _add_column(engine, "coupons", "store_product_id", "store_product_id INTEGER", "store_product_id INTEGER")
 

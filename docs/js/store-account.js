@@ -388,14 +388,45 @@
   }
 
   async function renderLoggedIn(customer) {
-    const [ordersRes, noticesRes] = await Promise.all([
+    const [ordersRes, noticesRes, communitiesRes] = await Promise.all([
       storeFetch("/api/store/account/orders"),
       storeFetch("/api/store/account/notices"),
+      storeFetch("/api/store/account/communities"),
     ]);
     const orderData = await ordersRes.json().catch(() => ({}));
     const noticeData = await noticesRes.json().catch(() => ({}));
+    const communityData = await communitiesRes.json().catch(() => ({}));
     const orders = orderData.orders || [];
     const notices = noticeData.notices || [];
+    const communities = communityData.communities || [];
+    function communityPriceLabel(c) {
+      if ((c.community_type || "free") !== "paid") return "Free";
+      const amount = money(c.price_cents || 0, c.currency || "USD");
+      if ((c.billing_interval || "one_time") === "month") return amount + " / month";
+      return amount + " one-time";
+    }
+    function communityAction(c) {
+      const st = c.membership_status || "";
+      if (st === "active") return "Open";
+      if (st === "pending_payment") return (c.billing_interval === "month" ? "Renew" : "Pay to join");
+      if ((c.community_type || "free") === "paid") return "Join";
+      return "Join";
+    }
+    const communityListHtml = `
+      <div class="card store-account-card" style="margin-bottom:16px;">
+        <h3>Communities</h3>
+        <p class="text-muted">Free communities you can join now. Paid communities need payment to enter.</p>
+        ${communities.length ? communities.map((c) => `
+          <div class="card card-inner" style="margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            ${c.image_url ? `<img src="${escapeHtml(c.image_url)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;">` : ""}
+            <div style="flex:1;min-width:160px;">
+              <strong>${escapeHtml(c.name)}</strong>
+              <div class="text-muted">${escapeHtml(communityPriceLabel(c))}${c.membership_status === "active" ? " · Member" : ""}</div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" data-community-token="${escapeHtml(c.community_token)}" data-community-status="${escapeHtml(c.membership_status || "")}">${escapeHtml(communityAction(c))}</button>
+          </div>
+        `).join("") : "<p class='text-muted'>No communities yet.</p>"}
+      </div>`;
     document.getElementById("account-root").innerHTML = `
       <div class="card store-account-card" style="margin-bottom:16px;">
         <h2>Hello, ${escapeHtml(customer.full_name || "there")}</h2>
@@ -434,6 +465,7 @@
           <button class="btn btn-primary btn-block" type="submit">Save new password</button>
         </form>
       </div>` : `<p class="text-muted" style="margin-bottom:16px;">You sign in with Google. You do not need a password unless admin sets one for you.</p>`}
+      ${communityListHtml}
       <h3>Your orders</h3>
       ${orders.length ? orders.map((o) => `
         <a class="card store-order-link" href="${escapeHtml(orderUrl(o))}">
@@ -445,6 +477,28 @@
       await storeFetch("/api/store/auth/logout", { method: "POST" });
       saveStoreToken("");
       window.location.href = "store-account.html";
+    });
+    document.querySelectorAll("[data-community-token]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const token = btn.getAttribute("data-community-token");
+        const status = btn.getAttribute("data-community-status") || "";
+        if (status === "active") {
+          window.location.href = "community.html?token=" + encodeURIComponent(token);
+          return;
+        }
+        try {
+          const res = await storeFetch("/api/public/community/" + encodeURIComponent(token) + "/join", { method: "POST" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Could not join.");
+          if (data.needs_payment) {
+            window.location.href = "checkout.html?membership_id=" + encodeURIComponent(data.membership_id) + "&token=" + encodeURIComponent(token);
+            return;
+          }
+          window.location.href = "community.html?token=" + encodeURIComponent(token);
+        } catch (e) {
+          showError(e.message);
+        }
+      });
     });
     if (notices.some((n) => !n.read)) {
       storeFetch("/api/store/account/notices/read-all", { method: "POST" }).catch(() => {});

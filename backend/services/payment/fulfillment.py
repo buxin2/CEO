@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from models import (
     db,
@@ -110,6 +110,22 @@ def fulfill_payment(payment, provider_event_id=None):
         store_order = _store_order_for(payment)
         if store_order:
             _fulfill_store_order(store_order)
+            if store_order.store_customer_id:
+                from models import StoreCustomer
+                from services.community_service import auto_join_free_communities_for_customer
+
+                customer = None
+                if store_order.store_customer_id:
+                    customer = StoreCustomer.query.get(store_order.store_customer_id)
+                if not customer and store_order.customer_email:
+                    customer = StoreCustomer.query.filter_by(
+                        email=(store_order.customer_email or "").strip().lower()
+                    ).first()
+                if customer:
+                    try:
+                        auto_join_free_communities_for_customer(customer)
+                    except Exception:
+                        logger.exception("Auto-join free communities failed")
 
     elif payment.payment_kind == "community_membership":
         m = CommunityMembership.query.get(payment.membership_id)
@@ -117,6 +133,11 @@ def fulfill_payment(payment, provider_event_id=None):
             m.status = "active"
             m.payment_id = payment.id
             m.approved_at = datetime.utcnow()
+            community = m.community
+            if community and (community.billing_interval or "one_time") == "month":
+                m.paid_until = datetime.utcnow() + timedelta(days=30)
+            else:
+                m.paid_until = None
 
     db.session.commit()
     logger.info("Payment fulfilled: %s", payment.payment_reference)

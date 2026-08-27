@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, jsonify, request, session
 
 from models import Coupon, Community, CommunityMemberUser, Order, Payment, db
 from routes.auth import login_required
-from routes.community import community_member_required
+from routes.community import community_member_required, resolve_community_member_id
 from services.payment.checkout_service import (
     checkout_community_membership,
     checkout_product,
@@ -54,7 +54,7 @@ def api_checkout_preview():
     membership_id = request.args.get("membership_id", type=int)
     quantity = request.args.get("quantity", 1, type=int)
     coupon_code = request.args.get("coupon_code")
-    member_id = session.get("cm_user_id")
+    member_id = resolve_community_member_id()
     try:
         preview = get_checkout_preview(
             product_id=product_id,
@@ -74,7 +74,7 @@ def api_checkout_product():
     data = request.get_json(silent=True) or {}
     try:
         payment, order = checkout_product(
-            session.get("cm_user_id"),
+            resolve_community_member_id(),
             data.get("product_id"),
             data.get("quantity", 1),
             data.get("coupon_code"),
@@ -93,7 +93,7 @@ def api_checkout_membership():
     data = request.get_json(silent=True) or {}
     try:
         payment, _ = checkout_community_membership(
-            session.get("cm_user_id"),
+            resolve_community_member_id(),
             data.get("membership_id"),
             data.get("coupon_code"),
             data.get("payment_method"),
@@ -121,7 +121,7 @@ def api_get_payment(payment_ref):
     payment = payment_by_reference(payment_ref)
     if not payment:
         return jsonify({"error": "Payment not found."}), 404
-    member_id = session.get("cm_user_id")
+    member_id = resolve_community_member_id()
     if member_id and payment.member_user_id != member_id:
         return jsonify({"error": "Not allowed."}), 403
     order = Order.query.filter_by(payment_id=payment.id).first()
@@ -132,7 +132,7 @@ def api_get_payment(payment_ref):
 @community_member_required
 def api_upload_receipt(payment_ref):
     payment = payment_by_reference(payment_ref)
-    if not payment or payment.member_user_id != session.get("cm_user_id"):
+    if not payment or payment.member_user_id != resolve_community_member_id():
         return jsonify({"error": "Payment not found."}), 404
     if payment.provider != "manual":
         return jsonify({"error": "This payment does not accept manual receipts."}), 400
@@ -161,7 +161,7 @@ def api_upload_receipt(payment_ref):
 @community_member_required
 def api_save_delivery(order_number):
     order = Order.query.filter_by(order_number=order_number).first()
-    if not order or order.member_user_id != session.get("cm_user_id"):
+    if not order or order.member_user_id != resolve_community_member_id():
         return jsonify({"error": "Order not found."}), 404
     data = request.get_json(silent=True) or {}
     save_delivery_info(order, data.get("delivery") or data)

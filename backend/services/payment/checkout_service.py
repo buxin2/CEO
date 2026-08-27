@@ -278,7 +278,10 @@ def checkout_community_membership(member_user_id, membership_id, coupon_code, pa
     membership = CommunityMembership.query.get(membership_id)
     if not membership or membership.member_user_id != member.id:
         raise ValueError("Membership not found.")
-    if membership.status != "pending_payment":
+    from services.community_service import refresh_membership_access
+
+    refresh_membership_access(membership)
+    if membership.status not in ("pending_payment",):
         raise ValueError("This membership does not require payment.")
 
     community = Community.query.get(membership.community_id)
@@ -333,6 +336,9 @@ def get_checkout_preview(product_id=None, membership_id=None, quantity=1, coupon
             raise ValueError("Membership not found.")
         if member_user_id and membership.member_user_id != member_user_id:
             raise ValueError("Membership not found.")
+        from services.community_service import refresh_membership_access
+
+        refresh_membership_access(membership)
         community = Community.query.get(membership.community_id)
         totals = calculate_community_totals(community, coupon_code)
         return _with_modem_quote({

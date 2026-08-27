@@ -1,42 +1,12 @@
 (function () {
   const communityId = getQueryParam("id");
   let dash = null;
-  let registrationFields = [];
 
-  function renderRegistrationFieldsEditor() {
-    const el = document.getElementById("registration-fields-editor");
-    if (!el) return;
-    el.innerHTML = registrationFields.map((f, i) => `
-      <div class="card card-inner" style="margin-bottom:8px;" data-idx="${i}">
-        <input class="form-control" placeholder="Label" value="${escapeHtml(f.label || "")}" data-field="label" style="margin-bottom:4px;">
-        <input class="form-control" placeholder="Field key" value="${escapeHtml(f.key || "")}" data-field="key" style="margin-bottom:4px;">
-        <select class="form-control" data-field="type">
-          ${["text","long_text","number","email","dropdown","radio","checkbox","date"].map((t) =>
-            `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
-        </select>
-        <label><input type="checkbox" data-field="required" ${f.required ? "checked" : ""}> Required</label>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="removeRegField(${i})">Remove</button>
-      </div>`).join("");
-    el.querySelectorAll("[data-field]").forEach((input) => {
-      input.addEventListener("change", syncRegFieldsFromDom);
-      input.addEventListener("input", syncRegFieldsFromDom);
-    });
+  function togglePaidFields() {
+    const paid = document.getElementById("settings-community-type").value === "paid";
+    const box = document.getElementById("settings-paid-fields");
+    if (box) box.classList.toggle("hidden", !paid);
   }
-
-  function syncRegFieldsFromDom() {
-    const cards = document.querySelectorAll("#registration-fields-editor .card-inner");
-    registrationFields = Array.from(cards).map((card) => ({
-      label: card.querySelector("[data-field=label]").value.trim(),
-      key: card.querySelector("[data-field=key]").value.trim(),
-      type: card.querySelector("[data-field=type]").value,
-      required: card.querySelector("[data-field=required]").checked,
-    }));
-  }
-
-  window.removeRegField = (idx) => {
-    registrationFields.splice(idx, 1);
-    renderRegistrationFieldsEditor();
-  };
 
   function showTab(name) {
     document.querySelectorAll(".community-tab").forEach((el) => el.classList.add("hidden"));
@@ -62,16 +32,15 @@
       <p class="text-muted">Link: ${escapeHtml(dash.community_link)}</p>`;
     document.getElementById("settings-name").value = c.name;
     document.getElementById("settings-description").value = c.description || "";
-    document.getElementById("settings-approval").checked = c.approval_required;
     document.getElementById("settings-members-visible").checked = c.members_visible;
-    if (document.getElementById("settings-community-type")) {
-      document.getElementById("settings-community-type").value = c.community_type || "free";
-      document.getElementById("settings-price").value = ((c.price_cents || 0) / 100).toFixed(2);
-      document.getElementById("settings-currency").value = c.currency || "USD";
-      document.getElementById("settings-billing").value = c.billing_interval || "one_time";
-    }
-    registrationFields = (c.registration_fields || []).slice();
-    renderRegistrationFieldsEditor();
+    document.getElementById("settings-community-type").value = c.community_type || "free";
+    document.getElementById("settings-price").value = ((c.price_cents || 0) / 100).toFixed(2);
+    document.getElementById("settings-billing").value = (c.billing_interval === "year" ? "month" : (c.billing_interval || "one_time"));
+    const preview = document.getElementById("settings-image-preview");
+    preview.innerHTML = c.image_url
+      ? `<img src="${escapeHtml(c.image_url)}" alt="" style="max-width:180px;border-radius:12px;">`
+      : "";
+    togglePaidFields();
   }
 
   async function loadMembers() {
@@ -204,9 +173,41 @@
     await loadPosts();
   });
 
-  document.getElementById("add-reg-field-btn").addEventListener("click", () => {
-    registrationFields.push({ label: "New field", key: "field_" + Date.now(), type: "text", required: false });
-    renderRegistrationFieldsEditor();
+  document.getElementById("settings-community-type").addEventListener("change", togglePaidFields);
+
+  document.getElementById("community-settings-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const type = document.getElementById("settings-community-type").value;
+    await apiRequest(`/api/communities/${communityId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: document.getElementById("settings-name").value.trim(),
+        description: document.getElementById("settings-description").value.trim(),
+        members_visible: document.getElementById("settings-members-visible").checked,
+        community_type: type,
+        price: type === "paid" ? document.getElementById("settings-price").value.trim() : "0",
+        currency: "USD",
+        billing_interval: type === "paid" ? document.getElementById("settings-billing").value : "one_time",
+      }),
+    });
+    const file = document.getElementById("settings-image").files[0];
+    if (file) {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch(apiUrl(`/api/communities/${communityId}/image`), {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || "Could not upload image");
+        return;
+      }
+      document.getElementById("settings-image").value = "";
+    }
+    showToast("Settings saved");
+    await loadDashboard();
   });
 
   document.getElementById("add-product-btn").addEventListener("click", async () => {
@@ -235,27 +236,6 @@
   });
 
   document.getElementById("member-search").addEventListener("input", () => loadMembers());
-
-  document.getElementById("community-settings-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    syncRegFieldsFromDom();
-    await apiRequest(`/api/communities/${communityId}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        name: document.getElementById("settings-name").value.trim(),
-        description: document.getElementById("settings-description").value.trim(),
-        approval_required: document.getElementById("settings-approval").checked,
-        members_visible: document.getElementById("settings-members-visible").checked,
-        community_type: document.getElementById("settings-community-type").value,
-        price: document.getElementById("settings-price").value.trim(),
-        currency: document.getElementById("settings-currency").value.trim(),
-        billing_interval: document.getElementById("settings-billing").value,
-        registration_fields: registrationFields,
-      }),
-    });
-    showToast("Settings saved");
-    await loadDashboard();
-  });
 
   document.getElementById("delete-community-btn").addEventListener("click", async () => {
     if (!confirm("Delete this community? This cannot be undone.")) return;

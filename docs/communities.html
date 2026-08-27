@@ -55,6 +55,34 @@
           <label class="form-label" for="new-community-name">Community name</label>
           <input class="form-control" id="new-community-name" required placeholder="e.g. BuXin Robotics Community">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="new-community-description">Description</label>
+          <textarea class="form-control" id="new-community-description" rows="3" placeholder="What this community is about"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-community-image">Community image</label>
+          <input class="form-control" id="new-community-image" type="file" accept="image/*" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Access</label>
+          <select class="form-control" id="new-community-type">
+            <option value="free">Free</option>
+            <option value="paid">Paid</option>
+          </select>
+        </div>
+        <div id="new-community-paid-fields" class="hidden">
+          <div class="form-group">
+            <label class="form-label" for="new-community-price">Amount (USD)</label>
+            <input class="form-control" id="new-community-price" type="number" min="0" step="0.01" placeholder="e.g. 10.00">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="new-community-billing">Payment</label>
+            <select class="form-control" id="new-community-billing">
+              <option value="one_time">One-time payment</option>
+              <option value="month">Monthly subscription</option>
+            </select>
+          </div>
+        </div>
         <div class="form-error" id="create-community-error"></div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" onclick="closeModal('create-community-modal')">Cancel</button>
@@ -65,6 +93,6 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/communities.js?v=1"></script>
+  <script src="js/communities.js?v=2"></script>
 </body>
 </html>

@@ -20,7 +20,9 @@ from services.community_service import (
     delete_scheduled_message,
     get_member_memberships,
     get_membership,
+    join_community_for_store_customer,
     list_communities,
+    list_communities_for_store_customer,
     list_comments,
     list_members,
     list_posts,
@@ -33,6 +35,7 @@ from services.community_service import (
     member_has_community_access,
     remove_member,
     restore_member,
+    set_community_image,
     suspend_member,
     toggle_like,
     update_community,
@@ -51,10 +54,27 @@ def _community_by_token_param(token):
     return _community_by_token(token)
 
 
+def resolve_community_member_id():
+    uid = session.get("cm_user_id")
+    if uid:
+        return uid
+    from services.store_customer_service import current_store_customer
+
+    customer = current_store_customer()
+    if not customer or not (customer.email or "").strip():
+        return None
+    user = CommunityMemberUser.query.filter_by(email=customer.email.strip().lower()).first()
+    if not user:
+        return None
+    session["cm_user_id"] = user.id
+    session.permanent = True
+    return user.id
+
+
 def community_member_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("cm_user_id"):
+        if not resolve_community_member_id():
             return jsonify({"error": "Please log in to continue."}), 401
         return f(*args, **kwargs)
 
@@ -74,11 +94,34 @@ def api_list_communities():
 @community_bp.route("/api/communities", methods=["POST"])
 @login_required
 def api_create_community():
+    if request.files or request.form:
+        data = {k: request.form.get(k) for k in request.form.keys()}
+        try:
+            c = create_community(data.get("name"), data)
+            upload = request.files.get("image") or request.files.get("file")
+            if upload and upload.filename:
+                c = set_community_image(c.id, upload)
+            return jsonify(c.to_dict(include_link=True)), 201
+        except (ValueError, RuntimeError) as exc:
+            return jsonify({"error": str(exc)}), 400
     data = request.get_json(silent=True) or {}
     try:
-        c = create_community(data.get("name"))
+        c = create_community(data.get("name"), data)
         return jsonify(c.to_dict(include_link=True)), 201
     except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@community_bp.route("/api/communities/<int:community_id>/image", methods=["POST"])
+@login_required
+def api_community_image(community_id):
+    upload = request.files.get("image") or request.files.get("file")
+    if not upload:
+        return jsonify({"error": "Choose an image."}), 400
+    try:
+        c = set_community_image(community_id, upload)
+        return jsonify(c.to_dict(include_link=True))
+    except (ValueError, RuntimeError) as exc:
         return jsonify({"error": str(exc)}), 400
 
 
@@ -372,6 +415,33 @@ def api_member_register(token):
         return jsonify({"error": str(exc)}), 400
 
 
+@community_bp.route("/api/public/community/<token>/join", methods=["POST"])
+def api_public_community_join(token):
+    from services.store_customer_service import current_store_customer
+
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in first."}), 401
+    try:
+        user, membership = join_community_for_store_customer(token, customer)
+        session["cm_user_id"] = user.id
+        session.permanent = True
+        refresh = membership
+        checkout_url = None
+        if refresh.status == "pending_payment":
+            checkout_url = f"checkout.html?membership_id={refresh.id}&token={token}"
+        return jsonify({
+            "success": True,
+            "status": refresh.status,
+            "membership_id": refresh.id,
+            "needs_payment": refresh.status == "pending_payment",
+            "checkout_url": checkout_url,
+            "user": user.to_dict(private=True),
+        })
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @community_bp.route("/api/community-auth/login", methods=["POST"])
 def api_member_login():
     data = request.get_json(silent=True) or {}
@@ -393,7 +463,7 @@ def api_member_logout():
 
 @community_bp.route("/api/community-auth/me", methods=["GET"])
 def api_member_me():
-    uid = session.get("cm_user_id")
+    uid = resolve_community_member_id()
     if not uid:
         return jsonify({"authenticated": False}), 401
     user = CommunityMemberUser.query.get(uid)
@@ -436,13 +506,14 @@ def api_public_community_info(token):
         return jsonify({
             "name": c.name,
             "description": c.description or "",
+            "image_url": c.image_url or "",
+            "community_token": c.community_token,
             "approval_required": bool(c.approval_required),
             "members_visible": bool(c.members_visible),
             "community_type": c.community_type or "free",
             "price_cents": c.price_cents or 0,
             "currency": c.currency or "USD",
             "billing_interval": c.billing_interval or "one_time",
-            "registration_fields": c.registration_fields(),
         })
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
@@ -452,7 +523,7 @@ def api_public_community_info(token):
 def api_public_posts(token):
     try:
         c = _community_by_token_param(token)
-        viewer = session.get("cm_user_id")
+        viewer = resolve_community_member_id()
         if viewer and not member_has_community_access(viewer, c.id):
             membership = membership_for_token(viewer, token)
             if membership and membership.status == "pending_payment":
@@ -470,8 +541,8 @@ def api_public_create_post(token):
     try:
         c = _community_by_token_param(token)
         data = request.get_json(silent=True) or {}
-        post = create_post(c.id, data.get("content"), member_user_id=session.get("cm_user_id"))
-        return jsonify(post.to_dict(viewer_member_id=session.get("cm_user_id"))), 201
+        post = create_post(c.id, data.get("content"), member_user_id=resolve_community_member_id())
+        return jsonify(post.to_dict(viewer_member_id=resolve_community_member_id())), 201
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -480,7 +551,7 @@ def api_public_create_post(token):
 @community_member_required
 def api_public_like(token, post_id):
     try:
-        return jsonify(toggle_like(post_id, session.get("cm_user_id")))
+        return jsonify(toggle_like(post_id, resolve_community_member_id()))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -498,7 +569,7 @@ def api_public_comment(token, post_id):
         c = create_comment(
             post_id,
             data.get("content"),
-            member_user_id=session.get("cm_user_id"),
+            member_user_id=resolve_community_member_id(),
             parent_id=data.get("parent_id"),
         )
         return jsonify(c.to_dict()), 201
@@ -525,7 +596,7 @@ def api_public_product_view(token, product_id):
 @community_member_required
 def api_public_my_membership(token):
     try:
-        m = membership_for_token(session.get("cm_user_id"), token)
+        m = membership_for_token(resolve_community_member_id(), token)
         if not m:
             return jsonify({"error": "You are not a member of this community."}), 404
         return jsonify(m.to_dict(include_private=True))
@@ -538,7 +609,7 @@ def api_public_my_membership(token):
 def api_public_notifications(token):
     try:
         c = _community_by_token_param(token)
-        uid = session.get("cm_user_id")
+        uid = resolve_community_member_id()
         rows = (
             CommunityNotification.query.filter_by(community_id=c.id, member_user_id=uid)
             .order_by(CommunityNotification.created_at.desc())

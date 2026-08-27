@@ -2570,6 +2570,8 @@ body.store-body {
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
 }
 
 .google-continue-btn svg {

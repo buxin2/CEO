@@ -250,6 +250,16 @@ def api_store_my_orders():
     return jsonify({"orders": [o.to_dict(include_private=True) for o in orders]})
 
 
+@store_bp.route("/api/store/account/communities", methods=["GET"])
+def api_store_account_communities():
+    customer = current_store_customer()
+    if not customer:
+        return jsonify({"error": "Sign in first."}), 401
+    from services.community_service import list_communities_for_store_customer
+
+    return jsonify({"communities": list_communities_for_store_customer(customer)})
+
+
 @store_bp.route("/api/store/account/password", methods=["POST"])
 def api_store_change_password():
     customer = current_store_customer()

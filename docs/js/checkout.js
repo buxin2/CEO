@@ -29,7 +29,9 @@
     const coupon = document.getElementById("coupon-code").value.trim();
     if (coupon) params.set("coupon_code", coupon);
     if (productId) params.set("quantity", getQueryParam("quantity") || "1");
-    const res = await fetch(apiUrl("/api/checkout/preview?" + params.toString()), { credentials: "include" });
+    const res = typeof storeFetch === "function"
+      ? await storeFetch("/api/checkout/preview?" + params.toString())
+      : await fetch(apiUrl("/api/checkout/preview?" + params.toString()), { credentials: "include" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Could not load checkout");
     preview = data;
@@ -58,7 +60,7 @@
       const c = preview.community;
       summary = `
         <h3>${escapeHtml(c.name)}</h3>
-        <p>Community membership</p>
+        <p>${(preview.community && preview.community.billing_interval === "month") ? "Monthly subscription" : "Community membership"}</p>
         <p><strong>Total: ${cents(t.total_cents)} ${escapeHtml(t.currency)}</strong></p>`;
     }
     document.getElementById("checkout-summary").innerHTML = summary;
@@ -245,12 +247,16 @@
       body.product_id = parseInt(productId, 10);
       body.quantity = parseInt(getQueryParam("quantity") || "1", 10);
     }
-    const res = await fetch(apiUrl(url), {
+    const res = await (typeof storeFetch === "function" ? storeFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }) : fetch(apiUrl(url), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    });
+    }));
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Checkout failed");
     currentPaymentRef = data.payment.payment_reference;

@@ -1385,7 +1385,7 @@ def execute_tool(name, arguments, context):
         from services.community_service import create_community
 
         try:
-            c = create_community(args.get("name"))
+            c = create_community(args.get("name"), args)
             return _ok({"community": c.to_dict(include_link=True)})
         except ValueError as exc:
             return _err(str(exc))

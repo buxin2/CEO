@@ -2,7 +2,9 @@
 
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
+
+from sqlalchemy import or_
 
 from models import (
     db,
@@ -42,12 +44,36 @@ def list_communities():
     return Community.query.filter_by(deleted_at=None).order_by(Community.name.asc()).all()
 
 
-def create_community(name):
-    name = (name or "").strip()
+def create_community(name, data=None):
+    data = data or {}
+    name = (name or data.get("name") or "").strip()
     if not name:
         raise ValueError("Community name is required.")
+    community_type = (data.get("community_type") or "free").strip().lower()
+    if community_type not in ("free", "paid"):
+        community_type = "free"
+    billing = (data.get("billing_interval") or "one_time").strip().lower()
+    if billing not in ("one_time", "month"):
+        billing = "one_time"
+    price_cents = 0
+    if community_type == "paid":
+        if data.get("price_cents") not in (None, ""):
+            price_cents = int(data.get("price_cents") or 0)
+        else:
+            price_cents = parse_price_to_cents(data.get("price") or "0")
+        if price_cents < 1:
+            raise ValueError("Enter a price for a paid community.")
+    else:
+        billing = "one_time"
     c = Community(
         name=name[:255],
+        description=(data.get("description") or "").strip(),
+        image_url=(data.get("image_url") or "").strip()[:500],
+        community_type=community_type,
+        price_cents=price_cents,
+        currency=(data.get("currency") or "USD").strip()[:10] or "USD",
+        billing_interval=billing,
+        approval_required=False,
         registration_fields_json=json.dumps(DEFAULT_COMMUNITY_REGISTRATION_FIELDS),
     )
     db.session.add(c)
@@ -61,6 +87,8 @@ def update_community(community_id, data):
         c.name = data["name"].strip()[:255]
     if data.get("description") is not None:
         c.description = (data.get("description") or "").strip()
+    if data.get("image_url") is not None:
+        c.image_url = (data.get("image_url") or "").strip()[:500]
     if data.get("approval_required") is not None:
         c.approval_required = bool(data["approval_required"])
     if data.get("members_visible") is not None:
@@ -420,25 +448,161 @@ def login_member(username_or_email, password):
     return user
 
 
+def set_community_image(community_id, file_storage):
+    from services.cloudinary_service import upload_community_image
+
+    c = _community_or_error(community_id)
+    uploaded = upload_community_image(file_storage, community_id)
+    c.image_url = (uploaded.get("url") or "")[:500]
+    db.session.commit()
+    return c
+
+
+def refresh_membership_access(membership):
+    if not membership or membership.status in ("removed", "suspended"):
+        return membership
+    community = membership.community or Community.query.get(membership.community_id)
+    if not community:
+        return membership
+    if (community.community_type or "free") != "paid":
+        return membership
+    if (community.billing_interval or "one_time") != "month":
+        return membership
+    if membership.status == "active" and membership.paid_until and membership.paid_until < datetime.utcnow():
+        membership.status = "pending_payment"
+        db.session.commit()
+    return membership
+
+
 def member_has_community_access(member_user_id, community_id):
     m = CommunityMembership.query.filter_by(
         community_id=community_id, member_user_id=member_user_id
     ).first()
     if not m:
         return False
+    refresh_membership_access(m)
     return m.status == "active"
+
+
+def _unique_member_username(email):
+    base = re.sub(r"[^a-z0-9]+", "", ((email or "member").split("@")[0].lower()))[:20] or "member"
+    candidate = base
+    n = 0
+    while CommunityMemberUser.query.filter_by(username=candidate).first():
+        n += 1
+        candidate = (base + str(n))[:80]
+    return candidate
+
+
+def ensure_member_user_from_store(customer):
+    email = (customer.email or "").strip().lower()
+    if not email:
+        raise ValueError("Sign in with an email first.")
+    user = CommunityMemberUser.query.filter_by(email=email).first()
+    if user:
+        if customer.full_name and not (user.full_name or "").strip():
+            user.full_name = customer.full_name[:255]
+        return user
+    user = CommunityMemberUser(
+        username=_unique_member_username(email),
+        email=email[:255],
+        full_name=(customer.full_name or email.split("@")[0])[:255],
+        password_hash=customer.password_hash,
+    )
+    db.session.add(user)
+    db.session.flush()
+    return user
+
+
+def join_or_get_membership(token, member_user):
+    c = _community_by_token(token)
+    m = CommunityMembership.query.filter_by(community_id=c.id, member_user_id=member_user.id).first()
+    if m:
+        if m.status == "removed":
+            is_paid = (c.community_type or "free") == "paid"
+            m.status = "pending_payment" if is_paid else "active"
+            if not is_paid:
+                m.approved_at = datetime.utcnow()
+            db.session.commit()
+        return refresh_membership_access(m)
+    is_paid = (c.community_type or "free") == "paid"
+    status = "pending_payment" if is_paid else "active"
+    m = CommunityMembership(
+        community_id=c.id,
+        member_user_id=member_user.id,
+        status=status,
+        approved_at=datetime.utcnow() if status == "active" else None,
+    )
+    db.session.add(m)
+    db.session.commit()
+    return m
+
+
+def join_community_for_store_customer(token, customer):
+    user = ensure_member_user_from_store(customer)
+    membership = join_or_get_membership(token, user)
+    db.session.commit()
+    return user, membership
+
+
+def auto_join_free_communities_for_customer(customer):
+    if not customer or not (customer.email or "").strip():
+        return
+    user = ensure_member_user_from_store(customer)
+    rows = Community.query.filter(
+        Community.deleted_at.is_(None),
+        or_(Community.community_type != "paid", Community.community_type.is_(None)),
+    ).all()
+    for c in rows:
+        existing = CommunityMembership.query.filter_by(community_id=c.id, member_user_id=user.id).first()
+        if existing:
+            if existing.status == "removed":
+                existing.status = "active"
+                existing.approved_at = datetime.utcnow()
+            continue
+        db.session.add(CommunityMembership(
+            community_id=c.id,
+            member_user_id=user.id,
+            status="active",
+            approved_at=datetime.utcnow(),
+        ))
+    db.session.commit()
+
+
+def list_communities_for_store_customer(customer):
+    user = None
+    if customer and (customer.email or "").strip():
+        user = CommunityMemberUser.query.filter_by(email=customer.email.strip().lower()).first()
+    out = []
+    for c in list_communities():
+        m = None
+        if user:
+            m = CommunityMembership.query.filter_by(community_id=c.id, member_user_id=user.id).first()
+            if m:
+                refresh_membership_access(m)
+        item = c.to_dict(include_link=True)
+        item["membership_status"] = m.status if m else ""
+        item["membership_id"] = m.id if m else None
+        item["paid_until"] = m.paid_until.isoformat() if m and m.paid_until else None
+        out.append(item)
+    return out
 
 
 def get_member_memberships(member_user_id):
     rows = CommunityMembership.query.filter_by(member_user_id=member_user_id).filter(
         CommunityMembership.status.in_(["active", "pending", "pending_payment", "suspended"])
     ).all()
+    for m in rows:
+        refresh_membership_access(m)
     return rows
 
 
 def membership_for_token(member_user_id, token):
     c = _community_by_token(token)
-    return CommunityMembership.query.filter_by(community_id=c.id, member_user_id=member_user_id).first()
+    m = CommunityMembership.query.filter_by(community_id=c.id, member_user_id=member_user_id).first()
+    if m:
+        refresh_membership_access(m)
+    return m
 
 
 def list_scheduled_messages(community_id):

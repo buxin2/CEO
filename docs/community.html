@@ -4,25 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Community</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body class="group-page-body">
   <div id="community-root" class="group-root">
     <section id="auth-screen" class="group-entry">
       <div class="group-entry-card">
+        <img id="community-cover" alt="" class="hidden" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px;margin-bottom:12px;">
         <h1 id="community-name-label">Community</h1>
         <p class="text-muted" id="community-desc-label"></p>
+        <p class="text-muted" id="community-price-label"></p>
+        <div id="account-error" class="form-error hidden"></div>
+        <div class="google-signin-wrap"><div id="google-signin-btn"></div></div>
+        <div class="auth-or"><span>or</span></div>
         <div id="login-form">
-          <h3>Sign in</h3>
-          <input class="form-control" id="login-user" placeholder="Username or email">
-          <input class="form-control" id="login-pass" type="password" placeholder="Password" style="margin-top:8px;">
-          <button type="button" class="btn btn-primary btn-block" id="login-btn" style="margin-top:8px;">Sign in</button>
+          <div class="form-group"><input class="form-control" id="login-email" type="email" placeholder="Email" autocomplete="email"></div>
+          <div class="form-group"><input class="form-control" id="login-pass" type="password" placeholder="Password" autocomplete="current-password"></div>
+          <button type="button" class="btn btn-primary btn-block" id="login-btn">Sign in</button>
           <button type="button" class="btn btn-ghost btn-block" id="show-register-btn">Create account</button>
         </div>
         <div id="register-form" class="hidden">
-          <h3>Register</h3>
-          <div id="register-fields"></div>
-          <button type="button" class="btn btn-primary btn-block" id="register-btn" style="margin-top:8px;">Register</button>
+          <div class="form-group"><input class="form-control" id="reg-name" placeholder="Full name" autocomplete="name"></div>
+          <div class="form-group"><input class="form-control" id="reg-email" type="email" placeholder="Email" autocomplete="email"></div>
+          <div class="form-group"><input class="form-control" id="reg-phone" placeholder="Phone" inputmode="tel"></div>
+          <div class="form-group"><input class="form-control" id="reg-password" type="password" placeholder="Password (min 6 characters)" autocomplete="new-password"></div>
+          <button type="button" class="btn btn-primary btn-block" id="register-btn">Create account</button>
           <button type="button" class="btn btn-ghost btn-block" id="show-login-btn">Back to sign in</button>
         </div>
       </div>
@@ -36,9 +42,11 @@
         <div class="group-chat-header-actions">
           <button type="button" class="btn btn-secondary btn-sm" id="tab-feed-btn">Feed</button>
           <button type="button" class="btn btn-secondary btn-sm" id="tab-products-btn">Products</button>
+          <a class="btn btn-ghost btn-sm" href="store-account.html">Account</a>
           <button type="button" class="btn btn-ghost btn-sm" id="logout-member-btn">Logout</button>
         </div>
       </header>
+      <div id="renew-banner" class="form-error hidden" style="margin:12px;"></div>
       <div id="feed-panel">
         <div id="posts-list" class="group-messages-list" style="padding:12px;"></div>
         <footer class="group-composer">
@@ -51,6 +59,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/community-portal.js?v=2"></script>
+  <script src="js/store-cart.js?v=6"></script>
+  <script src="js/community-portal.js?v=3"></script>
 </body>
 </html>

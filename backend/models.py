@@ -856,6 +856,7 @@ class Community(db.Model):
     name = db.Column(db.String(255), nullable=False)
     community_token = db.Column(db.String(64), unique=True, nullable=False, index=True, default=generate_token)
     description = db.Column(db.Text, default="")
+    image_url = db.Column(db.String(500), default="")
     approval_required = db.Column(db.Boolean, default=False)
     members_visible = db.Column(db.Boolean, default=True)
     community_type = db.Column(db.String(20), default="free")  # free, paid
@@ -895,6 +896,7 @@ class Community(db.Model):
             "name": self.name,
             "community_token": self.community_token,
             "description": self.description or "",
+            "image_url": self.image_url or "",
             "approval_required": bool(self.approval_required),
             "members_visible": bool(self.members_visible),
             "community_type": self.community_type or "free",
@@ -958,6 +960,7 @@ class CommunityMembership(db.Model):
     approved_at = db.Column(db.DateTime, nullable=True)
     suspended_at = db.Column(db.DateTime, nullable=True)
     last_active_at = db.Column(db.DateTime, nullable=True)
+    paid_until = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self, include_private=False):
         import json
@@ -976,6 +979,7 @@ class CommunityMembership(db.Model):
             "experience_level": self.experience_level or "",
             "joined_at": self.joined_at.isoformat() if self.joined_at else None,
             "last_active_at": self.last_active_at.isoformat() if self.last_active_at else None,
+            "paid_until": self.paid_until.isoformat() if self.paid_until else None,
         }
         try:
             data["custom_fields"] = json.loads(self.custom_fields_json or "{}")

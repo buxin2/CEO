@@ -69,36 +69,32 @@
         <form id="community-settings-form">
           <div class="form-group"><label class="form-label">Name</label><input class="form-control" id="settings-name"></div>
           <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="settings-description" rows="3"></textarea></div>
-          <label><input type="checkbox" id="settings-approval"> Require approval to join</label>
-          <br><label><input type="checkbox" id="settings-members-visible"> Show member list to members</label>
-          <div class="form-group" style="margin-top:12px;">
-            <label class="form-label">Community type</label>
+          <div class="form-group">
+            <label class="form-label">Community image</label>
+            <div id="settings-image-preview" style="margin-bottom:8px;"></div>
+            <input class="form-control" id="settings-image" type="file" accept="image/*">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Access</label>
             <select class="form-control" id="settings-community-type">
               <option value="free">Free</option>
               <option value="paid">Paid</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">Price (for paid communities)</label>
-            <input class="form-control" id="settings-price" placeholder="e.g. 10.00">
+          <div id="settings-paid-fields">
+            <div class="form-group">
+              <label class="form-label">Amount (USD)</label>
+              <input class="form-control" id="settings-price" placeholder="e.g. 10.00">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment</label>
+              <select class="form-control" id="settings-billing">
+                <option value="one_time">One-time payment</option>
+                <option value="month">Monthly subscription</option>
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Currency</label>
-            <input class="form-control" id="settings-currency" placeholder="USD">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Billing interval</label>
-            <select class="form-control" id="settings-billing">
-              <option value="one_time">One-time</option>
-              <option value="month">Monthly</option>
-              <option value="year">Yearly</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Registration form fields</label>
-            <div id="registration-fields-editor"></div>
-            <button type="button" class="btn btn-secondary btn-sm" id="add-reg-field-btn">+ Add field</button>
-          </div>
+          <label><input type="checkbox" id="settings-members-visible"> Show member list to members</label>
           <div style="margin-top:12px;"><button type="submit" class="btn btn-primary btn-sm">Save settings</button>
           <button type="button" class="btn btn-danger btn-sm" id="delete-community-btn">Delete community</button></div>
         </form>
@@ -107,6 +103,6 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/community-admin.js?v=1"></script>
+  <script src="js/community-admin.js?v=2"></script>
 </body>
 </html>
