@@ -40,21 +40,37 @@
     return url.href;
   }
 
-  function takeGoogleIdToken() {
-    const hash = (window.location.hash || "").replace(/^#/, "");
-    if (!hash) return "";
-    const params = new URLSearchParams(hash);
-    if (params.get("error")) {
-      history.replaceState(null, "", window.location.pathname + window.location.search);
-      throw new Error("Google sign-in was cancelled. Try again.");
-    }
-    const token = params.get("id_token") || "";
-    if (token) history.replaceState(null, "", window.location.pathname + window.location.search);
-    return token;
+  function b64url(buffer) {
+    const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function randomB64(len) {
+    const arr = new Uint8Array(len);
+    crypto.getRandomValues(arr);
+    return b64url(arr);
+  }
+
+  function stripGoogleReturn() {
+    const url = new URL(window.location.href);
+    ["code", "state", "scope", "authuser", "prompt", "hd", "session_state", "error", "error_description"].forEach((key) => {
+      url.searchParams.delete(key);
+    });
+    url.hash = "";
+    history.replaceState(null, "", url.pathname + (url.search || "") + url.hash);
+  }
+
+  function clearGoogleOauthScratch() {
+    ["google_nonce", "google_pkce", "google_state", "google_next", "google_redirect"].forEach((key) => {
+      try { localStorage.removeItem(key); } catch (e) {}
+      try { sessionStorage.removeItem(key); } catch (e) {}
+    });
   }
 
   async function completeGoogleSignIn(credential) {
-    const nonce = sessionStorage.getItem("google_nonce") || "";
+    const nonce = localStorage.getItem("google_nonce") || sessionStorage.getItem("google_nonce") || "";
     const res = await storeFetch("/api/store/auth/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -62,22 +78,70 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Google sign-in failed.");
-    const next = sessionStorage.getItem("google_next") || nextUrl;
-    sessionStorage.removeItem("google_nonce");
-    sessionStorage.removeItem("google_next");
+    if (data.store_token) saveStoreToken(data.store_token);
+    const next = localStorage.getItem("google_next") || sessionStorage.getItem("google_next") || nextUrl;
+    clearGoogleOauthScratch();
     window.location.replace(safeNext(next));
   }
 
-  function startGoogleRedirect(clientId) {
-    const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    sessionStorage.setItem("google_nonce", nonce);
-    sessionStorage.setItem("google_next", nextUrl);
+  async function consumeGoogleReturn() {
+    const qs = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+    const err = qs.get("error") || hash.get("error");
+    if (err) {
+      stripGoogleReturn();
+      clearGoogleOauthScratch();
+      throw new Error("Google sign-in was cancelled. Try again.");
+    }
+    const code = qs.get("code") || hash.get("code") || "";
+    const idToken = hash.get("id_token") || qs.get("id_token") || "";
+    if (!code && !idToken) return false;
+    const expectedState = localStorage.getItem("google_state") || "";
+    const gotState = qs.get("state") || hash.get("state") || "";
+    if (code && expectedState && gotState && expectedState !== gotState) {
+      stripGoogleReturn();
+      clearGoogleOauthScratch();
+      throw new Error("Google sign-in expired. Try again.");
+    }
+    const redirectUri = localStorage.getItem("google_redirect") || googleRedirectUri();
+    const verifier = localStorage.getItem("google_pkce") || "";
+    const next = localStorage.getItem("google_next") || sessionStorage.getItem("google_next") || nextUrl;
+    stripGoogleReturn();
+    if (code) {
+      const res = await storeFetch("/api/store/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: code,
+          redirect_uri: redirectUri,
+          code_verifier: verifier,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Google sign-in failed.");
+      if (data.store_token) saveStoreToken(data.store_token);
+      clearGoogleOauthScratch();
+      window.location.replace(safeNext(next));
+      return true;
+    }
+    await completeGoogleSignIn(idToken);
+    return true;
+  }
+
+  async function startGoogleRedirect(clientId) {
+    const nonce = randomB64(16);
+    const state = randomB64(16);
+    localStorage.setItem("google_nonce", nonce);
+    localStorage.setItem("google_state", state);
+    localStorage.setItem("google_next", nextUrl);
+    localStorage.setItem("google_redirect", googleRedirectUri());
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: googleRedirectUri(),
-      response_type: "id_token",
+      response_type: "code",
       scope: "openid email profile",
       nonce: nonce,
+      state: state,
       prompt: "select_account",
     });
     window.location.href = "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString();
@@ -132,7 +196,9 @@
       if (isPhoneBrowser()) {
         box.innerHTML = phoneGoogleButtonHtml();
         const btn = document.getElementById("google-continue-btn");
-        if (btn) btn.addEventListener("click", () => startGoogleRedirect(googleClientId));
+        if (btn) btn.addEventListener("click", () => {
+          startGoogleRedirect(googleClientId).catch((e) => showError(e.message));
+        });
         return;
       }
       await loadGsi();
@@ -308,6 +374,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Could not sign in.");
+        if (data.store_token) saveStoreToken(data.store_token);
         window.location.href = safeNext(nextUrl);
       } catch (e) {
         showError(e.message);
@@ -376,6 +443,7 @@
     `;
     document.getElementById("sign-out-btn").addEventListener("click", async () => {
       await storeFetch("/api/store/auth/logout", { method: "POST" });
+      saveStoreToken("");
       window.location.href = "store-account.html";
     });
     if (notices.some((n) => !n.read)) {
@@ -432,12 +500,8 @@
 
   (async function init() {
     try {
-      const returning = takeGoogleIdToken();
-      if (returning) {
-        showError("");
-        await completeGoogleSignIn(returning);
-        return;
-      }
+      const returning = await consumeGoogleReturn();
+      if (returning) return;
       const customer = await me();
       if (customer) await renderLoggedIn(customer);
       else renderLoggedOut(getQueryParam("tab") || "email");

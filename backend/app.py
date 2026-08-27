@@ -42,7 +42,7 @@ def create_app():
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Employee-Token"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Employee-Token, X-Store-Token, Authorization"
         response.headers["Vary"] = "Origin"
         return response
 

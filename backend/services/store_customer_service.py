@@ -3,7 +3,7 @@
 import re
 from datetime import datetime
 
-from flask import session
+from flask import current_app, request, session
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
@@ -30,9 +30,46 @@ def _email_ok(email):
 
 def current_store_customer():
     cid = session.get("store_customer_id")
+    if cid:
+        row = StoreCustomer.query.get(cid)
+        if row:
+            return row
+    token = (request.headers.get("X-Store-Token") or "").strip()
+    auth = (request.headers.get("Authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip()
+    if not token:
+        return None
+    return customer_from_store_token(token)
+
+
+def issue_store_token(customer_id):
+    from itsdangerous import URLSafeTimedSerializer
+
+    serializer = URLSafeTimedSerializer(str(current_app.config["SECRET_KEY"]), salt="store-customer-v1")
+    return serializer.dumps({"id": int(customer_id)})
+
+
+def customer_from_store_token(token):
+    from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
+    serializer = URLSafeTimedSerializer(str(current_app.config["SECRET_KEY"]), salt="store-customer-v1")
+    try:
+        data = serializer.loads(token, max_age=60 * 60 * 24 * 14)
+    except (BadSignature, SignatureExpired, Exception):
+        return None
+    cid = (data or {}).get("id")
     if not cid:
         return None
     return StoreCustomer.query.get(cid)
+
+
+def customer_auth_payload(customer):
+    return {
+        "customer": customer.to_dict(),
+        "store_token": issue_store_token(customer.id),
+        "unread_notices": unread_notice_count(customer),
+    }
 
 
 def login_store_customer(customer):
@@ -194,6 +231,46 @@ def login_with_google_credential(credential, nonce=None):
     attach_orders_to_customer(customer)
     login_store_customer(customer)
     return customer
+
+
+def login_with_google_code(code, redirect_uri, code_verifier=""):
+    import os
+
+    import requests
+
+    client_id = google_client_id()
+    secret = (current_app.config.get("GOOGLE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET") or "").strip()
+    if not client_id:
+        raise ValueError("Google sign-in is not configured yet.")
+    if not secret:
+        raise ValueError("Google phone sign-in needs GOOGLE_CLIENT_SECRET on the server (Render).")
+    code = (code or "").strip()
+    redirect_uri = (redirect_uri or "").strip()
+    if not code or not redirect_uri:
+        raise ValueError("Google sign-in did not finish. Try again.")
+    payload = {
+        "code": code,
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
+    }
+    if secret:
+        payload["client_secret"] = secret
+    verifier = (code_verifier or "").strip()
+    if verifier:
+        payload["code_verifier"] = verifier
+    try:
+        resp = requests.post("https://oauth2.googleapis.com/token", data=payload, timeout=20)
+        body = resp.json() if resp.content else {}
+    except Exception as exc:
+        raise ValueError("Google sign-in failed. Try again.") from exc
+    jwt = (body.get("id_token") or "").strip()
+    if not jwt:
+        detail = str(body.get("error_description") or body.get("error") or "")
+        if "client_secret" in detail.lower() or body.get("error") in ("invalid_client", "unauthorized_client"):
+            raise ValueError("Google phone sign-in needs the Client secret on the server. Add GOOGLE_CLIENT_SECRET in Render.")
+        raise ValueError(detail or "Google sign-in failed. Try again.")
+    return login_with_google_credential(jwt)
 
 
 def update_customer_phone(customer, phone):

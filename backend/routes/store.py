@@ -32,7 +32,9 @@ from services.store_customer_service import (
     list_customer_orders,
     list_help_requests,
     list_store_customers,
+    customer_auth_payload,
     login_with_email,
+    login_with_google_code,
     login_with_google_credential,
     login_with_phone,
     logout_store_customer,
@@ -150,7 +152,9 @@ def api_store_register():
     data = request.get_json(silent=True) or {}
     try:
         customer = register_store_customer(data)
-        return jsonify({"customer": customer.to_dict()}), 201
+        payload = customer_auth_payload(customer)
+        payload["customer"] = customer.to_dict()
+        return jsonify(payload), 201
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -163,7 +167,7 @@ def api_store_login():
             customer = login_with_phone(data.get("phone"), data.get("password"))
         else:
             customer = login_with_email(data.get("email"), data.get("password"))
-        return jsonify({"customer": customer.to_dict()})
+        return jsonify(customer_auth_payload(customer))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 401
 
@@ -178,11 +182,18 @@ def api_store_google_config():
 def api_store_google_login():
     data = request.get_json(silent=True) or {}
     try:
-        customer = login_with_google_credential(
-            data.get("credential") or data.get("id_token") or "",
-            nonce=data.get("nonce"),
-        )
-        return jsonify({"customer": customer.to_dict()})
+        if (data.get("code") or "").strip():
+            customer = login_with_google_code(
+                data.get("code"),
+                data.get("redirect_uri") or "",
+                data.get("code_verifier") or "",
+            )
+        else:
+            customer = login_with_google_credential(
+                data.get("credential") or data.get("id_token") or "",
+                nonce=data.get("nonce"),
+            )
+        return jsonify(customer_auth_payload(customer))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 401
 
@@ -195,7 +206,7 @@ def api_store_account_phone():
     data = request.get_json(silent=True) or {}
     try:
         update_customer_phone(customer, data.get("phone") or "")
-        return jsonify({"customer": customer.to_dict()})
+        return jsonify(customer_auth_payload(customer))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -211,11 +222,9 @@ def api_store_me():
     customer = current_store_customer()
     if not customer:
         return jsonify({"authenticated": False}), 401
-    return jsonify({
-        "authenticated": True,
-        "customer": customer.to_dict(),
-        "unread_notices": unread_notice_count(customer),
-    })
+    payload = customer_auth_payload(customer)
+    payload["authenticated"] = True
+    return jsonify(payload)
 
 
 @store_bp.route("/api/store/auth/help", methods=["POST"])

@@ -1,6 +1,7 @@
 /* Shared cart + money helpers for the public store */
 
 const STORE_CART_KEY = "mms_store_cart";
+const STORE_TOKEN_KEY = "mms_store_token";
 
 function money(cents, currency) {
   const n = (Number(cents) || 0) / 100;
@@ -49,8 +50,36 @@ function updateStoreCartBadge() {
   el.style.display = count ? "flex" : "none";
 }
 
+function getStoreToken() {
+  try {
+    return localStorage.getItem(STORE_TOKEN_KEY) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
+function saveStoreToken(token) {
+  try {
+    if (token) localStorage.setItem(STORE_TOKEN_KEY, token);
+    else localStorage.removeItem(STORE_TOKEN_KEY);
+  } catch (e) {}
+}
+
 function storeFetch(path, options) {
-  return fetch(apiUrl(path), Object.assign({ credentials: "include" }, options || {}));
+  const opts = Object.assign({ credentials: "include" }, options || {});
+  const headers = Object.assign({}, opts.headers || {});
+  const token = getStoreToken();
+  if (token && !headers["X-Store-Token"] && !headers["x-store-token"]) {
+    headers["X-Store-Token"] = token;
+  }
+  opts.headers = headers;
+  return fetch(apiUrl(path), opts).then((res) => {
+    const clone = res.clone();
+    clone.json().then((data) => {
+      if (data && data.store_token) saveStoreToken(data.store_token);
+    }).catch(() => {});
+    return res;
+  });
 }
 
 function storeAccountHref(nextPath) {
