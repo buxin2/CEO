@@ -23,6 +23,7 @@ from services.payment.fx_gmd import quote_gmd
 from services.payment.modempay_provider import create_payment_intent, verify_webhook
 from services.payment.paypal_provider import capture_order, create_order as paypal_create_order
 from services.payment.pricing import calculate_community_totals, calculate_product_totals
+from services.payment_settings_service import get_active_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,8 @@ def manual_payment_instructions():
 
 def get_payment_methods(currency):
     methods = []
-    if (current_app.config.get("MODEMPAY_SECRET_KEY") or "").strip():
+    creds = get_active_credentials()
+    if (creds.get("modem_secret_key") or "").strip():
         methods.append({
             "id": "modem",
             "label": "Wave, AfriMoney, or QMoney",
@@ -58,11 +60,11 @@ def get_payment_methods(currency):
             "wallets": ["Wave", "AfriMoney", "QMoney"],
             "currencies": ["GMD", "USD"],
         })
-    if (current_app.config.get("PAYPAL_CLIENT_ID") or "").strip():
+    if (creds.get("paypal_client_id") or "").strip():
         methods.append({
             "id": "paypal",
             "label": "Card or PayPal",
-            "description": "Visa, Mastercard, debit card, or PayPal. No PayPal account needed to pay by card.",
+            "description": "Pay with a debit or credit card, or with PayPal. No PayPal account needed to pay by card.",
             "currencies": ["USD", "EUR", "GBP"],
         })
     methods.append({"id": "manual", "label": "Bank / Money Transfer", "currencies": ["USD", "GMD"]})
@@ -71,12 +73,13 @@ def get_payment_methods(currency):
 
 
 def paypal_sdk_config(currency="USD"):
-    client_id = (current_app.config.get("PAYPAL_CLIENT_ID") or "").strip()
+    creds = get_active_credentials()
+    client_id = (creds.get("paypal_client_id") or "").strip()
     if not client_id:
         return None
     return {
         "client_id": client_id,
-        "mode": (current_app.config.get("PAYPAL_MODE") or "live").strip().lower(),
+        "mode": (creds.get("paypal_mode") or "live").strip().lower(),
         "currency": (currency or "USD").upper(),
     }
 
@@ -374,3 +377,33 @@ def process_modem_webhook(payload, signature, use_secret_key=False):
 
 def payment_by_reference(ref):
     return Payment.query.filter_by(payment_reference=ref).first()
+
+
+def start_admin_test_payment(provider, admin_email=""):
+    """Tiny live/sandbox checkout so admin can confirm keys. Gateways reject $0.00."""
+    provider = (provider or "").strip().lower()
+    if provider not in ("paypal", "modem"):
+        raise ValueError("Choose PayPal or Wave / AfriMoney / QMoney.")
+    if provider == "paypal":
+        totals = {"subtotal_cents": 1, "discount_cents": 0, "fee_cents": 0, "total_cents": 1, "currency": "USD", "coupon": None}
+        title = "Admin PayPal test ($0.01)"
+    else:
+        totals = {"subtotal_cents": 100, "discount_cents": 0, "fee_cents": 0, "total_cents": 100, "currency": "GMD", "coupon": None}
+        title = "Admin Wave test (1 GMD)"
+    payment = _create_payment_record(
+        "payment_test",
+        totals,
+        None,
+        None,
+        provider=provider,
+        customer_info={"full_name": "Admin test", "email": admin_email or "admin@test.local", "phone": ""},
+    )
+    payment = _init_provider_session(
+        payment,
+        title,
+        {"payment_reference": payment.payment_reference, "admin_test": "1"},
+        return_path=f"payments.html?payment_ref={payment.payment_reference}&status=return",
+        cancel_path=f"payments.html?payment_ref={payment.payment_reference}&status=cancel",
+    )
+    db.session.commit()
+    return payment

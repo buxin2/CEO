@@ -3,23 +3,29 @@
 import logging
 
 import requests
-from flask import current_app
 
 logger = logging.getLogger(__name__)
 
 
+def _paypal_creds():
+    from services.payment_settings_service import get_active_credentials
+
+    return get_active_credentials()
+
+
 def _paypal_base():
-    mode = (current_app.config.get("PAYPAL_MODE") or "live").lower()
+    mode = (_paypal_creds().get("paypal_mode") or "live").lower()
     if mode == "sandbox":
         return "https://api-m.sandbox.paypal.com"
     return "https://api-m.paypal.com"
 
 
 def _access_token():
-    client_id = (current_app.config.get("PAYPAL_CLIENT_ID") or "").strip()
-    secret = (current_app.config.get("PAYPAL_CLIENT_SECRET") or "").strip()
+    creds = _paypal_creds()
+    client_id = (creds.get("paypal_client_id") or "").strip()
+    secret = (creds.get("paypal_client_secret") or "").strip()
     if not client_id or not secret:
-        raise ValueError("PayPal is not configured on the server.")
+        raise ValueError("PayPal is not configured. Add Client ID and Secret on the Payments page.")
     resp = requests.post(
         f"{_paypal_base()}/v1/oauth2/token",
         auth=(client_id, secret),
@@ -53,7 +59,7 @@ def create_order(total_cents, currency, reference, return_url, cancel_url):
             }
         ],
         "application_context": {
-            "brand_name": (current_app.config.get("PAYPAL_BRAND_NAME") or "Store")[:127],
+            "brand_name": (_paypal_creds().get("brand_name") or "Store")[:127],
             "landing_page": "BILLING",
             "user_action": "PAY_NOW",
             "shipping_preference": "NO_SHIPPING",
@@ -110,3 +116,11 @@ def get_order(order_id):
     if resp.status_code >= 400:
         return None
     return resp.json()
+
+
+def ping_credentials():
+    token = _access_token()
+    if not token:
+        raise ValueError("PayPal did not return an access token.")
+    mode = _paypal_creds().get("paypal_mode") or "live"
+    return {"ok": True, "message": f"PayPal keys work ({mode} mode)."}

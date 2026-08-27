@@ -61,6 +61,48 @@ def _ensure_cloudinary_settings_table(engine):
         conn.execute(text(ddl))
 
 
+def _ensure_payment_settings_table(engine):
+    if _table_exists(engine, "payment_settings"):
+        return
+    logger.info("Creating payment_settings table")
+    if _is_postgres(engine):
+        ddl = (
+            "CREATE TABLE payment_settings ("
+            "id SERIAL PRIMARY KEY, "
+            "mode VARCHAR(10) DEFAULT 'live', "
+            "brand_name VARCHAR(120) DEFAULT 'Store', "
+            "enc_paypal_client_id TEXT DEFAULT '', "
+            "enc_paypal_secret TEXT DEFAULT '', "
+            "enc_paypal_sandbox_client_id TEXT DEFAULT '', "
+            "enc_paypal_sandbox_secret TEXT DEFAULT '', "
+            "enc_modem_public_key TEXT DEFAULT '', "
+            "enc_modem_secret TEXT DEFAULT '', "
+            "enc_modem_webhook_secret TEXT DEFAULT '', "
+            "enc_modem_test_secret TEXT DEFAULT '', "
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            ")"
+        )
+    else:
+        ddl = (
+            "CREATE TABLE payment_settings ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "mode VARCHAR(10) DEFAULT 'live', "
+            "brand_name VARCHAR(120) DEFAULT 'Store', "
+            "enc_paypal_client_id TEXT DEFAULT '', "
+            "enc_paypal_secret TEXT DEFAULT '', "
+            "enc_paypal_sandbox_client_id TEXT DEFAULT '', "
+            "enc_paypal_sandbox_secret TEXT DEFAULT '', "
+            "enc_modem_public_key TEXT DEFAULT '', "
+            "enc_modem_secret TEXT DEFAULT '', "
+            "enc_modem_webhook_secret TEXT DEFAULT '', "
+            "enc_modem_test_secret TEXT DEFAULT '', "
+            "updated_at DATETIME"
+            ")"
+        )
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def run_schema_migrations():
     """Add columns introduced after initial production deploy."""
     engine = db.engine
@@ -121,6 +163,7 @@ def run_schema_migrations():
     )
 
     _ensure_cloudinary_settings_table(engine)
+    _ensure_payment_settings_table(engine)
 
     # Communities — paid membership + products inventory
     _add_column(engine, "communities", "community_type", "community_type VARCHAR(20) DEFAULT 'free'", "community_type VARCHAR(20) DEFAULT 'free'")

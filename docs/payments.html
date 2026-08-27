@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payments · Admin</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -18,24 +18,106 @@
       <div class="sidebar-brand">My Management System</div>
       <nav class="sidebar-nav">
         <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="communities.html">Communities</a>
         <a class="sidebar-link" href="admin-store.html">Products</a>
+        <a class="sidebar-link" href="admin-shipping.html">Shipping</a>
+        <a class="sidebar-link" href="admin-store-orders.html">Store Orders</a>
         <a class="sidebar-link active" href="payments.html">Payments</a>
-        <a class="sidebar-link" href="orders.html">Orders</a>
+        <a class="sidebar-link" href="orders.html">Community Orders</a>
         <a class="sidebar-link" href="ai-assistant.html">AI Assistant</a>
       </nav>
       <button class="sidebar-link" id="logout-btn">Logout</button>
     </aside>
     <main class="main-content">
       <div class="page-header">
-        <h1>Payments</h1>
+        <div>
+          <h1>Payments</h1>
+          <div class="page-subtitle">Keys, live/test mode, and a tiny checkout to confirm Card/PayPal and Wave work.</div>
+        </div>
       </div>
+
+      <div id="pay-settings-error" class="form-error hidden"></div>
+      <div id="pay-settings-ok" class="text-muted hidden" style="margin-bottom:12px;"></div>
+
+      <section class="card" style="padding:20px;margin-bottom:20px;">
+        <h2>Mode</h2>
+        <p class="text-muted">Live takes real money. Test uses PayPal sandbox and the Modem Pay test secret if you saved one.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+          <button type="button" class="btn" id="mode-live">Live mode</button>
+          <button type="button" class="btn" id="mode-test">Test mode</button>
+        </div>
+        <p id="mode-label" style="margin-top:10px;font-weight:700;"></p>
+      </section>
+
+      <section class="card" style="padding:20px;margin-bottom:20px;">
+        <h2>Test a payment</h2>
+        <p class="text-muted" id="test-note">Payment companies reject $0.00. Tests use $0.01 (PayPal) or 1 GMD (Wave / AfriMoney / QMoney).</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+          <button type="button" class="btn btn-primary" id="test-paypal">Test Card / PayPal</button>
+          <button type="button" class="btn btn-primary" id="test-modem">Test Wave / AfriMoney / QMoney</button>
+          <button type="button" class="btn btn-secondary" id="ping-paypal">Check PayPal keys</button>
+          <button type="button" class="btn btn-secondary" id="ping-modem">Check Wave keys</button>
+        </div>
+        <p id="test-result" class="text-muted" style="margin-top:12px;"></p>
+      </section>
+
+      <section class="card" style="padding:20px;margin-bottom:20px;">
+        <h2>PayPal keys</h2>
+        <p class="text-muted">Leave a field blank to keep the key already saved. Paste the full key, not the dots.</p>
+        <form id="paypal-form">
+          <div class="form-group">
+            <label class="form-label">Brand name on PayPal</label>
+            <input class="form-control" id="brand-name" placeholder="Store">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Live Client ID</label>
+            <input class="form-control" id="paypal-client-id" autocomplete="off" placeholder="Current: (none)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Live Secret</label>
+            <input class="form-control" id="paypal-secret" type="password" autocomplete="new-password" placeholder="Paste to replace">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sandbox Client ID (for Test mode)</label>
+            <input class="form-control" id="paypal-sandbox-id" autocomplete="off" placeholder="PayPal sandbox client id">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sandbox Secret</label>
+            <input class="form-control" id="paypal-sandbox-secret" type="password" autocomplete="new-password" placeholder="Paste to replace">
+          </div>
+          <button class="btn btn-primary" type="submit">Save PayPal keys</button>
+        </form>
+      </section>
+
+      <section class="card" style="padding:20px;margin-bottom:20px;">
+        <h2>Wave / AfriMoney / QMoney (Modem Pay)</h2>
+        <p class="text-muted">Public key, secret, and webhook secret from your Modem Pay dashboard.</p>
+        <form id="modem-form">
+          <div class="form-group">
+            <label class="form-label">Public key</label>
+            <input class="form-control" id="modem-public" autocomplete="off" placeholder="Paste to replace">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Secret key (live)</label>
+            <input class="form-control" id="modem-secret" type="password" autocomplete="new-password" placeholder="Paste to replace">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Test secret (optional, used in Test mode)</label>
+            <input class="form-control" id="modem-test-secret" type="password" autocomplete="new-password" placeholder="Paste to replace">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Webhook secret</label>
+            <input class="form-control" id="modem-webhook" type="password" autocomplete="new-password" placeholder="Paste to replace">
+          </div>
+          <button class="btn btn-primary" type="submit">Save Wave keys</button>
+        </form>
+      </section>
+
       <div id="payments-summary" class="card card-inner"></div>
       <div id="payments-list" style="margin-top:16px;"></div>
     </main>
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/payments.js?v=1"></script>
+  <script src="js/payments.js?v=2"></script>
 </body>
 </html>

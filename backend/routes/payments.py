@@ -14,7 +14,15 @@ from services.payment.checkout_service import (
     manual_payment_instructions,
     payment_by_reference,
     process_modem_webhook,
+    start_admin_test_payment,
+    paypal_sdk_config,
     verify_and_capture_payment,
+)
+from services.payment_settings_service import (
+    ping_modem,
+    ping_paypal,
+    settings_public_dict,
+    update_settings as update_payment_settings,
 )
 from services.payment.fulfillment import approve_manual_payment, reject_manual_payment, save_delivery_info
 
@@ -183,6 +191,56 @@ def api_modem_callback():
 
 
 # ---------- Admin ----------
+
+
+@payments_bp.route("/api/admin/payment-settings", methods=["GET"])
+@login_required
+def api_admin_payment_settings():
+    return jsonify(settings_public_dict())
+
+
+@payments_bp.route("/api/admin/payment-settings", methods=["PUT"])
+@login_required
+def api_admin_payment_settings_update():
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify(update_payment_settings(data))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@payments_bp.route("/api/admin/payment-settings/ping", methods=["POST"])
+@login_required
+def api_admin_payment_ping():
+    data = request.get_json(silent=True) or {}
+    provider = (data.get("provider") or "").strip().lower()
+    try:
+        if provider == "paypal":
+            return jsonify(ping_paypal())
+        if provider == "modem":
+            return jsonify(ping_modem())
+        raise ValueError("Choose paypal or modem.")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@payments_bp.route("/api/admin/payments/test", methods=["POST"])
+@login_required
+def api_admin_payment_test():
+    data = request.get_json(silent=True) or {}
+    admin = None
+    if session.get("admin_id"):
+        from models import Admin
+
+        admin = Admin.query.get(session["admin_id"])
+    try:
+        payment = start_admin_test_payment(data.get("provider"), admin.email if admin else "")
+        return jsonify({
+            "payment": payment.to_dict(include_private=True),
+            "paypal_sdk": paypal_sdk_config(payment.currency) if payment.provider == "paypal" else None,
+        }), 201
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @payments_bp.route("/api/admin/payments", methods=["GET"])

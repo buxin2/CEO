@@ -3,15 +3,19 @@
 import json
 import logging
 
-from flask import current_app
-
 logger = logging.getLogger(__name__)
 
 
+def _modem_creds():
+    from services.payment_settings_service import get_active_credentials
+
+    return get_active_credentials()
+
+
 def _modem_client():
-    secret = (current_app.config.get("MODEMPAY_SECRET_KEY") or "").strip()
+    secret = (_modem_creds().get("modem_secret_key") or "").strip()
     if not secret:
-        raise ValueError("Modem Pay is not configured on the server.")
+        raise ValueError("Wave / AfriMoney / QMoney is not configured. Add the Modem Pay secret on the Payments page.")
     try:
         from modempay import ModemPay
 
@@ -131,9 +135,9 @@ def create_payment_intent(amount_cents, currency, title, metadata, return_url, c
 def verify_webhook(payload, signature, use_secret_key=False):
     """Verify global webhook (webhook secret) or callback (merchant secret)."""
     if use_secret_key:
-        secret = (current_app.config.get("MODEMPAY_SECRET_KEY") or "").strip()
+        secret = (_modem_creds().get("modem_secret_key") or "").strip()
     else:
-        secret = (current_app.config.get("MODEMPAY_WEBHOOK_SECRET") or "").strip()
+        secret = (_modem_creds().get("modem_webhook_secret") or "").strip()
     if not secret:
         raise ValueError("Modem Pay webhook secret is not configured.")
     client = _modem_client()
@@ -144,7 +148,7 @@ def fetch_and_verify_payment(intent_secret):
     """Server-side status check when webhook is delayed."""
     import requests
 
-    secret = (current_app.config.get("MODEMPAY_SECRET_KEY") or "").strip()
+    secret = (_modem_creds().get("modem_secret_key") or "").strip()
     if not secret or not intent_secret:
         return None
     try:
@@ -159,3 +163,20 @@ def fetch_and_verify_payment(intent_secret):
     except Exception as exc:
         logger.warning("Modem Pay status check failed: %s", exc)
     return None
+
+
+def ping_credentials():
+    result = create_payment_intent(
+        100,
+        "GMD",
+        "Admin key test",
+        {"admin_test": "ping"},
+        "",
+        "",
+        "",
+    )
+    return {
+        "ok": True,
+        "message": "Wave / AfriMoney / QMoney keys work. Open the test page to complete 1 GMD.",
+        "payment_link": result.get("payment_link") or "",
+    }

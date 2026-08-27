@@ -816,6 +816,25 @@ class CloudinarySettings(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class PaymentSettings(db.Model):
+    """Singleton PayPal + Modem Pay keys and live/test mode (admin Payments page)."""
+
+    __tablename__ = "payment_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mode = db.Column(db.String(10), default="live")  # live | test
+    brand_name = db.Column(db.String(120), default="Store")
+    enc_paypal_client_id = db.Column(db.Text, default="")
+    enc_paypal_secret = db.Column(db.Text, default="")
+    enc_paypal_sandbox_client_id = db.Column(db.Text, default="")
+    enc_paypal_sandbox_secret = db.Column(db.Text, default="")
+    enc_modem_public_key = db.Column(db.Text, default="")
+    enc_modem_secret = db.Column(db.Text, default="")
+    enc_modem_webhook_secret = db.Column(db.Text, default="")
+    enc_modem_test_secret = db.Column(db.Text, default="")
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # ---------- Community ----------
 
 
