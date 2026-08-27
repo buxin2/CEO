@@ -31,6 +31,10 @@
           <label class="form-label">Payment method</label>
           <div id="payment-methods"></div>
         </div>
+        <div id="paypal-box" class="hidden" style="margin-top:12px;">
+          <p class="text-muted" style="margin-bottom:10px;">Pay with a debit or credit card, or with PayPal. You do not need a PayPal account to pay by card — use <strong>Debit or Credit Card</strong> under the gold button.</p>
+          <div id="paypal-button-container"></div>
+        </div>
         <div id="manual-instructions" class="hidden card card-inner" style="margin-top:12px;"></div>
         <div id="delivery-section" class="hidden">
           <h3>Delivery information</h3>
@@ -57,6 +61,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/checkout.js?v=2"></script>
+  <script src="js/paypal-buttons.js?v=1"></script>
+  <script src="js/checkout.js?v=4"></script>
 </body>
 </html>

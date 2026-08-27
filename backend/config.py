@@ -136,6 +136,7 @@ class Config:
     PAYPAL_CLIENT_ID = (os.environ.get("PAYPAL_CLIENT_ID") or "").strip()
     PAYPAL_CLIENT_SECRET = (os.environ.get("PAYPAL_CLIENT_SECRET") or "").strip()
     PAYPAL_MODE = (os.environ.get("PAYPAL_MODE") or "live").strip().lower()
+    PAYPAL_BRAND_NAME = (os.environ.get("PAYPAL_BRAND_NAME") or "Store").strip()
     MODEMPAY_PUBLIC_KEY = (os.environ.get("MODEMPAY_PUBLIC_KEY") or "").strip()
     MODEMPAY_SECRET_KEY = (os.environ.get("MODEMPAY_SECRET_KEY") or "").strip()
     MODEMPAY_WEBHOOK_SECRET = (os.environ.get("MODEMPAY_WEBHOOK_SECRET") or "").strip()

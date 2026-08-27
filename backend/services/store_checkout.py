@@ -11,6 +11,7 @@ from services.payment.checkout_service import (
     _init_provider_session,
     get_payment_methods,
     manual_payment_instructions,
+    paypal_sdk_config,
 )
 from services.payment.fulfillment import fulfill_payment
 from services.payment.inventory import InventoryError, lock_store_product, reserve_stock
@@ -146,6 +147,7 @@ def preview_store_checkout(items, coupon_code=None, country=None, region=None):
         "destination_countries": country_options(),
         "manual_instructions": manual_payment_instructions(),
         "modem_gmd": modem_gmd,
+        "paypal_sdk": paypal_sdk_config(currency),
     }
 
 

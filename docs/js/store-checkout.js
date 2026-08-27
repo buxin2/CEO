@@ -6,6 +6,17 @@
   let currentPaymentRef = paymentRef || "";
   const UNAVAILABLE = "FedEx shipping is currently unavailable for this destination.";
 
+  function walletChipsHtml() {
+    const wallets = [
+      { name: "Wave", bg: "#e6f7fb", fg: "#0b6b7a" },
+      { name: "AfriMoney", bg: "#f3e8ff", fg: "#5b21b6" },
+      { name: "QMoney", bg: "#f3f4f6", fg: "#111827" },
+    ];
+    return `<span style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0 22px;">${wallets.map((w) =>
+      `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:${w.bg};color:${w.fg};font-size:13px;font-weight:600;">${escapeHtml(w.name)}</span>`
+    ).join("")}</span>`;
+  }
+
   function showError(msg) {
     const el = document.getElementById("checkout-error");
     el.textContent = msg || "";
@@ -148,6 +159,7 @@
     restoreSnapshot(snap);
     const filter = document.getElementById("ship-country-filter");
     if (filter && filter.value) filterCountryOptions();
+    mountPaypalButtons();
   }
 
   function render() {
@@ -193,12 +205,18 @@
         <h2>Payment method</h2>
         <div id="payment-methods">
           ${methods.map((m) => `
-            <label style="display:block;margin-bottom:8px;">
+            <label style="display:block;margin-bottom:12px;">
               <input type="radio" name="paymethod" value="${escapeHtml(m.id)}" ${m.id === selectedMethod ? "checked" : ""}>
-              ${escapeHtml(m.label)}
+              <strong>${escapeHtml(m.label)}</strong>
+              ${m.description ? `<span class="text-muted" style="display:block;font-weight:normal;margin:4px 0 0 22px;">${escapeHtml(m.description)}</span>` : ""}
+              ${m.id === "modem" ? walletChipsHtml() : ""}
             </label>`).join("")}
         </div>
         <p id="modem-gmd-note" class="text-muted hidden" style="margin-top:8px;"></p>
+        <div id="paypal-box" class="hidden" style="margin-top:12px;">
+          <p class="text-muted" style="margin-bottom:10px;">Pay with a debit or credit card, or with PayPal. You do not need a PayPal account to pay by card — use <strong>Debit or Credit Card</strong> under the gold button.</p>
+          <div id="paypal-button-container"></div>
+        </div>
         <div id="manual-box" class="hidden card card-inner" style="margin-top:12px;"></div>
         <div id="receipt-section" class="hidden" style="margin-top:12px;">
           <label class="form-label">Payment receipt</label>
@@ -216,7 +234,7 @@
         <div class="row"><span>Discount</span><span>− ${money(t.discount_cents, t.currency)}</span></div>
         <div class="row"><span>FedEx Shipping</span><span id="sum-shipping">${shipLabel}</span></div>
         <div class="row total"><span>Total</span><span id="sum-total">${totalLabel}</span></div>
-        <div id="modem-gmd-row" class="row hidden"><span>Modem Pay (Dalasi)</span><span id="modem-gmd-amount"></span></div>
+        <div id="modem-gmd-row" class="row hidden"><span>Mobile money (Dalasi)</span><span id="modem-gmd-amount"></span></div>
         <p id="sum-note" class="${shipOk ? "text-muted" : "form-error"}" style="margin-top:8px;">${escapeHtml(ship.note || "")}</p>
       </aside>
     `;
@@ -235,6 +253,7 @@
     toggleManualPanel();
     document.getElementById("checkout-form").addEventListener("submit", async (ev) => {
       ev.preventDefault();
+      if (selectedMethod === "paypal") return;
       try {
         await startCheckout();
       } catch (e) {
@@ -257,9 +276,10 @@
       note.classList.toggle("hidden", !show);
       if (show) {
         const rate = Number(quote.rate || 0).toFixed(2);
-        note.textContent = "Modem Pay charges " + formatGmd(quote.amount)
+        note.textContent = "You will pay " + formatGmd(quote.amount)
+          + " with Wave, AfriMoney, or QMoney"
           + " (converted from " + money(quote.original_cents, quote.original_currency)
-          + " at 1 USD = " + rate + " GMD). Whole dalasi only.";
+          + " at 1 USD = " + rate + " GMD).";
       }
     }
     if (row) row.classList.toggle("hidden", !show);
@@ -268,6 +288,10 @@
 
   function toggleManualPanel() {
     toggleModemQuote();
+    const paypalBox = document.getElementById("paypal-box");
+    const payBtn = document.getElementById("pay-btn");
+    if (paypalBox) paypalBox.classList.toggle("hidden", selectedMethod !== "paypal");
+    if (payBtn) payBtn.classList.toggle("hidden", selectedMethod === "paypal");
     if (selectedMethod === "manual") {
       renderManual(preview.manual_instructions);
     } else {
@@ -276,6 +300,7 @@
       if (box) box.classList.add("hidden");
       if (rec) rec.classList.add("hidden");
     }
+    if (selectedMethod === "paypal") mountPaypalButtons();
   }
 
   function renderManual(instr) {
@@ -290,6 +315,87 @@
       <h4>${escapeHtml(block.title || "Payment instructions")}</h4>
       <ul>${(block.fields || []).map((f) => `<li><strong>${escapeHtml(f.label)}:</strong> ${escapeHtml(f.value)}</li>`).join("")}</ul>
     `).join("");
+  }
+
+  function checkoutPayload() {
+    return {
+      items: cartItems(),
+      coupon_code: document.getElementById("coupon-code").value.trim() || undefined,
+      customer: {
+        full_name: document.getElementById("cust-name").value.trim(),
+        email: document.getElementById("cust-email").value.trim(),
+        phone: document.getElementById("cust-phone").value.trim(),
+      },
+      delivery: delivery(),
+    };
+  }
+
+  let paypalMountToken = 0;
+
+  async function mountPaypalButtons() {
+    const box = document.getElementById("paypal-button-container");
+    if (!box || selectedMethod !== "paypal") return;
+    if (!window.PaypalCheckoutUi) {
+      box.innerHTML = "<p class='form-error'>PayPal checkout failed to load. Refresh the page.</p>";
+      return;
+    }
+    const cfg = preview && preview.paypal_sdk;
+    if (!cfg || !cfg.client_id) {
+      box.innerHTML = "<p class='form-error'>Card / PayPal is not configured on the server.</p>";
+      return;
+    }
+    const token = ++paypalMountToken;
+    box.innerHTML = "<p class='text-muted'>Loading card and PayPal options…</p>";
+    try {
+      await PaypalCheckoutUi.loadSdk(cfg.client_id, cfg.currency || (preview.totals && preview.totals.currency) || "USD");
+      if (token !== paypalMountToken || selectedMethod !== "paypal") return;
+      await PaypalCheckoutUi.renderButtons("#paypal-button-container", {
+        createOrder: async function () {
+          showError("");
+          if (needsShipping() && !(preview.shipping && preview.shipping.available)) {
+            throw new Error("Select a shipping country first so FedEx shipping can be added.");
+          }
+          const form = document.getElementById("checkout-form");
+          if (form && !form.reportValidity()) {
+            throw new Error("Fill in your name, email, phone, and shipping details before paying.");
+          }
+          const res = await storeFetch("/api/store/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(Object.assign(checkoutPayload(), { payment_method: "paypal" })),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const err = data.error;
+            throw new Error(typeof err === "string" ? err : "Checkout failed");
+          }
+          currentPaymentRef = data.payment.payment_reference;
+          const orderId = data.payment && data.payment.provider_payment_id;
+          if (!orderId) throw new Error("PayPal did not start. Please try again.");
+          return orderId;
+        },
+        onApprove: async function (data) {
+          const res = await storeFetch("/api/store/checkout/verify/" + encodeURIComponent(currentPaymentRef), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paypal_order_id: data.orderID }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || "PayPal capture failed.");
+          saveStoreCart([]);
+          window.location.href = body.order_url || ("store-order.html?order=" + encodeURIComponent((body.order || {}).order_number || ""));
+        },
+        onCancel: function () {
+          showError("Payment was cancelled. You can pay by card or PayPal again.");
+        },
+        onError: function (err) {
+          showError((err && err.message) || "PayPal could not complete this payment.");
+        },
+      });
+    } catch (e) {
+      if (token !== paypalMountToken) return;
+      showError(e.message || "Could not open card / PayPal checkout.");
+    }
   }
 
   async function startCheckout() {
@@ -312,17 +418,7 @@
       const res = await storeFetch("/api/store/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: cartItems(),
-          coupon_code: document.getElementById("coupon-code").value.trim() || undefined,
-          payment_method: selectedMethod,
-          customer: {
-            full_name: document.getElementById("cust-name").value.trim(),
-            email: document.getElementById("cust-email").value.trim(),
-            phone: document.getElementById("cust-phone").value.trim(),
-          },
-          delivery: delivery(),
-        }),
+        body: JSON.stringify(Object.assign(checkoutPayload(), { payment_method: selectedMethod })),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -336,15 +432,13 @@
         window.location.href = data.order_url || ("store-order.html?order=" + encodeURIComponent(data.order.order_number));
         return;
       }
-      if (selectedMethod === "modem" || selectedMethod === "paypal") {
+      if (selectedMethod === "modem") {
         const link = data.payment && data.payment.payment_link;
         if (link) {
           window.location.href = link;
           return;
         }
-        throw new Error(selectedMethod === "modem"
-          ? "Modem Pay could not open a payment page. Please try PayPal or bank transfer."
-          : "PayPal could not open a payment page. Please try again.");
+        throw new Error("Wave / AfriMoney / QMoney checkout did not open. Please try card/PayPal or bank transfer.");
       }
       if (selectedMethod === "manual") {
         try {

@@ -53,9 +53,12 @@ def create_order(total_cents, currency, reference, return_url, cancel_url):
             }
         ],
         "application_context": {
+            "brand_name": (current_app.config.get("PAYPAL_BRAND_NAME") or "Store")[:127],
+            "landing_page": "BILLING",
+            "user_action": "PAY_NOW",
+            "shipping_preference": "NO_SHIPPING",
             "return_url": return_url,
             "cancel_url": cancel_url,
-            "user_action": "PAY_NOW",
         },
     }
     resp = requests.post(

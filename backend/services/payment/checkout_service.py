@@ -51,12 +51,34 @@ def manual_payment_instructions():
 def get_payment_methods(currency):
     methods = []
     if (current_app.config.get("MODEMPAY_SECRET_KEY") or "").strip():
-        methods.append({"id": "modem", "label": "Modem Pay (Gambian Dalasi)", "currencies": ["GMD", "USD"]})
+        methods.append({
+            "id": "modem",
+            "label": "Wave, AfriMoney, or QMoney",
+            "description": "Pay with Gambian mobile money. Choose Wave, AfriMoney, or QMoney on the next screen.",
+            "wallets": ["Wave", "AfriMoney", "QMoney"],
+            "currencies": ["GMD", "USD"],
+        })
     if (current_app.config.get("PAYPAL_CLIENT_ID") or "").strip():
-        methods.append({"id": "paypal", "label": "PayPal", "currencies": ["USD", "EUR", "GBP"]})
+        methods.append({
+            "id": "paypal",
+            "label": "Card or PayPal",
+            "description": "Visa, Mastercard, debit card, or PayPal. No PayPal account needed to pay by card.",
+            "currencies": ["USD", "EUR", "GBP"],
+        })
     methods.append({"id": "manual", "label": "Bank / Money Transfer", "currencies": ["USD", "GMD"]})
     cur = (currency or "USD").upper()
     return [m for m in methods if cur in m["currencies"] or m["id"] == "manual"]
+
+
+def paypal_sdk_config(currency="USD"):
+    client_id = (current_app.config.get("PAYPAL_CLIENT_ID") or "").strip()
+    if not client_id:
+        return None
+    return {
+        "client_id": client_id,
+        "mode": (current_app.config.get("PAYPAL_MODE") or "live").strip().lower(),
+        "currency": (currency or "USD").upper(),
+    }
 
 
 def _with_modem_quote(payload, totals):
@@ -65,6 +87,7 @@ def _with_modem_quote(payload, totals):
     except Exception as exc:
         logger.warning("GMD quote failed: %s", exc)
         payload["modem_gmd"] = None
+    payload["paypal_sdk"] = paypal_sdk_config(totals.get("currency") or "USD")
     return payload
 
 
@@ -128,7 +151,7 @@ def _init_provider_session(payment, title, metadata, return_path=None, cancel_pa
         payment.provider_intent_secret = result.get("provider_intent_secret") or ""
         payment.payment_link = result.get("payment_link") or ""
         if not payment.payment_link:
-            raise ValueError("Modem Pay did not return a payment page. Please try PayPal or bank transfer.")
+            raise ValueError("Mobile money checkout did not open. Please try card/PayPal or bank transfer.")
         payment.status = "processing"
     elif payment.provider == "paypal":
         result = paypal_create_order(

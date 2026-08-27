@@ -12,6 +12,17 @@
     return ((n || 0) / 100).toFixed(2);
   }
 
+  function walletChipsHtml() {
+    const wallets = [
+      { name: "Wave", bg: "#e6f7fb", fg: "#0b6b7a" },
+      { name: "AfriMoney", bg: "#f3e8ff", fg: "#5b21b6" },
+      { name: "QMoney", bg: "#f3f4f6", fg: "#111827" },
+    ];
+    return `<span style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0 22px;">${wallets.map((w) =>
+      `<span style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:8px;background:${w.bg};color:${w.fg};font-size:13px;font-weight:600;">${escapeHtml(w.name)}</span>`
+    ).join("")}</span>`;
+  }
+
   function showError(msg) {
     const el = document.getElementById("checkout-error");
     el.textContent = msg;
@@ -59,9 +70,11 @@
     }
     document.getElementById("checkout-summary").innerHTML = summary;
     document.getElementById("payment-methods").innerHTML = (preview.payment_methods || []).map((m) => `
-      <label style="display:block;margin-bottom:6px;">
+      <label style="display:block;margin-bottom:12px;">
         <input type="radio" name="paymethod" value="${escapeHtml(m.id)}" ${m.id === selectedMethod ? "checked" : ""}>
-        ${escapeHtml(m.label)}
+        <strong>${escapeHtml(m.label)}</strong>
+        ${m.description ? `<span class="text-muted" style="display:block;font-weight:normal;margin:4px 0 0 22px;">${escapeHtml(m.description)}</span>` : ""}
+        ${m.id === "modem" ? walletChipsHtml() : ""}
       </label>`).join("");
     let gmdNote = document.getElementById("modem-gmd-note");
     if (!gmdNote) {
@@ -76,10 +89,67 @@
         selectedMethod = el.value;
         toggleManualInstructions();
         toggleModemQuote();
+        togglePaypalBox();
       });
     });
     toggleManualInstructions();
     toggleModemQuote();
+    togglePaypalBox();
+  }
+
+  function togglePaypalBox() {
+    const box = document.getElementById("paypal-box");
+    const payBtn = document.getElementById("pay-btn");
+    if (box) box.classList.toggle("hidden", selectedMethod !== "paypal");
+    if (payBtn) payBtn.classList.toggle("hidden", selectedMethod === "paypal");
+    if (selectedMethod === "paypal") mountPaypalButtons();
+  }
+
+  let paypalMountToken = 0;
+
+  async function mountPaypalButtons() {
+    const box = document.getElementById("paypal-button-container");
+    if (!box || selectedMethod !== "paypal") return;
+    const cfg = preview && preview.paypal_sdk;
+    if (!window.PaypalCheckoutUi || !cfg || !cfg.client_id) {
+      if (box) box.innerHTML = "<p class='form-error'>Card / PayPal is not configured.</p>";
+      return;
+    }
+    const token = ++paypalMountToken;
+    box.innerHTML = "<p class='text-muted'>Loading card and PayPal options…</p>";
+    try {
+      await PaypalCheckoutUi.loadSdk(cfg.client_id, cfg.currency || (preview.totals && preview.totals.currency) || "USD");
+      if (token !== paypalMountToken || selectedMethod !== "paypal") return;
+      await PaypalCheckoutUi.renderButtons("#paypal-button-container", {
+        createOrder: async function () {
+          showError("");
+          const data = await startCheckout(true);
+          const orderId = data && data.payment && data.payment.provider_payment_id;
+          if (!orderId) throw new Error("PayPal did not start. Please try again.");
+          return orderId;
+        },
+        onApprove: async function (data) {
+          const res = await fetch(apiUrl("/api/checkout/verify/" + encodeURIComponent(currentPaymentRef)), {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paypal_order_id: data.orderID }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || "PayPal capture failed.");
+          showSuccess(body);
+        },
+        onCancel: function () {
+          showError("Payment was cancelled. You can pay by card or PayPal again.");
+        },
+        onError: function (err) {
+          showError((err && err.message) || "PayPal could not complete this payment.");
+        },
+      });
+    } catch (e) {
+      if (token !== paypalMountToken) return;
+      showError(e.message || "Could not open card / PayPal checkout.");
+    }
   }
 
   function toggleModemQuote() {
@@ -90,8 +160,8 @@
     el.classList.toggle("hidden", !show);
     if (show) {
       const gmd = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(quote.amount);
-      el.textContent = "Modem Pay charges " + gmd + " GMD (1 USD = "
-        + Number(quote.rate || 0).toFixed(2) + " GMD). Whole dalasi only.";
+      el.textContent = "You will pay " + gmd + " GMD with Wave, AfriMoney, or QMoney (1 USD = "
+        + Number(quote.rate || 0).toFixed(2) + " GMD).";
     }
   }
 
@@ -115,7 +185,7 @@
     document.getElementById("receipt-section").classList.remove("hidden");
   }
 
-  async function startCheckout() {
+  async function startCheckout(forPaypalButtons) {
     const body = {
       coupon_code: document.getElementById("coupon-code").value.trim() || undefined,
       payment_method: selectedMethod,
@@ -145,11 +215,16 @@
     if (data.payment.status === "succeeded") {
       return showSuccess(data);
     }
-    if (selectedMethod === "modem" || selectedMethod === "paypal") {
+    if (forPaypalButtons) return data;
+    if (selectedMethod === "modem") {
       if (data.payment.payment_link) {
         window.location.href = data.payment.payment_link;
         return;
       }
+    }
+    if (selectedMethod === "paypal" && data.payment.payment_link) {
+      window.location.href = data.payment.payment_link;
+      return data;
     }
     if (selectedMethod === "manual") {
       showToast("Complete payment externally, then upload your receipt below.");
@@ -177,6 +252,7 @@
 
   document.getElementById("apply-coupon-btn").addEventListener("click", () => loadPreview().catch((e) => showError(e.message)));
   document.getElementById("pay-btn").addEventListener("click", async () => {
+    if (selectedMethod === "paypal") return;
     try {
       await startCheckout();
     } catch (e) {

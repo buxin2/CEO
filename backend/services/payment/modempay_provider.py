@@ -86,7 +86,7 @@ def create_payment_intent(amount_cents, currency, title, metadata, return_url, c
         "currency": "GMD",
         "title": (title or "Payment")[:120],
         "metadata": _stringify_metadata(meta),
-        "skip_url_validation": True,
+        "payment_methods": ["wallet"],
     }
     if return_url:
         params["return_url"] = return_url
