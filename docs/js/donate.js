@@ -7,7 +7,8 @@
   let currentRef = "";
 
   function hasMethod(id) {
-    return !!(preview && (preview.payment_methods || []).some((m) => m.id === id));
+    if (!preview || !preview.payment_methods) return true;
+    return (preview.payment_methods || []).some((m) => m.id === id);
   }
 
   function cents() {
@@ -76,7 +77,7 @@
         <input class="form-control hidden" id="donate-custom" type="number" min="1" step="1" inputmode="decimal" placeholder="Any amount from $1">
         <p id="donate-error" class="sf-error hidden" style="margin-top:12px;"></p>
         <div id="donate-pay"></div>
-        <p class="sf-muted" id="donate-wake" style="margin-top:14px;">Preparing a secure payment…</p>
+        <p class="sf-muted" id="donate-wake" style="margin-top:14px;">Pick an amount, then pay below. The server is warming in the background.</p>
       </section>
     `;
     document.getElementById("donate-amounts").addEventListener("click", (ev) => {
@@ -110,42 +111,41 @@
   function paintPay() {
     const box = document.getElementById("donate-pay");
     if (!box) return;
-    const paypal = hasMethod("paypal");
-    const modem = hasMethod("modem");
-    const manual = hasMethod("manual");
     box.innerHTML = `
-      ${paypal ? `<div class="pay-section"><h3 class="pay-section-title">Card or PayPal</h3><div id="paypal-button-container"></div></div>` : ""}
-      ${modem ? `
-        <div class="pay-section">
-          <h3 class="pay-section-title">Mobile money</h3>
-          <button type="button" class="pay-wallets-card" id="donate-wave">
-            <span class="pay-wallets-logos">
-              <span class="pay-logo-tile wave"><img src="img/wallets/wave.jpg" alt="Wave"></span>
-              <span class="pay-logo-tile afrimoney"><img src="img/wallets/afrimoney.png" alt="AfriMoney"></span>
-              <span class="pay-logo-tile qmoney"><img src="img/wallets/qmoney.jpg" alt="QMoney"></span>
-            </span>
-            <span class="pay-wallets-caption">Wave · AfriMoney · QMoney</span>
-          </button>
-        </div>` : ""}
-      ${manual ? `
-        <div class="pay-section">
-          <button type="button" class="pay-bank-toggle" id="donate-bank"><strong>Bank / money transfer</strong></button>
-          <div id="manual-box" class="hidden card card-inner" style="margin-top:12px;"></div>
-          <div id="receipt-section" class="hidden" style="margin-top:12px;">
-            <label class="form-label">Receipt (optional after you transfer)</label>
-            <input type="file" id="receipt-file" accept="image/*">
-            <button type="button" class="sf-btn sf-btn-primary sf-btn-block" id="donate-bank-go" style="margin-top:10px;">Send donation details</button>
-          </div>
-        </div>` : ""}
+      <div class="pay-section">
+        <h3 class="pay-section-title">Card or PayPal</h3>
+        <button type="button" class="sf-btn sf-btn-primary sf-btn-block" id="donate-paypal-go">Give with card or PayPal</button>
+        <div id="paypal-button-container" style="margin-top:10px;"></div>
+      </div>
+      <div class="pay-section">
+        <h3 class="pay-section-title">Mobile money</h3>
+        <button type="button" class="pay-wallets-card" id="donate-wave">
+          <span class="pay-wallets-logos">
+            <span class="pay-logo-tile wave"><img src="img/wallets/wave.jpg" alt="Wave"></span>
+            <span class="pay-logo-tile afrimoney"><img src="img/wallets/afrimoney.png" alt="AfriMoney"></span>
+            <span class="pay-logo-tile qmoney"><img src="img/wallets/qmoney.jpg" alt="QMoney"></span>
+          </span>
+          <span class="pay-wallets-caption">Wave · AfriMoney · QMoney</span>
+          <span class="pay-wallet-hint">Pay now</span>
+        </button>
+      </div>
+      <div class="pay-section">
+        <button type="button" class="pay-bank-toggle" id="donate-bank"><strong>Bank / money transfer</strong></button>
+        <div id="manual-box" class="hidden card card-inner" style="margin-top:12px;"></div>
+        <div id="receipt-section" class="hidden" style="margin-top:12px;">
+          <label class="form-label">Receipt (optional after you transfer)</label>
+          <input type="file" id="receipt-file" accept="image/*">
+          <button type="button" class="sf-btn sf-btn-primary sf-btn-block" id="donate-bank-go" style="margin-top:10px;">Send donation details</button>
+        </div>
+      </div>
     `;
-    if (paypal) mountPaypal();
-    const wave = document.getElementById("donate-wave");
-    if (wave) wave.addEventListener("click", () => startDonate("modem").catch((e) => showErr(e.message)));
-    const bank = document.getElementById("donate-bank");
-    if (bank) bank.addEventListener("click", () => {
+    document.getElementById("donate-paypal-go").addEventListener("click", () => givePaypal().catch((e) => showErr(e.message)));
+    document.getElementById("donate-wave").addEventListener("click", () => startDonate("modem").catch((e) => showErr(e.message)));
+    document.getElementById("donate-bank").addEventListener("click", () => {
       selectedMethod = "manual";
       startDonate("manual").catch((e) => showErr(e.message));
     });
+    mountPaypal().catch(function () {});
   }
 
   function donor() {
@@ -159,43 +159,90 @@
       return null;
     }
     selectedMethod = method;
-    const res = await fetch(apiUrl("/api/donate"), {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        product_id: product.id,
-        slug: product.slug,
-        amount_cents: cents(),
-        payment_method: method,
-        customer: donor(),
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Could not start the donation.");
-    const pay = data.payment || {};
-    currentRef = pay.payment_reference || "";
-    if (method === "modem" && pay.payment_link) {
-      window.open(pay.payment_link, "_blank", "noopener");
-    }
-    if (method === "manual") {
-      const box = document.getElementById("manual-box");
-      const rec = document.getElementById("receipt-section");
-      if (box) {
-        box.classList.remove("hidden");
-        const instr = data.manual_instructions;
-        box.innerHTML = instr
-          ? Object.values(instr).map((block) => `
-              <h4>${escapeHtml(block.title || "Bank details")}</h4>
-              <ul>${(block.fields || []).map((f) => `<li><strong>${escapeHtml(f.label)}:</strong> ${escapeHtml(f.value)}</li>`).join("")}</ul>
-            `).join("")
-          : "<p>Transfer any amount, then upload a receipt if you have one.</p>";
+    const wake = document.getElementById("donate-wake");
+    if (wake) wake.textContent = "Connecting to payment…";
+    let lastErr = new Error("Could not start the donation.");
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        if (typeof wakeApiServer === "function" && attempt === 0) {
+          await wakeApiServer().catch(function () {});
+        }
+        const res = await fetch(apiUrl("/api/donate"), {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            product_id: product.id,
+            slug: product.slug,
+            amount_cents: cents(),
+            payment_method: method,
+            customer: donor(),
+          }),
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          if (res.status >= 500 || res.status === 429) {
+            lastErr = new Error(data.error || "Server is waking up. Try again in a moment.");
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+          throw new Error(data.error || "Could not start the donation.");
+        }
+        if (data.paypal_sdk) preview = Object.assign({}, preview || {}, { paypal_sdk: data.paypal_sdk });
+        const pay = data.payment || {};
+        currentRef = pay.payment_reference || "";
+        if (wake) wake.textContent = "You can give now.";
+        if (method === "modem" && pay.payment_link) {
+          window.open(pay.payment_link, "_blank", "noopener");
+        }
+        if (method === "manual") {
+          const box = document.getElementById("manual-box");
+          const rec = document.getElementById("receipt-section");
+          if (box) {
+            box.classList.remove("hidden");
+            const instr = data.manual_instructions;
+            box.innerHTML = instr
+              ? Object.values(instr).map((block) => `
+                  <h4>${escapeHtml(block.title || "Bank details")}</h4>
+                  <ul>${(block.fields || []).map((f) => `<li><strong>${escapeHtml(f.label)}:</strong> ${escapeHtml(f.value)}</li>`).join("")}</ul>
+                `).join("")
+              : "<p>Transfer any amount, then upload a receipt if you have one.</p>";
+          }
+          if (rec) rec.classList.remove("hidden");
+          const go = document.getElementById("donate-bank-go");
+          if (go) go.onclick = uploadReceipt;
+        }
+        return pay;
+      } catch (e) {
+        lastErr = e;
+        await new Promise((r) => setTimeout(r, 1500));
       }
-      if (rec) rec.classList.remove("hidden");
-      const go = document.getElementById("donate-bank-go");
-      if (go) go.onclick = uploadReceipt;
     }
-    return pay;
+    throw lastErr;
+  }
+
+  async function givePaypal() {
+    showErr("");
+    const btn = document.getElementById("donate-paypal-go");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Opening PayPal…";
+    }
+    try {
+      const pay = await startDonate("paypal");
+      if (pay && pay.payment_link) {
+        window.location.href = pay.payment_link;
+        return;
+      }
+      await mountPaypal();
+      if (btn) btn.textContent = "Use the PayPal buttons below";
+    } catch (e) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Give with card or PayPal";
+      }
+      throw e;
+    }
   }
 
   async function uploadReceipt() {
@@ -264,7 +311,7 @@
         preview = data;
         const wake = document.getElementById("donate-wake");
         if (wake) wake.textContent = "You can give now.";
-        paintPay();
+        mountPaypal().catch(function () {});
       }
     } catch (e) {}
   }
