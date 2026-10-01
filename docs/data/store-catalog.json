@@ -1,0 +1,73 @@
+{
+  "store": {
+    "currency": "USD",
+    "customs_signer": "",
+    "default_height_cm": 8.0,
+    "default_length_cm": 20.0,
+    "default_weight_kg": 0.6,
+    "default_width_cm": 15.0,
+    "free_shipping_min_cents": null,
+    "id": 1,
+    "logo_url": "",
+    "origin_city": "Greater Noida",
+    "origin_country": "IN",
+    "origin_email": "",
+    "origin_name": "Store",
+    "origin_phone": "",
+    "origin_state": "UP",
+    "origin_street": "",
+    "origin_zip": "201310",
+    "store_name": "Store",
+    "tagline": "Shop our products"
+  },
+  "categories": [],
+  "products": [
+    {
+      "availability": "Available: 980",
+      "category_id": null,
+      "category_name": "",
+      "cover_image": "https://res.cloudinary.com/do7bo97gv/image/upload/v1787773073/store/products/2/inxcpo5vpzfah5oetwxp.jpg",
+      "currency": "USD",
+      "description": "<h3>Meet Muraja — Your Daily Quran Companion</h3>\n<p>Muraja is a compact, handheld device designed to help you stay connected to the Quran \nand dhikr, wherever you are.</p>\n<ul>\n  <li><strong>Random Ayah:</strong> Press a button to get a random ayah — a gentle nudge \n  to open the Quran and continue reading from where it points you.</li>\n  <li><strong>Guided Dhikr:</strong> Perfect for after prayer — press a button to receive \n  guided dhikr to keep your remembrance of Allah consistent throughout the day.</li>\n  <li><strong>Recite Any Ayah:</strong> Choose and recite any specific ayah you want, \n  fully customizable to your own reading plan.</li>\n</ul>\n<p>Small enough to carry in your pocket or bag, Muraja is built to be a simple, distraction-free \ncompanion for your daily spiritual routine.</p>",
+      "free_shipping": false,
+      "height_cm": null,
+      "id": 2,
+      "images": [
+        {
+          "alt_text": "",
+          "id": 2,
+          "sort_order": 0,
+          "url": "https://res.cloudinary.com/do7bo97gv/image/upload/v1787773073/store/products/2/inxcpo5vpzfah5oetwxp.jpg"
+        }
+      ],
+      "in_stock": true,
+      "keywords": "Quran player, dhikr device, Islamic gadget, ayah recall, handheld Quran, Muslim gift, dhikr reminder, portable Quran device",
+      "length_cm": null,
+      "options": [],
+      "price_cents": 2999,
+      "product_type": "physical",
+      "quantity_sellable": 980,
+      "sale_price_cents": null,
+      "shipping_required": true,
+      "short_description": "Muraja is your personal Quran companion — get a random ayah to reflect on, guided dhikr  after prayer, or recite any ayah you choose. Fully customizable. Available in black and white.",
+      "sku": "MRJ-001",
+      "slug": "muraja-handheld-quran-dhikr-companion-2",
+      "specifications": "<ul>\n  <li>Display: OLED screen (ayah/reference readout)</li>\n  <li>Controls: 5-button navigation cluster</li>\n  <li>Speaker: Built-in circular speaker grille</li>\n  <li>Charging: Micro-USB port</li>\n  <li>Colors available: Black, White</li>\n  <li>Power: Rechargeable battery</li>\n</ul>",
+      "status": "active",
+      "title": "Muraja — Handheld Quran & Dhikr Companion",
+      "unit_price_cents": 2999,
+      "videos": [
+        {
+          "embed_url": "https://res.cloudinary.com/do7bo97gv/video/upload/v1787773076/store/products/2/videos/iwsnnyf9jhoted1qlubj.mp4",
+          "id": 2,
+          "sort_order": 0,
+          "title": "",
+          "url": "https://res.cloudinary.com/do7bo97gv/video/upload/v1787773076/store/products/2/videos/iwsnnyf9jhoted1qlubj.mp4",
+          "video_type": "url"
+        }
+      ],
+      "weight_kg": null,
+      "width_cm": null
+    }
+  ]
+}

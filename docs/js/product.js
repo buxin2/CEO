@@ -49,18 +49,22 @@
   }
 
   function renderPrice() {
+    const price = money((product.unit_price_cents || 0) + extraCents(), product.currency);
     const el = document.getElementById("live-price");
-    if (el) el.textContent = money((product.unit_price_cents || 0) + extraCents(), product.currency);
+    if (el) el.textContent = price;
+    const sticky = document.getElementById("sticky-price");
+    if (sticky) sticky.textContent = price;
   }
 
   function setMedia(i) {
+    if (!media.length) return;
     mediaIndex = (i + media.length) % media.length;
     const item = media[mediaIndex];
     const main = document.getElementById("gallery-main");
-    if (!item) return;
+    if (!item || !main) return;
     if (item.kind === "image") {
-      main.innerHTML = `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(product.title)}">`;
-      main.onclick = () => {
+      main.innerHTML = `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.alt || product.title)}"><button class="sf-nav-btn prev" type="button" aria-label="Previous">‹</button><button class="sf-nav-btn next" type="button" aria-label="Next">›</button>`;
+      main.querySelector("img").onclick = () => {
         const overlay = document.createElement("div");
         overlay.className = "zoom-overlay";
         overlay.innerHTML = `<img src="${escapeHtml(item.url)}" alt="">`;
@@ -68,13 +72,15 @@
         document.body.appendChild(overlay);
       };
     } else if (item.embed && (item.type === "youtube" || item.type === "vimeo")) {
-      main.innerHTML = `<div class="video-embed" style="padding-bottom:56.25%;position:relative;height:auto;min-height:280px;"><iframe src="${escapeHtml(item.embed)}" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>`;
-      main.onclick = null;
+      main.innerHTML = `<iframe src="${escapeHtml(item.embed)}" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; playsinline"></iframe><button class="sf-nav-btn prev" type="button">‹</button><button class="sf-nav-btn next" type="button">›</button>`;
     } else {
-      main.innerHTML = `<video src="${escapeHtml(item.url)}" controls></video>`;
-      main.onclick = null;
+      main.innerHTML = `<video src="${escapeHtml(item.url)}" controls playsinline></video><button class="sf-nav-btn prev" type="button">‹</button><button class="sf-nav-btn next" type="button">›</button>`;
     }
-    document.querySelectorAll(".product-thumbs [data-i]").forEach((el) => {
+    const prev = main.querySelector(".prev");
+    const next = main.querySelector(".next");
+    if (prev) prev.onclick = (ev) => { ev.stopPropagation(); setMedia(mediaIndex - 1); };
+    if (next) next.onclick = (ev) => { ev.stopPropagation(); setMedia(mediaIndex + 1); };
+    document.querySelectorAll(".sf-thumbs [data-i]").forEach((el) => {
       el.classList.toggle("active", Number(el.dataset.i) === mediaIndex);
     });
   }
@@ -109,17 +115,30 @@
     showToast("Added to cart");
   }
 
+  function bindSwipe(el) {
+    let x0 = null;
+    el.addEventListener("touchstart", (e) => {
+      x0 = e.changedTouches[0].screenX;
+    }, { passive: true });
+    el.addEventListener("touchend", (e) => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].screenX - x0;
+      x0 = null;
+      if (dx > 40) setMedia(mediaIndex - 1);
+      if (dx < -40) setMedia(mediaIndex + 1);
+    }, { passive: true });
+  }
+
   function render() {
     const store = product.store || {};
-    document.getElementById("store-brand").textContent = store.store_name || "Store";
+    StoreStatic.applyBrand(store);
     document.title = product.title;
     document.getElementById("meta-desc").setAttribute("content", product.short_description || product.title);
     document.getElementById("og-title").setAttribute("content", product.title);
     document.getElementById("og-desc").setAttribute("content", (product.short_description || "") + " · " + money(product.unit_price_cents, product.currency));
     if (product.cover_image) document.getElementById("og-image").setAttribute("content", product.cover_image);
 
-    media = (product.images || []).map((i) => ({ kind: "image", url: i.url }));
-    (product.videos || []).forEach((v) => media.push({ kind: "video", url: v.url, embed: v.embed_url, type: v.video_type }));
+    media = StoreStatic.mediaList(product);
 
     const optionHtml = (product.options || []).filter((opt) => (opt.values || []).length).map((opt) => `
       <div class="option-group">
@@ -132,72 +151,73 @@
 
     const oos = !product.in_stock;
     const related = (product.related || []).map((p) => `
-      <a class="store-card" href="product.html?p=${encodeURIComponent(p.slug)}">
-        <img class="store-card-image" src="${escapeHtml(p.cover_image || "")}" alt="">
-        <div class="store-card-body">
+      <a class="sf-card" href="product.html?p=${encodeURIComponent(p.slug)}">
+        <div class="sf-card-media"><img src="${escapeHtml(p.cover_image || "")}" alt=""></div>
+        <div class="sf-card-body">
           <h3>${escapeHtml(p.title)}</h3>
-          <div class="store-price">${money(p.unit_price_cents, p.currency)}</div>
+          <div class="sf-price">${money(p.unit_price_cents, p.currency)}</div>
         </div>
       </a>
     `).join("");
 
     const videosHtml = (product.videos || []).map((v) => {
-      if (v.video_type === "youtube" || v.video_type === "vimeo") {
-        return `<div class="video-embed"><iframe src="${escapeHtml(v.embed_url)}" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>`;
+      const item = StoreStatic.mediaList({ videos: [v], images: [] }).find((m) => m.kind === "video");
+      if (!item) return "";
+      if (item.embed) {
+        return `<div class="video-embed"><iframe src="${escapeHtml(item.embed)}" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; playsinline"></iframe></div>`;
       }
-      return `<video src="${escapeHtml(v.url)}" controls style="width:100%;border-radius:12px;"></video>`;
+      return `<div class="sf-video-block"><video src="${escapeHtml(item.url)}" controls playsinline></video></div>`;
+    }).join("");
+
+    const thumbs = media.map((m, i) => {
+      if (m.kind === "image") return `<img data-i="${i}" src="${escapeHtml(m.url)}" alt="">`;
+      return `<button data-i="${i}" type="button">▶</button>`;
     }).join("");
 
     document.getElementById("product-root").innerHTML = `
-      <div class="product-layout">
-        <div>
-          <div class="product-gallery-main" id="gallery-main"></div>
-          <div class="product-thumbs" id="thumbs">
-            ${media.map((m, i) => m.kind === "image"
-              ? `<img data-i="${i}" src="${escapeHtml(m.url)}" alt="">`
-              : `<button data-i="${i}" type="button">Video</button>`
-            ).join("")}
-          </div>
+      <div class="sf-product">
+        <div class="sf-gallery">
+          <div class="sf-gallery-main" id="gallery-main"></div>
+          <div class="sf-thumbs" id="thumbs">${thumbs}</div>
         </div>
-        <div class="product-buy-box">
-          <div class="text-muted" style="font-size:12px;">${escapeHtml(product.category_name || "")} ${product.sku ? "· SKU " + escapeHtml(product.sku) : ""}</div>
+        <div class="sf-buy">
+          <div class="sf-muted">${escapeHtml(product.category_name || "")} ${product.sku ? "· " + escapeHtml(product.sku) : ""}</div>
           <h1>${escapeHtml(product.title)}</h1>
-          <p class="text-muted">${escapeHtml(product.short_description || "")}</p>
-          <div class="store-price" id="live-price">${money(product.unit_price_cents, product.currency)}</div>
+          <p class="sf-muted">${escapeHtml(product.short_description || "")}</p>
+          <div class="sf-price" id="live-price">${money(product.unit_price_cents, product.currency)}</div>
           ${product.sale_price_cents != null ? `<div class="was">${money(product.price_cents, product.currency)}</div>` : ""}
-          <div class="store-avail ${oos ? "oos" : ""}">${escapeHtml(product.availability)}</div>
+          <div class="sf-avail ${oos ? "oos" : ""}">${escapeHtml(product.availability || "")}</div>
           ${optionHtml}
-          <div class="qty-row">
-            <label for="qty-select">Quantity</label>
+          <div class="sf-qty qty-row">
+            <label for="qty-select">Qty</label>
             <select class="form-control" id="qty-select" ${oos ? "disabled" : ""}>
               ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<option value="${n}">${n}</option>`).join("")}
               <option value="custom">Custom</option>
             </select>
             <input class="form-control hidden" id="qty-input" type="number" min="11" max="999" inputmode="numeric" placeholder="11+" ${oos ? "disabled" : ""}>
           </div>
-          <div class="buy-actions">
-            <button class="btn btn-primary btn-block" id="buy-now" ${oos ? "disabled" : ""}>Buy now</button>
-            <button class="btn btn-secondary btn-block" id="add-cart" ${oos ? "disabled" : ""}>Add to cart</button>
+          <div class="sf-actions">
+            <button class="sf-btn sf-btn-primary sf-btn-block" id="buy-now" ${oos ? "disabled" : ""}>Buy now</button>
+            <button class="sf-btn sf-btn-ghost sf-btn-block" id="add-cart" style="color:inherit;background:#fff;box-shadow:inset 0 0 0 1px rgba(22,19,17,.12)" ${oos ? "disabled" : ""}>Add to cart</button>
           </div>
-          <p class="text-muted" style="margin-top:12px;font-size:13px;">
-            ${product.shipping_required ? "Physical product — shipping is calculated at checkout based on your country." : "Digital product — no shipping required. Access is provided after payment."}
+          <p class="sf-muted" style="margin-top:14px;">
+            ${product.shipping_required ? "Ships worldwide where available. Pay with card, PayPal, or Wave at checkout." : "Digital product — access after payment."}
           </p>
         </div>
       </div>
-      <section class="product-section">
+      <section class="sf-section">
         <h2>Description</h2>
-        <div class="product-desc">${product.description || "<p class='text-muted'>No description yet.</p>"}</div>
+        <div class="sf-prose product-desc">${StoreStatic.richText(product.description)}</div>
       </section>
-      ${product.specifications ? `<section class="product-section"><h2>Specifications</h2><div class="product-desc">${product.specifications}</div></section>` : ""}
-      ${videosHtml ? `<section class="product-section"><h2>Videos</h2>${videosHtml}</section>` : ""}
-      <section class="product-section">
+      ${product.specifications ? `<section class="sf-section"><h2>Specifications</h2><div class="sf-prose">${StoreStatic.richText(product.specifications)}</div></section>` : ""}
+      ${videosHtml ? `<section class="sf-section" id="videos"><h2>Videos</h2>${videosHtml}</section>` : ""}
+      <section class="sf-section">
         <h2>Shipping & payment</h2>
-        <div class="product-desc">
-          <p>Pay securely with the payment methods available at checkout (PayPal, mobile payment, or bank transfer where configured).</p>
-          <p>Shipping rates are set by destination. If delivery is not available to your country, checkout will tell you before you pay.</p>
+        <div class="sf-prose">
+          <p>Browse photos and videos here with no wait. Checkout uses PayPal or Wave / AfriMoney / QMoney when you are ready to pay.</p>
         </div>
       </section>
-      ${related ? `<section class="product-section"><h2>Related products</h2><div class="store-grid">${related}</div></section>` : ""}
+      ${related ? `<section class="sf-section"><h2>You may also like</h2><div class="sf-grid">${related}</div></section>` : ""}
     `;
 
     document.getElementById("thumbs").querySelectorAll("[data-i]").forEach((el) => {
@@ -210,30 +230,33 @@
     document.getElementById("add-cart").addEventListener("click", addCart);
     const sticky = document.getElementById("sticky-buy");
     sticky.classList.remove("hidden");
-    sticky.innerHTML = `<button class="btn btn-primary btn-block" id="sticky-buy-btn" ${oos ? "disabled" : ""}>Buy now · <span id="sticky-price">${money(product.unit_price_cents, product.currency)}</span></button>`;
+    sticky.innerHTML = `<button class="sf-btn sf-btn-primary" id="sticky-buy-btn" ${oos ? "disabled" : ""}>Buy now · <span id="sticky-price">${money(product.unit_price_cents, product.currency)}</span></button>`;
     document.getElementById("sticky-buy-btn").addEventListener("click", buyNow);
     setMedia(0);
+    bindSwipe(document.getElementById("gallery-main"));
   }
 
-  (async function init() {
-    if (!slug) {
-      document.getElementById("product-root").innerHTML = "<p>Product not found.</p>";
-      return;
-    }
-    const qs = preview ? ("?preview=" + encodeURIComponent(preview)) : "";
-    const res = await storeFetch("/api/store/products/" + encodeURIComponent(slug) + qs);
-    const data = await res.json();
-    if (!res.ok) {
-      document.getElementById("product-root").innerHTML = `<p>${escapeHtml(data.error || "Product not found.")}</p>`;
-      return;
-    }
-    product = data;
-    window.STORE_CONTACT_PRODUCT = {
-      title: product.title,
-      url: location.href,
-    };
+  if (!slug) {
+    document.getElementById("product-root").innerHTML = "<p class=\"sf-empty\">Product not found.</p>";
+    return;
+  }
+
+  StoreStatic.onProductLive = function (live) {
+    if (!live || !live.id) return;
+    product = live;
+    window.STORE_CONTACT_PRODUCT = { title: product.title, url: location.href };
     render();
-  })().catch((e) => {
-    document.getElementById("product-root").innerHTML = `<p>${escapeHtml(e.message)}</p>`;
+  };
+
+  StoreStatic.loadProduct(slug, preview).then((p) => {
+    if (!p) {
+      document.getElementById("product-root").innerHTML = "<p class=\"sf-empty\">Opening product… if this stays empty, the catalog file has no matching item.</p>";
+      return;
+    }
+    product = p;
+    window.STORE_CONTACT_PRODUCT = { title: product.title, url: location.href };
+    render();
+  }).catch((e) => {
+    document.getElementById("product-root").innerHTML = `<p class="sf-empty">${escapeHtml(e.message)}</p>`;
   });
 })();

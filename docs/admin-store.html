@@ -37,6 +37,7 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-secondary" id="copy-store-link">Copy Store Link</button>
+          <button class="btn btn-secondary" id="export-catalog">Download store catalog JSON</button>
           <button class="btn btn-primary" id="add-product-btn">+ Add Product</button>
         </div>
       </div>
@@ -112,14 +113,16 @@
         </div>
         <div class="form-group"><label class="form-label">Related product IDs (comma separated)</label><input class="form-control" id="p-related"></div>
         <div class="form-group">
-          <label class="form-label">Add image URL</label>
-          <div style="display:flex;gap:8px;"><input class="form-control" id="p-image-url"><button type="button" class="btn btn-secondary" id="add-image-url">Add URL</button></div>
+          <label class="form-label">Image link (paste a public https URL — it shows instantly below)</label>
+          <div style="display:flex;gap:8px;"><input class="form-control" id="p-image-url" placeholder="https://…/photo.jpg"><button type="button" class="btn btn-secondary" id="add-image-url">Add URL</button></div>
+          <img id="p-image-live" alt="Image preview" class="hidden" style="margin-top:10px;max-width:100%;max-height:220px;border-radius:12px;object-fit:cover;">
           <input type="file" id="p-image-file" accept="image/*" style="margin-top:8px;">
         </div>
         <div class="media-thumb-row" id="p-images"></div>
         <div class="form-group">
-          <label class="form-label">Add YouTube / video URL</label>
-          <div style="display:flex;gap:8px;"><input class="form-control" id="p-video-url" placeholder="https://youtube.com/watch?v=..."><button type="button" class="btn btn-secondary" id="add-video-url">Add video</button></div>
+          <label class="form-label">Video link (YouTube, Vimeo, or direct .mp4 URL)</label>
+          <div style="display:flex;gap:8px;"><input class="form-control" id="p-video-url" placeholder="https://youtube.com/watch?v=… or https://….mp4"><button type="button" class="btn btn-secondary" id="add-video-url">Add video</button></div>
+          <video id="p-video-live" class="hidden" controls playsinline style="margin-top:10px;width:100%;max-height:220px;border-radius:12px;background:#000;"></video>
           <input type="file" id="p-video-file" accept="video/mp4,video/webm,video/quicktime" style="margin-top:8px;">
         </div>
         <div id="p-videos"></div>
@@ -134,6 +137,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/admin-store.js?v=2"></script>
+  <script src="js/store-static.js?v=1"></script>
+  <script src="js/admin-store.js?v=3"></script>
 </body>
 </html>

@@ -2,6 +2,8 @@
   let storeUrl = "";
   let categories = [];
   let editingId = null;
+  let pendingImages = [];
+  let pendingVideos = [];
 
   function centsInput(el) {
     const v = el.value.trim();
@@ -79,10 +81,14 @@
 
   function openCreate() {
     editingId = null;
+    pendingImages = [];
+    pendingVideos = [];
     document.getElementById("product-form").reset();
     document.getElementById("p-id").value = "";
     document.getElementById("p-images").innerHTML = "";
     document.getElementById("p-videos").innerHTML = "";
+    document.getElementById("p-image-live").classList.add("hidden");
+    document.getElementById("p-video-live").classList.add("hidden");
     document.getElementById("p-ship").checked = true;
     document.getElementById("p-weight").value = "0.6";
     document.getElementById("product-modal-title").textContent = "Add product";
@@ -116,18 +122,30 @@
     document.getElementById("p-dig-text").value = p.digital_delivery_text || "";
     document.getElementById("p-options").value = JSON.stringify(p.options || [], null, 2);
     document.getElementById("p-related").value = (p.related_ids || []).join(",");
+    pendingImages = [];
+    pendingVideos = [];
     renderMedia(p);
     document.getElementById("product-modal-title").textContent = "Edit product";
     openModal("product-modal");
   }
 
   function renderMedia(p) {
-    document.getElementById("p-images").innerHTML = (p.images || []).map((i) => `
-      <div><img src="${escapeHtml(i.url)}" alt=""><button type="button" class="btn btn-ghost btn-sm" data-del-img="${i.id}">Remove</button></div>
-    `).join("");
-    document.getElementById("p-videos").innerHTML = (p.videos || []).map((v) => `
-      <div class="text-muted">${escapeHtml(v.video_type)} · ${escapeHtml(v.url)} <button type="button" class="btn btn-ghost btn-sm" data-del-vid="${v.id}">Remove</button></div>
-    `).join("");
+    const savedImgs = (p && p.images) ? p.images : [];
+    const savedVids = (p && p.videos) ? p.videos : [];
+    document.getElementById("p-images").innerHTML =
+      savedImgs.map((i) => `
+        <div><img src="${escapeHtml(i.url)}" alt=""><button type="button" class="btn btn-ghost btn-sm" data-del-img="${i.id}">Remove</button></div>
+      `).join("") +
+      pendingImages.map((url, idx) => `
+        <div><img src="${escapeHtml(url)}" alt=""><button type="button" class="btn btn-ghost btn-sm" data-drop-pending-img="${idx}">Remove</button></div>
+      `).join("");
+    document.getElementById("p-videos").innerHTML =
+      savedVids.map((v) => `
+        <div class="text-muted">${escapeHtml(v.video_type)} · ${escapeHtml(v.url)} <button type="button" class="btn btn-ghost btn-sm" data-del-vid="${v.id}">Remove</button></div>
+      `).join("") +
+      pendingVideos.map((url, idx) => `
+        <div class="text-muted">pending · ${escapeHtml(url)} <button type="button" class="btn btn-ghost btn-sm" data-drop-pending-vid="${idx}">Remove</button></div>
+      `).join("");
     document.querySelectorAll("[data-del-img]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         await apiRequest("/api/admin/store/images/" + btn.dataset.delImg, { method: "DELETE" });
@@ -140,6 +158,18 @@
         await apiRequest("/api/admin/store/videos/" + btn.dataset.delVid, { method: "DELETE" });
         const p2 = await apiRequest("/api/admin/store/products/" + editingId);
         renderMedia(p2);
+      });
+    });
+    document.querySelectorAll("[data-drop-pending-img]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        pendingImages.splice(Number(btn.dataset.dropPendingImg), 1);
+        renderMedia(p);
+      });
+    });
+    document.querySelectorAll("[data-drop-pending-vid]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        pendingVideos.splice(Number(btn.dataset.dropPendingVid), 1);
+        renderMedia(p);
       });
     });
   }
@@ -236,6 +266,17 @@
         form.append("file", vidFile);
         await fetch(apiUrl("/api/admin/store/products/" + saved.id + "/videos"), { method: "POST", credentials: "include", body: form });
       }
+      for (const url of pendingImages) {
+        const form = new FormData();
+        form.append("url", url);
+        await fetch(apiUrl("/api/admin/store/products/" + saved.id + "/images"), { method: "POST", credentials: "include", body: form });
+      }
+      for (const url of pendingVideos) {
+        await apiRequest("/api/admin/store/products/" + saved.id + "/videos", { method: "POST", body: JSON.stringify({ url }) });
+      }
+      pendingImages = [];
+      pendingVideos = [];
+      if (window.StoreStatic) StoreStatic.refreshLive();
       closeModal("product-modal");
       showToast("Product saved");
       await load();
@@ -244,31 +285,80 @@
     }
   });
 
-  document.getElementById("add-image-url").addEventListener("click", async () => {
-    if (!editingId) {
-      showToast("Save the product first, then add media.");
+  document.getElementById("p-image-url").addEventListener("input", () => {
+    const url = document.getElementById("p-image-url").value.trim();
+    const img = document.getElementById("p-image-live");
+    if (!url) {
+      img.classList.add("hidden");
+      img.removeAttribute("src");
       return;
     }
+    img.src = url;
+    img.classList.remove("hidden");
+  });
+  document.getElementById("p-video-url").addEventListener("input", () => {
+    const url = document.getElementById("p-video-url").value.trim();
+    const vid = document.getElementById("p-video-live");
+    if (!url || url.indexOf("youtube") !== -1 || url.indexOf("vimeo") !== -1 || url.indexOf("youtu.be") !== -1) {
+      vid.classList.add("hidden");
+      vid.removeAttribute("src");
+      return;
+    }
+    vid.src = url;
+    vid.classList.remove("hidden");
+  });
+  document.getElementById("p-image-file").addEventListener("change", () => {
+    const file = document.getElementById("p-image-file").files[0];
+    const img = document.getElementById("p-image-live");
+    if (!file) return;
+    img.src = URL.createObjectURL(file);
+    img.classList.remove("hidden");
+  });
+
+  document.getElementById("add-image-url").addEventListener("click", async () => {
     const url = document.getElementById("p-image-url").value.trim();
     if (!url) return;
+    if (!editingId) {
+      pendingImages.push(url);
+      renderMedia({ images: [], videos: [] });
+      document.getElementById("p-image-url").value = "";
+      showToast("Image link queued — it will save with the product.");
+      return;
+    }
     const form = new FormData();
     form.append("url", url);
     await fetch(apiUrl("/api/admin/store/products/" + editingId + "/images"), { method: "POST", credentials: "include", body: form });
     const p = await apiRequest("/api/admin/store/products/" + editingId);
     renderMedia(p);
     document.getElementById("p-image-url").value = "";
+    if (window.StoreStatic) StoreStatic.refreshLive();
   });
   document.getElementById("add-video-url").addEventListener("click", async () => {
-    if (!editingId) {
-      showToast("Save the product first, then add media.");
-      return;
-    }
     const url = document.getElementById("p-video-url").value.trim();
     if (!url) return;
+    if (!editingId) {
+      pendingVideos.push(url);
+      renderMedia({ images: [], videos: [] });
+      document.getElementById("p-video-url").value = "";
+      showToast("Video link queued — it will save with the product.");
+      return;
+    }
     await apiRequest("/api/admin/store/products/" + editingId + "/videos", { method: "POST", body: JSON.stringify({ url }) });
     const p = await apiRequest("/api/admin/store/products/" + editingId);
     renderMedia(p);
     document.getElementById("p-video-url").value = "";
+    if (window.StoreStatic) StoreStatic.refreshLive();
+  });
+
+  document.getElementById("export-catalog").addEventListener("click", async () => {
+    const live = window.StoreStatic ? await StoreStatic.refreshLive() : null;
+    const data = live || { store: {}, categories: [], products: [] };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "store-catalog.json";
+    a.click();
+    showToast("Saved snapshot. Replace docs/data/store-catalog.json and push so phones see it with no backend.");
   });
 
   load().catch((e) => showToast(e.message));

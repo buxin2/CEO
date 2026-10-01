@@ -2,19 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Account</title>
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/storefront.css?v=1">
 </head>
-<body class="store-body store-account-page">
-  <header class="store-topbar">
-    <div class="store-topbar-inner">
-      <a class="store-brand" href="store.html">Store</a>
-      <div class="store-search"><span class="text-muted">Your account</span></div>
-      <a class="store-cart-link" href="store-checkout.html">Cart <span class="store-cart-count" id="store-cart-count">0</span></a>
+<body class="storefront store-body store-account-page">
+  <div class="sf-glow"></div>
+  <header class="sf-bar">
+    <a class="sf-brand" href="store.html">
+      <span class="sf-brand-mark">S</span>
+      <span class="sf-brand-text">
+        <strong>Account</strong>
+        <small>Orders & profile</small>
+      </span>
+    </a>
+    <label class="sf-search-wrap">
+      <a class="sf-pill" href="store.html" style="display:block;text-align:center;padding:12px;">← Shop</a>
+    </label>
+    <div class="sf-bar-actions">
+      <a class="sf-cart" href="store-checkout.html" aria-label="Cart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>
+        <span class="store-cart-count" id="store-cart-count">0</span>
+      </a>
     </div>
   </header>
-  <main class="store-wrap store-account-wrap">
+  <main class="sf-page store-account-wrap">
     <div id="account-error" class="form-error store-account-alert hidden"></div>
     <div id="account-root">
       <div class="empty-state"><span class="spinner"></span></div>

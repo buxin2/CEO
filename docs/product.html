@@ -2,30 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Product</title>
   <meta name="description" id="meta-desc" content="">
   <meta property="og:title" id="og-title" content="">
   <meta property="og:description" id="og-desc" content="">
   <meta property="og:image" id="og-image" content="">
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/storefront.css?v=1">
 </head>
-<body class="store-body">
-  <header class="store-topbar">
-    <div class="store-topbar-inner">
-      <a class="store-brand" href="store.html" id="store-brand">Store</a>
-      <div class="store-search"><a href="store.html" class="text-muted">← All products</a></div>
-      <a class="store-cart-link" href="store-checkout.html">Cart <span class="store-cart-count" id="store-cart-count">0</span></a>
+<body class="storefront">
+  <div class="sf-glow"></div>
+  <header class="sf-bar">
+    <a class="sf-brand" href="store.html">
+      <span class="sf-brand-mark" id="sf-brand-mark">S</span>
+      <span class="sf-brand-text">
+        <strong id="sf-brand-name">Store</strong>
+        <small id="sf-brand-tag">All products</small>
+      </span>
+    </a>
+    <label class="sf-search-wrap">
+      <a class="sf-pill" href="store.html" style="display:block;text-align:center;padding:12px;">← Shop</a>
+    </label>
+    <div class="sf-bar-actions">
+      <a class="sf-pill" href="store-account.html">Account</a>
+      <a class="sf-cart" href="store-checkout.html" aria-label="Cart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>
+        <span class="store-cart-count" id="store-cart-count">0</span>
+      </a>
     </div>
   </header>
-  <main class="store-wrap" id="product-root">
-    <div class="empty-state"><span class="spinner"></span></div>
+  <main class="sf-page" id="product-root">
+    <div class="sf-empty">Opening product…</div>
   </main>
   <div class="sticky-buy hidden" id="sticky-buy"></div>
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="js/store-cart.js?v=6"></script>
+  <script src="js/store-static.js?v=1"></script>
   <script src="js/store-contact.js?v=1"></script>
-  <script src="js/product.js?v=4"></script>
+  <script src="js/product.js?v=5"></script>
 </body>
 </html>
