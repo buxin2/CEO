@@ -1612,6 +1612,7 @@ class StoreProduct(db.Model):
     description = db.Column(db.Text, default="")
     specifications = db.Column(db.Text, default="")
     sku = db.Column(db.String(80), default="")
+    short_code = db.Column(db.String(24), default="")
     category_id = db.Column(db.Integer, db.ForeignKey("store_categories.id"), nullable=True, index=True)
     product_type = db.Column(db.String(20), default="physical")  # physical, digital
     status = db.Column(db.String(20), default="draft", index=True)
@@ -1688,6 +1689,7 @@ class StoreProduct(db.Model):
             "description": self.description or "",
             "specifications": self.specifications or "",
             "sku": self.sku or "",
+            "short_code": (self.short_code or "").strip().lower(),
             "category_id": self.category_id,
             "category_name": self.category.name if self.category else "",
             "product_type": self.product_type or "physical",

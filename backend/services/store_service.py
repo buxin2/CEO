@@ -229,6 +229,9 @@ def _product_fields(product, data, is_create=False):
         product.specifications = sanitize_html(data.get("specifications") or "")
     if "sku" in data:
         product.sku = str(data.get("sku") or "")[:80]
+    if "short_code" in data:
+        code = _SLUG_RE.sub("", str(data.get("short_code") or "").lower())[:16]
+        product.short_code = code
     if "category_id" in data:
         product.category_id = data.get("category_id") or None
     if data.get("product_type"):

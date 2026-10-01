@@ -3,14 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Page Not Found</title>
+  <title>Opening…</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/short-link.js?v=1"></script>
 </head>
 <body>
   <div class="error-page">
     <div class="error-code">404</div>
-    <p>The page you're looking for doesn't exist.</p>
-    <a class="btn btn-primary" href="dashboard.html">Back to Dashboard</a>
+    <p id="nf-msg">The page you're looking for doesn't exist.</p>
+    <a class="btn btn-primary" href="store.html">Back to store</a>
   </div>
+  <script>
+    StoreShort.go().then(function (ok) {
+      if (!ok && StoreShort.pathCode()) {
+        document.getElementById("nf-msg").textContent = "That short product link was not found.";
+      }
+    });
+  </script>
 </body>
 </html>

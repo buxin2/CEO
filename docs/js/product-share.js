@@ -2,8 +2,8 @@
 
 (function (global) {
   const W = 1080;
-  const H = 1680;
-  const QR = 720;
+  const H = 1920;
+  const QR = 680;
 
   function roundRect(ctx, x, y, w, h, r) {
     const rad = Math.min(r, w / 2, h / 2);
@@ -44,10 +44,30 @@
   }
 
   function productPageUrl(product, storeUrl) {
+    if (global.StoreShort) return StoreShort.shortUrl(product, storeUrl);
     if (product && product.product_url) return product.product_url;
     const base = String(storeUrl || "").replace(/store\.html.*$/i, "");
     const slug = (product && product.slug) || "";
     if (base && slug) return base + "product.html?p=" + encodeURIComponent(slug);
+    return "";
+  }
+
+  function longPageUrl(product, storeUrl) {
+    if (product && product.product_url) return product.product_url;
+    const base = String(storeUrl || "").replace(/store\.html.*$/i, "");
+    const slug = (product && product.slug) || "";
+    if (base && slug) return base + "product.html?p=" + encodeURIComponent(slug);
+    return "";
+  }
+
+  function whatsappLabel() {
+    const raw = (global.APP_CONFIG && APP_CONFIG.WHATSAPP_NUMBER) || "";
+    const d = String(raw).replace(/\D/g, "");
+    if (d.length === 12 && d.indexOf("91") === 0) {
+      return "WhatsApp +91 " + d.slice(2, 7) + " " + d.slice(7);
+    }
+    if (d.length === 10) return "WhatsApp +91 " + d.slice(0, 5) + " " + d.slice(5);
+    if (d) return "WhatsApp +" + d;
     return "";
   }
 
@@ -92,6 +112,8 @@
     }
     const title = product.title || "Product";
     const price = formatPrice(product.unit_price_cents != null ? product.unit_price_cents : product.price_cents, product.currency);
+    const wa = whatsappLabel();
+    const typeLine = url.replace(/^https:\/\//i, "");
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
@@ -112,20 +134,20 @@
     ctx.fillStyle = "#e8c98a";
     ctx.font = "600 28px Outfit, Segoe UI, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("SCAN THIS QR CODE", W / 2, 78);
+    ctx.fillText("SCAN THIS QR CODE", W / 2, 70);
 
     const photo = await loadImage(product.cover_image || ((product.images || [])[0] && product.images[0].url) || "");
-    const photoH = 300;
-    const photoY = 110;
+    const photoH = 360;
+    const photoY = 96;
     const photoX = 90;
     const photoW = W - 180;
     roundRect(ctx, photoX, photoY, photoW, photoH, 28);
     ctx.save();
     ctx.clip();
-    ctx.fillStyle = "#2a221c";
+    ctx.fillStyle = "#fffaf2";
     ctx.fillRect(photoX, photoY, photoW, photoH);
     if (photo) {
-      const scale = Math.max(photoW / photo.width, photoH / photo.height);
+      const scale = Math.min(photoW / photo.width, photoH / photo.height);
       const dw = photo.width * scale;
       const dh = photo.height * scale;
       ctx.drawImage(photo, photoX + (photoW - dw) / 2, photoY + (photoH - dh) / 2, dw, dh);
@@ -137,36 +159,44 @@
     ctx.stroke();
 
     ctx.fillStyle = "#fffaf2";
-    ctx.font = "600 54px 'Cormorant Garamond', Georgia, serif";
+    ctx.font = "600 50px 'Cormorant Garamond', Georgia, serif";
     ctx.textAlign = "center";
     const lines = wrapText(ctx, title, W - 140);
-    lines.forEach((line, i) => {
-      ctx.fillText(line, W / 2, 470 + i * 62);
+    let y = 500;
+    lines.forEach((line) => {
+      ctx.fillText(line, W / 2, y);
+      y += 56;
     });
 
     ctx.fillStyle = "#e8c98a";
-    ctx.font = "700 48px Outfit, Segoe UI, sans-serif";
-    ctx.fillText(price, W / 2, 470 + lines.length * 62 + 18);
+    ctx.font = "700 46px Outfit, Segoe UI, sans-serif";
+    ctx.fillText(price, W / 2, y + 8);
+    y += 56;
+    if (wa) {
+      ctx.fillStyle = "#fffaf2";
+      ctx.font = "600 32px Outfit, Segoe UI, sans-serif";
+      ctx.fillText(wa, W / 2, y + 8);
+      y += 48;
+    }
 
     const qrUrl = await makeQrDataUrl(url);
     const qrImg = await loadImage(qrUrl);
     const qrX = (W - QR) / 2;
-    const qrY = 700;
+    const qrY = Math.min(y + 24, 780);
     roundRect(ctx, qrX - 28, qrY - 28, QR + 56, QR + 56, 36);
     ctx.fillStyle = "#fffaf2";
     ctx.fill();
     if (qrImg) ctx.drawImage(qrImg, qrX, qrY, QR, QR);
 
     ctx.fillStyle = "#fffaf2";
-    ctx.font = "600 36px Outfit, Segoe UI, sans-serif";
-    ctx.fillText("Open the camera · scan to shop", W / 2, qrY + QR + 88);
-
-    ctx.fillStyle = "rgba(255,250,242,0.72)";
-    ctx.font = "400 22px Outfit, Segoe UI, sans-serif";
-    const urlLines = wrapText(ctx, url, W - 120);
-    urlLines.forEach((line, i) => {
-      ctx.fillText(line, W / 2, qrY + QR + 130 + i * 30);
-    });
+    ctx.font = "600 34px Outfit, Segoe UI, sans-serif";
+    ctx.fillText("Or type this short link", W / 2, qrY + QR + 78);
+    ctx.fillStyle = "#e8c98a";
+    ctx.font = "700 36px Outfit, Segoe UI, sans-serif";
+    ctx.fillText(typeLine, W / 2, qrY + QR + 124);
+    ctx.fillStyle = "rgba(255,250,242,0.7)";
+    ctx.font = "500 26px Outfit, Segoe UI, sans-serif";
+    ctx.fillText("Message on WhatsApp if you want to talk first", W / 2, qrY + QR + 168);
 
     return canvas;
   }
@@ -180,12 +210,20 @@
   }
 
   function downloadUrlFile(product, storeUrl) {
-    const url = productPageUrl(product, storeUrl);
+    const short = productPageUrl(product, storeUrl);
+    const long = longPageUrl(product, storeUrl);
     const price = formatPrice(product.unit_price_cents != null ? product.unit_price_cents : product.price_cents, product.currency);
-    const body = [product.title || "Product", price, url, ""].join("\r\n");
+    const body = [
+      product.title || "Product",
+      price,
+      whatsappLabel(),
+      "Short: " + short,
+      "Full: " + long,
+      "",
+    ].join("\r\n");
     const slug = (product.slug || "product").replace(/[^\w-]+/g, "-");
     downloadBlob(slug + "-url.txt", new Blob([body], { type: "text/plain" }));
-    return url;
+    return short;
   }
 
   async function downloadPoster(product, storeUrl) {
@@ -205,6 +243,7 @@
 
   global.ProductShare = {
     productPageUrl,
+    longPageUrl,
     formatPrice,
     drawPoster,
     downloadUrlFile,

@@ -272,6 +272,7 @@ def run_schema_migrations():
     _add_column(engine, "store_products", "length_cm", "length_cm DOUBLE PRECISION", "length_cm REAL")
     _add_column(engine, "store_products", "width_cm", "width_cm DOUBLE PRECISION", "width_cm REAL")
     _add_column(engine, "store_products", "height_cm", "height_cm DOUBLE PRECISION", "height_cm REAL")
+    _add_column(engine, "store_products", "short_code", "short_code VARCHAR(24) DEFAULT ''", "short_code VARCHAR(24) DEFAULT ''")
 
     for col, pg, sq in (
         ("shipping_carrier", "shipping_carrier VARCHAR(120) DEFAULT ''", "shipping_carrier VARCHAR(120) DEFAULT ''"),

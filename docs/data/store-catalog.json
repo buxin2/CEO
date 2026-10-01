@@ -51,6 +51,7 @@
       "shipping_required": true,
       "short_description": "Muraja is your personal Quran companion — get a random ayah to reflect on, guided dhikr  after prayer, or recite any ayah you choose. Fully customizable. Available in black and white.",
       "sku": "MRJ-001",
+      "short_code": "mrj",
       "slug": "muraja-handheld-quran-dhikr-companion-2",
       "specifications": "<ul>\n  <li>Display: OLED screen (ayah/reference readout)</li>\n  <li>Controls: 5-button navigation cluster</li>\n  <li>Speaker: Built-in circular speaker grille</li>\n  <li>Charging: Micro-USB port</li>\n  <li>Colors available: Black, White</li>\n  <li>Power: Rechargeable battery</li>\n</ul>",
       "status": "active",

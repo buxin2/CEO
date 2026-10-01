@@ -119,6 +119,7 @@
     document.getElementById("p-id").value = id;
     document.getElementById("p-title").value = p.title || "";
     document.getElementById("p-sku").value = p.sku || "";
+    document.getElementById("p-short-code").value = p.short_code || "";
     document.getElementById("p-category").value = p.category_id || "";
     document.getElementById("p-status").value = p.status || "draft";
     document.getElementById("p-type").value = p.product_type || "physical";
@@ -275,6 +276,7 @@
     const payload = {
       title: document.getElementById("p-title").value,
       sku: document.getElementById("p-sku").value,
+      short_code: document.getElementById("p-short-code").value.trim().toLowerCase(),
       category_id: document.getElementById("p-category").value ? Number(document.getElementById("p-category").value) : null,
       status: document.getElementById("p-status").value,
       product_type: document.getElementById("p-type").value,
