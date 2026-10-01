@@ -248,6 +248,15 @@ function initMobileNav() {
   }
 }
 
+function requireAuth() {
+  const go = (typeof wakeApiServer === "function" ? wakeApiServer() : Promise.resolve())
+    .then(() => apiRequest("/api/me"));
+  go.catch(() => {
+    window.location.href = pageUrl("login.html");
+  });
+  return go;
+}
+
 async function handleLogout() {
   try {
     const data = await apiRequest("/api/logout", { method: "POST" });

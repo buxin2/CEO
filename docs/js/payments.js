@@ -137,15 +137,18 @@
         "Created " + (pay.payment_reference || "payment") + " but no checkout link was returned.";
     } catch (e) {
       document.getElementById("test-result").textContent = e.message;
+      const status = document.getElementById("paypal-test-status");
+      if (provider === "paypal" && status) status.textContent = e.message;
     }
   }
 
   async function openPaypalTestPopup() {
     const status = document.getElementById("paypal-test-status");
     const box = document.getElementById("paypal-test-buttons");
-    status.textContent = "Preparing $1.00 PayPal checkout…";
-    box.innerHTML = "";
+    if (status) status.textContent = "Preparing $1.00 PayPal checkout…";
+    if (box) box.innerHTML = "";
     openModal("paypal-test-modal");
+    document.getElementById("test-result").textContent = "Opening $1.00 PayPal popup…";
     const data = await apiRequest("/api/admin/payments/test", {
       method: "POST",
       body: JSON.stringify({ provider: "paypal" }),
@@ -154,34 +157,42 @@
     const cfg = data.paypal_sdk || {};
     const orderId = pay.provider_payment_id;
     const ref = pay.payment_reference;
+    const link = pay.payment_link;
     if (!cfg.client_id || !orderId) {
-      throw new Error("PayPal did not start. Check your PayPal keys and mode.");
+      if (status) {
+        status.textContent = "PayPal keys are missing. Paste Live Client ID and Live Secret below, click Save PayPal keys, then try again.";
+      }
+      throw new Error("PayPal keys are not saved yet. Paste them under PayPal keys and click Save.");
     }
     document.getElementById("test-result").textContent =
       "Test payment " + ref + " · $1.00 — choose Card or PayPal in the popup.";
-    status.textContent = "Pay $1.00 with a card or PayPal.";
+    if (status) status.textContent = "Pay $1.00 with a card or PayPal.";
+    if (!window.PaypalCheckoutUi) {
+      if (link) window.open(link, "_blank", "noopener");
+      throw new Error("PayPal buttons did not load. The PayPal page was opened in a new tab.");
+    }
     await PaypalCheckoutUi.loadSdk(cfg.client_id, cfg.currency || "USD");
     await PaypalCheckoutUi.renderButtons("#paypal-test-buttons", {
       createOrder: function () {
         return orderId;
       },
       onApprove: async function (approveData) {
-        status.textContent = "Confirming payment…";
+        if (status) status.textContent = "Confirming payment…";
         const body = await apiRequest("/api/checkout/verify/" + encodeURIComponent(ref), {
           method: "POST",
           body: JSON.stringify({ paypal_order_id: approveData.orderID || orderId }),
         });
         const st = (body.payment && body.payment.status) || "succeeded";
-        status.textContent = "Payment " + st + ".";
+        if (status) status.textContent = "Payment " + st + ".";
         document.getElementById("test-result").textContent = "Test payment " + ref + " · " + st;
         showToast("Test payment completed.");
         loadPayments().catch(() => {});
       },
       onCancel: function () {
-        status.textContent = "Payment cancelled. You can try again.";
+        if (status) status.textContent = "Payment cancelled. You can try again.";
       },
       onError: function (err) {
-        status.textContent = (err && err.message) || "PayPal could not complete this payment.";
+        if (status) status.textContent = (err && err.message) || "PayPal could not complete this payment.";
       },
     });
   }
