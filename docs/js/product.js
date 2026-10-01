@@ -72,9 +72,10 @@
         document.body.appendChild(overlay);
       };
     } else if (item.embed && (item.type === "youtube" || item.type === "vimeo")) {
-      main.innerHTML = `<iframe src="${escapeHtml(item.embed)}" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; playsinline"></iframe><button class="sf-nav-btn prev" type="button">‹</button><button class="sf-nav-btn next" type="button">›</button>`;
+      main.innerHTML = `<iframe src="${escapeHtml(StoreStatic.autoplayEmbed(item))}" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; playsinline" allowfullscreen></iframe><button class="sf-nav-btn prev" type="button">‹</button><button class="sf-nav-btn next" type="button">›</button>`;
     } else {
-      main.innerHTML = `<video src="${escapeHtml(item.url)}" controls playsinline></video><button class="sf-nav-btn prev" type="button">‹</button><button class="sf-nav-btn next" type="button">›</button>`;
+      main.innerHTML = `<video src="${escapeHtml(item.url)}" data-sf-autoplay autoplay muted loop playsinline webkit-playsinline controls></video><button class="sf-nav-btn prev" type="button">‹</button><button class="sf-nav-btn next" type="button">›</button>`;
+      StoreStatic.kickPlay(main.querySelector("video"));
     }
     const prev = main.querySelector(".prev");
     const next = main.querySelector(".next");
@@ -164,9 +165,9 @@
       const item = StoreStatic.mediaList({ videos: [v], images: [] }).find((m) => m.kind === "video");
       if (!item) return "";
       if (item.embed) {
-        return `<div class="video-embed"><iframe src="${escapeHtml(item.embed)}" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; playsinline"></iframe></div>`;
+        return `<div class="video-embed"><iframe src="${escapeHtml(StoreStatic.autoplayEmbed(item))}" allowfullscreen allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; playsinline"></iframe></div>`;
       }
-      return `<div class="sf-video-block"><video src="${escapeHtml(item.url)}" controls playsinline></video></div>`;
+      return `<div class="sf-video-block"><video src="${escapeHtml(item.url)}" data-sf-autoplay autoplay muted loop playsinline webkit-playsinline controls></video></div>`;
     }).join("");
 
     const thumbs = media.map((m, i) => {
@@ -234,6 +235,7 @@
     document.getElementById("sticky-buy-btn").addEventListener("click", buyNow);
     setMedia(0);
     bindSwipe(document.getElementById("gallery-main"));
+    StoreStatic.bindAutoplayOnView(document.getElementById("product-root"));
   }
 
   if (!slug) {

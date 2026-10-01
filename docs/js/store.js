@@ -21,7 +21,9 @@
     const img = mediaUrl(featured);
     let media = "";
     if (video && video.type === "file") {
-      media = `<video class="sf-hero-media" src="${escapeHtml(video.url)}" poster="${escapeHtml(img)}" autoplay muted loop playsinline></video>`;
+      media = `<video class="sf-hero-media" data-sf-autoplay src="${escapeHtml(video.url)}" poster="${escapeHtml(img)}" autoplay muted loop playsinline webkit-playsinline></video>`;
+    } else if (video && video.embed) {
+      media = `<iframe class="sf-hero-media" src="${escapeHtml(StoreStatic.autoplayEmbed(video))}" allow="autoplay; encrypted-media; picture-in-picture; playsinline" allowfullscreen></iframe>`;
     } else if (img) {
       media = `<div class="sf-hero-media"><img src="${escapeHtml(img)}" alt="${escapeHtml(featured.title)}"></div>`;
     }
@@ -64,14 +66,17 @@
   function cardHtml(p) {
     const img = mediaUrl(p);
     const video = StoreStatic.firstVideo(p);
-    const media = img
-      ? `<img src="${escapeHtml(img)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.style.opacity='.35'">`
-      : "";
+    let media = "";
+    if (video && video.type === "file") {
+      media = `<video data-sf-autoplay src="${escapeHtml(video.url)}" poster="${escapeHtml(img)}" autoplay muted loop playsinline webkit-playsinline></video>`;
+    } else if (img) {
+      media = `<img src="${escapeHtml(img)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.style.opacity='.35'">`;
+    }
     return `
       <a class="sf-card" href="${productHref(p)}">
         <div class="sf-card-media">
           ${media}
-          ${video ? `<span class="sf-play" aria-hidden="true">▶</span>` : ""}
+          ${video && video.type !== "file" ? `<span class="sf-play" aria-hidden="true">▶</span>` : ""}
         </div>
         <div class="sf-card-body">
           <div class="sf-muted">${escapeHtml(p.category_name || p.sku || "")}</div>
@@ -97,6 +102,8 @@
     }
     renderHero(products[0]);
     grid.innerHTML = products.map(cardHtml).join("");
+    StoreStatic.kickPlay(document.querySelector(".sf-hero-media"));
+    StoreStatic.bindAutoplayOnView(document.querySelector(".sf-page"));
   }
 
   function apply(data) {

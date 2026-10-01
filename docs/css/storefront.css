@@ -197,7 +197,8 @@ body.storefront a {
 
 .sf-hero-media,
 .sf-hero-media img,
-.sf-hero-media video {
+.sf-hero-media video,
+.sf-hero-media iframe {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -355,6 +356,7 @@ body.storefront a {
   height: 100%;
   object-fit: cover;
   display: block;
+  pointer-events: none;
 }
 
 .sf-play {

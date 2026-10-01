@@ -173,6 +173,51 @@
     return mediaList(product).find((m) => m.kind === "video") || null;
   }
 
+  function autoplayEmbed(item) {
+    if (!item) return "";
+    if (item.type === "youtube") {
+      const id = youtubeId(item.embed) || youtubeId(item.url);
+      if (!id) return item.embed || "";
+      return "https://www.youtube.com/embed/" + id + "?autoplay=1&mute=1&playsinline=1&rel=0&loop=1&playlist=" + id;
+    }
+    if (item.type === "vimeo") {
+      const base = item.embed || "";
+      return base + (base.indexOf("?") >= 0 ? "&" : "?") + "autoplay=1&muted=1&loop=1&background=1";
+    }
+    return item.embed || "";
+  }
+
+  function kickPlay(el) {
+    if (!el) return;
+    if (el.tagName === "VIDEO") {
+      el.muted = true;
+      el.defaultMuted = true;
+      el.playsInline = true;
+      el.setAttribute("playsinline", "");
+      el.setAttribute("muted", "");
+      const play = el.play();
+      if (play && play.catch) play.catch(function () {});
+    }
+  }
+
+  function bindAutoplayOnView(root) {
+    const scope = root || document;
+    const nodes = scope.querySelectorAll("video[data-sf-autoplay]");
+    nodes.forEach(kickPlay);
+    if (!("IntersectionObserver" in window)) return;
+    if (scope._sfAutoplayIo) scope._sfAutoplayIo.disconnect();
+    const io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        const el = entry.target;
+        if (el.tagName !== "VIDEO") return;
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.35) kickPlay(el);
+        else if (!entry.isIntersecting) el.pause();
+      });
+    }, { threshold: [0, 0.35, 0.6] });
+    nodes.forEach(function (n) { io.observe(n); });
+    scope._sfAutoplayIo = io;
+  }
+
   function richText(html) {
     const raw = (html || "").trim();
     if (!raw) return "<p class=\"sf-muted\">No description yet.</p>";
@@ -207,6 +252,9 @@
     filterProducts,
     mediaList,
     firstVideo,
+    autoplayEmbed,
+    kickPlay,
+    bindAutoplayOnView,
     richText,
     applyBrand,
     saveCache,

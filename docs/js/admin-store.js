@@ -4,6 +4,8 @@
   let editingId = null;
   let pendingImages = [];
   let pendingVideos = [];
+  let productsById = {};
+  let shareProduct = null;
 
   function centsInput(el) {
     const v = el.value.trim();
@@ -43,6 +45,8 @@
     });
     const catSel = document.getElementById("p-category");
     catSel.innerHTML = `<option value="">None</option>` + categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+    productsById = {};
+    (prod.products || []).forEach((p) => { productsById[p.id] = p; });
 
     document.getElementById("product-list").innerHTML = (prod.products || []).map((p) => {
       const an = p.analytics || {};
@@ -56,7 +60,9 @@
             <div class="text-muted" style="font-size:13px;">Views ${an.views || 0} · Orders ${an.total_orders || 0} · Sold ${an.units_sold || 0} · Left ${an.units_remaining == null ? "∞" : an.units_remaining} · Revenue ${((an.revenue_cents || 0) / 100).toFixed(2)} · Pending ${an.pending_orders || 0}</div>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm" data-copy="${escapeHtml(p.product_url)}">Copy Product Link</button>
+            <button class="btn btn-secondary btn-sm" data-copy="${escapeHtml(p.product_url || "")}">Copy product URL</button>
+            <button class="btn btn-secondary btn-sm" data-dl-url="${p.id}">Download URL</button>
+            <button class="btn btn-primary btn-sm" data-qr="${p.id}">QR poster</button>
             <button class="btn btn-secondary btn-sm" data-edit="${p.id}">Edit</button>
             <button class="btn btn-ghost btn-sm" data-del="${p.id}">Delete</button>
           </div>
@@ -65,7 +71,18 @@
     }).join("") || "<p class='text-muted'>No products yet. Click Add Product.</p>";
 
     document.querySelectorAll("[data-copy]").forEach((btn) => {
-      btn.addEventListener("click", () => copyToClipboard(btn.dataset.copy).then(() => showToast("Product link copied")));
+      btn.addEventListener("click", () => copyToClipboard(btn.dataset.copy).then(() => showToast("Product URL copied")));
+    });
+    document.querySelectorAll("[data-dl-url]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const p = productsById[Number(btn.dataset.dlUrl)];
+        if (!p) return;
+        ProductShare.downloadUrlFile(p, storeUrl);
+        showToast("Product URL file downloaded");
+      });
+    });
+    document.querySelectorAll("[data-qr]").forEach((btn) => {
+      btn.addEventListener("click", () => openShare(productsById[Number(btn.dataset.qr)]));
     });
     document.querySelectorAll("[data-edit]").forEach((btn) => {
       btn.addEventListener("click", () => openEdit(Number(btn.dataset.edit)));
@@ -92,6 +109,7 @@
     document.getElementById("p-ship").checked = true;
     document.getElementById("p-weight").value = "0.6";
     document.getElementById("product-modal-title").textContent = "Add product";
+    fillShareBox(null);
     openModal("product-modal");
   }
 
@@ -125,6 +143,7 @@
     pendingImages = [];
     pendingVideos = [];
     renderMedia(p);
+    fillShareBox(p);
     document.getElementById("product-modal-title").textContent = "Edit product";
     openModal("product-modal");
   }
@@ -172,6 +191,38 @@
         renderMedia(p);
       });
     });
+  }
+
+  function openShare(p) {
+    if (!p) return;
+    shareProduct = p;
+    const url = ProductShare.productPageUrl(p, storeUrl);
+    document.getElementById("qr-share-url").value = url;
+    document.getElementById("qr-share-status").textContent = "Designing QR poster…";
+    const preview = document.getElementById("qr-share-preview");
+    preview.getContext("2d").clearRect(0, 0, preview.width, preview.height);
+    openModal("qr-share-modal");
+    ProductShare.drawPoster(p, storeUrl).then((canvas) => {
+      preview.width = canvas.width;
+      preview.height = canvas.height;
+      preview.getContext("2d").drawImage(canvas, 0, 0);
+      document.getElementById("qr-share-status").textContent = "Scan the large QR code. Download this image to advertise.";
+    }).catch((e) => {
+      document.getElementById("qr-share-status").textContent = e.message;
+    });
+  }
+
+  function fillShareBox(p) {
+    const box = document.getElementById("p-share-box");
+    const input = document.getElementById("p-page-url");
+    if (!box || !input) return;
+    if (!p || !p.slug) {
+      box.classList.add("hidden");
+      return;
+    }
+    shareProduct = p;
+    input.value = ProductShare.productPageUrl(p, storeUrl);
+    box.classList.remove("hidden");
   }
 
   function parseOptions() {
@@ -277,7 +328,7 @@
       pendingImages = [];
       pendingVideos = [];
       if (window.StoreStatic) StoreStatic.refreshLive();
-      closeModal("product-modal");
+      fillShareBox(saved);
       showToast("Product saved");
       await load();
     } catch (e) {
@@ -348,6 +399,35 @@
     renderMedia(p);
     document.getElementById("p-video-url").value = "";
     if (window.StoreStatic) StoreStatic.refreshLive();
+  });
+
+  document.getElementById("p-copy-url").addEventListener("click", () => {
+    const url = document.getElementById("p-page-url").value;
+    if (!url) return;
+    copyToClipboard(url).then(() => showToast("Product URL copied"));
+  });
+  document.getElementById("p-dl-url").addEventListener("click", () => {
+    if (!shareProduct) return;
+    ProductShare.downloadUrlFile(shareProduct, storeUrl);
+    showToast("Product URL file downloaded");
+  });
+  document.getElementById("p-qr").addEventListener("click", () => openShare(shareProduct));
+  document.getElementById("qr-copy-url").addEventListener("click", () => {
+    copyToClipboard(document.getElementById("qr-share-url").value).then(() => showToast("Product URL copied"));
+  });
+  document.getElementById("qr-dl-url").addEventListener("click", () => {
+    if (!shareProduct) return;
+    ProductShare.downloadUrlFile(shareProduct, storeUrl);
+    showToast("Product URL file downloaded");
+  });
+  document.getElementById("qr-dl-poster").addEventListener("click", async () => {
+    if (!shareProduct) return;
+    try {
+      await ProductShare.downloadPoster(shareProduct, storeUrl);
+      showToast("QR poster downloaded");
+    } catch (e) {
+      showToast(e.message);
+    }
   });
 
   document.getElementById("export-catalog").addEventListener("click", async () => {
