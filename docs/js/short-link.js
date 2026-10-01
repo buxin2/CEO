@@ -6,7 +6,7 @@
     payments: 1, checkout: 1, communities: 1, community: 1, docs: 1, api: 1,
     "admin-store": 1, "store-account": 1, "store-checkout": 1, "store-order": 1,
     orders: 1, news: 1, ideas: 1, mentor: 1, company: 1, group: 1, task: 1,
-    timetable: 1, "ai-assistant": 1, go: 1, p: 1,
+    timetable: 1, "ai-assistant": 1, go: 1, p: 1, donate: 1,
   };
 
   function clean(code) {
@@ -46,6 +46,13 @@
     return base + code;
   }
 
+  function donateUrl(product, storeUrl) {
+    const base = siteBase(storeUrl);
+    const code = shortCode(product);
+    const slug = (product && product.slug) || "";
+    return base + "donate.html?c=" + encodeURIComponent(code) + (slug ? "&p=" + encodeURIComponent(slug) : "");
+  }
+
   function pathCode() {
     const parts = location.pathname.split("/").filter(Boolean);
     let last = parts[parts.length - 1] || "";
@@ -76,5 +83,5 @@
     }
   }
 
-  global.StoreShort = { RESERVED, clean, shortCode, siteBase, shortUrl, pathCode, findProduct, go };
+  global.StoreShort = { RESERVED, clean, shortCode, siteBase, shortUrl, donateUrl, pathCode, findProduct, go };
 })(window);

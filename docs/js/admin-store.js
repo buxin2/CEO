@@ -61,6 +61,7 @@
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button class="btn btn-secondary btn-sm" data-copy="${escapeHtml(p.product_url || "")}">Copy product URL</button>
+            <button class="btn btn-secondary btn-sm" data-donate="${p.id}">Copy donate link</button>
             <button class="btn btn-secondary btn-sm" data-dl-url="${p.id}">Download URL</button>
             <button class="btn btn-primary btn-sm" data-qr="${p.id}">QR poster</button>
             <button class="btn btn-secondary btn-sm" data-edit="${p.id}">Edit</button>
@@ -72,6 +73,14 @@
 
     document.querySelectorAll("[data-copy]").forEach((btn) => {
       btn.addEventListener("click", () => copyToClipboard(btn.dataset.copy).then(() => showToast("Product URL copied")));
+    });
+    document.querySelectorAll("[data-donate]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const p = productsById[Number(btn.dataset.donate)];
+        if (!p) return;
+        const url = p.donate_url || (window.StoreShort && StoreShort.donateUrl(p, storeUrl)) || "";
+        copyToClipboard(url).then(() => showToast("Donate link copied"));
+      });
     });
     document.querySelectorAll("[data-dl-url]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -223,6 +232,8 @@
     }
     shareProduct = p;
     input.value = ProductShare.productPageUrl(p, storeUrl);
+    const donate = document.getElementById("p-donate-url");
+    if (donate) donate.value = p.donate_url || (window.StoreShort && StoreShort.donateUrl(p, storeUrl)) || "";
     box.classList.remove("hidden");
   }
 
@@ -407,6 +418,11 @@
     const url = document.getElementById("p-page-url").value;
     if (!url) return;
     copyToClipboard(url).then(() => showToast("Product URL copied"));
+  });
+  document.getElementById("p-copy-donate").addEventListener("click", () => {
+    const url = document.getElementById("p-donate-url").value;
+    if (!url) return;
+    copyToClipboard(url).then(() => showToast("Donate link copied"));
   });
   document.getElementById("p-dl-url").addEventListener("click", () => {
     if (!shareProduct) return;

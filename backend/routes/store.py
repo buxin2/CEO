@@ -9,6 +9,8 @@ from routes.auth import login_required
 from services.iso_countries import country_options
 from services.fedex_zones import update_zone_rate, zones_for_admin
 from services.payment.checkout_service import (
+    checkout_donation,
+    donate_preview,
     manual_payment_instructions,
     payment_by_reference,
     verify_and_capture_payment,
@@ -133,6 +135,84 @@ def api_public_product(slug):
     payload["product_url"] = store_product_link(product.slug)
     payload["store_url"] = store_link()
     return jsonify(payload)
+
+
+@store_bp.route("/api/donate/preview", methods=["GET"])
+def api_donate_preview():
+    try:
+        payload = donate_preview(
+            product_id=request.args.get("product_id", type=int),
+            slug=request.args.get("slug") or request.args.get("p"),
+        )
+        return jsonify(payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/donate", methods=["POST"])
+def api_donate():
+    data = request.get_json(silent=True) or {}
+    amount = data.get("amount_cents")
+    if amount in (None, ""):
+        try:
+            amount = int(round(float(data.get("amount") or 0) * 100))
+        except (TypeError, ValueError):
+            amount = 0
+    try:
+        payment = checkout_donation(
+            product_id=data.get("product_id"),
+            slug=data.get("slug") or data.get("p"),
+            amount_cents=amount,
+            payment_method=data.get("payment_method") or data.get("provider") or "paypal",
+            customer_info=data.get("customer") or {},
+            wallet_network=data.get("wallet_network"),
+        )
+        from services.payment.checkout_service import paypal_sdk_config
+
+        return jsonify({
+            "payment": payment.to_dict(include_private=True),
+            "manual_instructions": manual_payment_instructions() if payment.provider == "manual" else None,
+            "paypal_sdk": paypal_sdk_config(payment.currency),
+        })
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/donate/verify/<payment_ref>", methods=["POST"])
+def api_donate_verify(payment_ref):
+    data = request.get_json(silent=True) or {}
+    payment = payment_by_reference(payment_ref)
+    if not payment or payment.payment_kind != "donation":
+        return jsonify({"error": "Payment not found."}), 404
+    try:
+        payment = verify_and_capture_payment(payment_ref, paypal_order_id=data.get("paypal_order_id"))
+        return jsonify({"payment": payment.to_dict(include_private=True)})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@store_bp.route("/api/donate/receipt/<payment_ref>", methods=["POST"])
+def api_donate_receipt(payment_ref):
+    payment = payment_by_reference(payment_ref)
+    if not payment or payment.payment_kind != "donation":
+        return jsonify({"error": "Payment not found."}), 404
+    if payment.provider != "manual":
+        return jsonify({"error": "This payment does not accept manual receipts."}), 400
+    receipt_url = (request.form.get("receipt_url") or "").strip()
+    if request.files.get("receipt"):
+        from services.cloudinary_service import upload_payment_receipt
+
+        try:
+            result = upload_payment_receipt(request.files["receipt"], payment.id)
+            receipt_url = result.get("url") or receipt_url
+        except (ValueError, RuntimeError) as exc:
+            return jsonify({"error": str(exc)}), 400
+    if not receipt_url:
+        return jsonify({"error": "Receipt URL or file is required."}), 400
+    payment.receipt_url = receipt_url[:500]
+    payment.status = "manual_pending"
+    db.session.commit()
+    return jsonify({"payment": payment.to_dict(include_private=True)})
 
 
 @store_bp.route("/api/store/checkout/preview", methods=["POST"])

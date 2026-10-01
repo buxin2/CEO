@@ -18,7 +18,7 @@ from models import (
     generate_token,
 )
 from services.store_media import parse_video_link, sanitize_html
-from utils import store_link, store_product_link
+from utils import store_link, store_product_link, store_donate_link
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -463,6 +463,7 @@ def admin_links(product):
     return {
         "store_url": store_link(),
         "product_url": store_product_link(product.slug),
+        "donate_url": store_donate_link(product.slug, product.short_code or ""),
         "preview_url": store_product_link(product.slug) + f"&preview={product.preview_token}",
     }
 

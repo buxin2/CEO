@@ -15,6 +15,7 @@ from models import (
     Order,
     Payment,
     PaymentWebhookEvent,
+    StoreProduct,
 )
 from services.payment.fulfillment import fulfill_payment, mark_payment_failed
 from services.payment.inventory import lock_product, reserve_stock, InventoryError
@@ -441,3 +442,89 @@ def start_admin_test_payment(provider, admin_email=""):
     )
     db.session.commit()
     return payment
+
+
+def checkout_donation(product_id=None, slug=None, amount_cents=None, payment_method="paypal", customer_info=None, wallet_network=None):
+    """Open amount donation toward a store product. No shipping, no account."""
+    product = None
+    if product_id:
+        product = StoreProduct.query.get(int(product_id))
+    if not product and slug:
+        product = StoreProduct.query.filter_by(slug=str(slug).strip()).first()
+    if not product:
+        raise ValueError("Product not found.")
+
+    usd_cents = max(0, int(amount_cents or 0))
+    if usd_cents < 100:
+        raise ValueError("The smallest donation is 1.00.")
+
+    provider, wallet_network = resolve_payment_provider(payment_method, wallet_network)
+    currency = "USD"
+    charge_cents = usd_cents
+    if provider == "modem":
+        quote = quote_gmd(usd_cents, "USD")
+        charge_cents = max(100, int(quote.get("amount") or 0) * 100)
+        currency = "GMD"
+
+    totals = {
+        "subtotal_cents": charge_cents,
+        "discount_cents": 0,
+        "fee_cents": 0,
+        "total_cents": charge_cents,
+        "currency": currency,
+        "coupon": None,
+    }
+    info = customer_info or {}
+    payment = _create_payment_record(
+        "donation",
+        totals,
+        None,
+        None,
+        provider=provider,
+        customer_info={
+            "full_name": (info.get("full_name") or info.get("name") or "")[:255],
+            "email": (info.get("email") or "")[:255],
+            "phone": (info.get("phone") or "")[:64],
+        },
+    )
+    payment.metadata_json = json.dumps({
+        "donation": True,
+        "store_product_id": product.id,
+        "product_title": product.title,
+        "slug": product.slug,
+        "original_usd_cents": usd_cents,
+    })
+    title = "Donation for " + (product.title or "product")[:80]
+    payment = _init_provider_session(
+        payment,
+        title,
+        {
+            "payment_reference": payment.payment_reference,
+            "donation": "1",
+            "store_product_id": str(product.id),
+        },
+        return_path=f"donate.html?p={product.slug}&payment_ref={payment.payment_reference}&status=return",
+        cancel_path=f"donate.html?p={product.slug}&payment_ref={payment.payment_reference}&status=cancel",
+        wallet_network=wallet_network,
+    )
+    db.session.commit()
+    return payment
+
+
+def donate_preview(product_id=None, slug=None):
+    product = None
+    if product_id:
+        product = StoreProduct.query.get(int(product_id))
+    if not product and slug:
+        product = StoreProduct.query.filter_by(slug=str(slug).strip()).first()
+    if not product:
+        raise ValueError("Product not found.")
+    totals = {"total_cents": 100, "currency": "USD"}
+    payload = {
+        "product": product.to_public_dict(include_media=True),
+        "payment_methods": get_payment_methods("USD"),
+        "manual_instructions": manual_payment_instructions(),
+        "min_cents": 100,
+        "currency": "USD",
+    }
+    return _with_modem_quote(payload, totals)

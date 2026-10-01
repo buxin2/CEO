@@ -32,6 +32,13 @@ def store_product_link(slug):
     return frontend_url(f"product.html?p={slug}")
 
 
+def store_donate_link(slug, short_code=""):
+    code = (short_code or "").strip()
+    if code:
+        return frontend_url(f"donate.html?c={code}&p={slug}")
+    return frontend_url(f"donate.html?p={slug}")
+
+
 def store_order_link(order_number, access_token):
     return frontend_url(
         f"store-order.html?order={order_number}&token={access_token}"
