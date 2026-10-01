@@ -419,8 +419,8 @@ def start_admin_test_payment(provider, admin_email=""):
     if provider not in ("paypal", "modem"):
         raise ValueError("Choose PayPal or Wave / AfriMoney / QMoney.")
     if provider == "paypal":
-        totals = {"subtotal_cents": 1, "discount_cents": 0, "fee_cents": 0, "total_cents": 1, "currency": "USD", "coupon": None}
-        title = "Admin PayPal test ($0.01)"
+        totals = {"subtotal_cents": 100, "discount_cents": 0, "fee_cents": 0, "total_cents": 100, "currency": "USD", "coupon": None}
+        title = "Admin PayPal test ($1.00)"
     else:
         totals = {"subtotal_cents": 100, "discount_cents": 0, "fee_cents": 0, "total_cents": 100, "currency": "GMD", "coupon": None}
         title = "Admin Wave test (1 GMD)"

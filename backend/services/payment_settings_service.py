@@ -83,7 +83,7 @@ def settings_public_dict():
             "modem": bool(_env("MODEMPAY_SECRET_KEY")),
         },
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-        "test_note": "Card/PayPal and Wave cannot charge $0.00. Tests use $0.01 (PayPal) or 1 GMD (Wave/AfriMoney/QMoney).",
+        "test_note": "PayPal tests charge $1.00 so you can use a card or PayPal in the popup. Wave tests use 1 GMD.",
     }
 
 

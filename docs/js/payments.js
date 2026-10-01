@@ -117,6 +117,10 @@
   async function testPay(provider) {
     document.getElementById("test-result").textContent = "Starting test checkout…";
     try {
+      if (provider === "paypal") {
+        await openPaypalTestPopup();
+        return;
+      }
       const data = await apiRequest("/api/admin/payments/test", {
         method: "POST",
         body: JSON.stringify({ provider }),
@@ -134,6 +138,52 @@
     } catch (e) {
       document.getElementById("test-result").textContent = e.message;
     }
+  }
+
+  async function openPaypalTestPopup() {
+    const status = document.getElementById("paypal-test-status");
+    const box = document.getElementById("paypal-test-buttons");
+    status.textContent = "Preparing $1.00 PayPal checkout…";
+    box.innerHTML = "";
+    openModal("paypal-test-modal");
+    const data = await apiRequest("/api/admin/payments/test", {
+      method: "POST",
+      body: JSON.stringify({ provider: "paypal" }),
+    });
+    const pay = data.payment || {};
+    const cfg = data.paypal_sdk || {};
+    const orderId = pay.provider_payment_id;
+    const ref = pay.payment_reference;
+    if (!cfg.client_id || !orderId) {
+      throw new Error("PayPal did not start. Check your PayPal keys and mode.");
+    }
+    document.getElementById("test-result").textContent =
+      "Test payment " + ref + " · $1.00 — choose Card or PayPal in the popup.";
+    status.textContent = "Pay $1.00 with a card or PayPal.";
+    await PaypalCheckoutUi.loadSdk(cfg.client_id, cfg.currency || "USD");
+    await PaypalCheckoutUi.renderButtons("#paypal-test-buttons", {
+      createOrder: function () {
+        return orderId;
+      },
+      onApprove: async function (approveData) {
+        status.textContent = "Confirming payment…";
+        const body = await apiRequest("/api/checkout/verify/" + encodeURIComponent(ref), {
+          method: "POST",
+          body: JSON.stringify({ paypal_order_id: approveData.orderID || orderId }),
+        });
+        const st = (body.payment && body.payment.status) || "succeeded";
+        status.textContent = "Payment " + st + ".";
+        document.getElementById("test-result").textContent = "Test payment " + ref + " · " + st;
+        showToast("Test payment completed.");
+        loadPayments().catch(() => {});
+      },
+      onCancel: function () {
+        status.textContent = "Payment cancelled. You can try again.";
+      },
+      onError: function (err) {
+        status.textContent = (err && err.message) || "PayPal could not complete this payment.";
+      },
+    });
   }
 
   document.getElementById("ping-paypal").addEventListener("click", () => ping("paypal"));

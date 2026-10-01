@@ -51,7 +51,7 @@
 
       <section class="card" style="padding:20px;margin-bottom:20px;">
         <h2>Test a payment</h2>
-        <p class="text-muted" id="test-note">Payment companies reject $0.00. Tests use $0.01 (PayPal) or 1 GMD (Wave / AfriMoney / QMoney).</p>
+        <p class="text-muted" id="test-note">Click Test Card / PayPal to open a $1.00 checkout popup. You can pay with a card or PayPal. Wave tests use 1 GMD.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
           <button type="button" class="btn btn-primary" id="test-paypal">Test Card / PayPal</button>
           <button type="button" class="btn btn-primary" id="test-modem">Test Wave / AfriMoney / QMoney</button>
@@ -117,8 +117,23 @@
       <div id="payments-list" style="margin-top:16px;"></div>
     </main>
   </div>
+
+  <div class="modal-overlay" id="paypal-test-modal">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-header">
+        <h3>Test PayPal · $1.00</h3>
+        <button class="modal-close" type="button" onclick="closeModal('paypal-test-modal')">&times;</button>
+      </div>
+      <div style="padding:16px;">
+        <p class="text-muted" id="paypal-test-status">Preparing checkout…</p>
+        <div id="paypal-test-buttons" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/payments.js?v=2"></script>
+  <script src="js/paypal-buttons.js?v=1"></script>
+  <script src="js/payments.js?v=3"></script>
 </body>
 </html>
