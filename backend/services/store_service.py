@@ -237,7 +237,8 @@ def _product_fields(product, data, is_create=False):
     if data.get("product_type"):
         ptype = str(data["product_type"]).strip().lower()
         product.product_type = ptype if ptype in ("physical", "digital") else "physical"
-        product.shipping_required = product.product_type == "physical"
+        if product.product_type == "digital":
+            product.shipping_required = False
     if "shipping_required" in data:
         product.shipping_required = bool(data["shipping_required"]) and product.product_type != "digital"
     if "free_shipping" in data:

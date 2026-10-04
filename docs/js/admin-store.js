@@ -115,8 +115,9 @@
     document.getElementById("p-videos").innerHTML = "";
     document.getElementById("p-image-live").classList.add("hidden");
     document.getElementById("p-video-live").classList.add("hidden");
-    document.getElementById("p-ship").checked = true;
-    document.getElementById("p-weight").value = "0.6";
+    document.getElementById("p-ship").checked = false;
+    document.getElementById("p-weight").value = "";
+    syncShipFields();
     document.getElementById("product-modal-title").textContent = "Add product";
     fillShareBox(null);
     openModal("product-modal");
@@ -142,6 +143,7 @@
     document.getElementById("p-specs").value = p.specifications || "";
     document.getElementById("p-ship").checked = !!p.shipping_required;
     document.getElementById("p-free-ship").checked = !!p.free_shipping;
+    syncShipFields();
     document.getElementById("p-weight").value = p.weight_kg != null ? p.weight_kg : "";
     document.getElementById("p-length").value = p.length_cm != null ? p.length_cm : "";
     document.getElementById("p-width").value = p.width_cm != null ? p.width_cm : "";
@@ -246,6 +248,23 @@
       values: (o.values || []).map((v) => (typeof v === "string" ? { label: v } : v)),
     }));
   }
+
+  function syncShipFields() {
+    const on = !!(document.getElementById("p-ship") || {}).checked;
+    const digital = (document.getElementById("p-type") || {}).value === "digital";
+    const box = document.getElementById("p-ship-fields");
+    const ship = document.getElementById("p-ship");
+    if (digital && ship) {
+      ship.checked = false;
+      ship.disabled = true;
+    } else if (ship) {
+      ship.disabled = false;
+    }
+    if (box) box.classList.toggle("hidden", digital || !on);
+  }
+
+  document.getElementById("p-ship").addEventListener("change", syncShipFields);
+  document.getElementById("p-type").addEventListener("change", syncShipFields);
 
   document.getElementById("add-product-btn").addEventListener("click", openCreate);
   document.getElementById("copy-store-link").addEventListener("click", () => {

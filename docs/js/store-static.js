@@ -1,7 +1,7 @@
 /* Public store catalog: GitHub Pages JSON first, live API later. Media is always a public URL. */
 
 (function (global) {
-  const CACHE_KEY = "mms_store_catalog_v1";
+  const CACHE_KEY = "mms_store_catalog_v2";
   const FILE = "data/store-catalog.json";
 
   function clone(data) {
@@ -27,7 +27,7 @@
   }
 
   async function fromFile() {
-    const url = new URL(FILE, window.location.href).href + "?v=2";
+    const url = new URL(FILE, window.location.href).href + "?v=4";
     const res = await fetch(url, { cache: "no-cache" });
     if (!res.ok) throw new Error("catalog");
     return res.json();

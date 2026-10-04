@@ -61,6 +61,29 @@ def _ensure_cloudinary_settings_table(engine):
         conn.execute(text(ddl))
 
 
+def _default_product_shipping_off(engine):
+    """One-time: existing products start with shipping off; admin can turn it on."""
+    if not _table_exists(engine, "store_products"):
+        return
+    if _column_exists(engine, "store_settings", "ship_default_off_done"):
+        return
+    _add_column(
+        engine,
+        "store_settings",
+        "ship_default_off_done",
+        "ship_default_off_done INTEGER DEFAULT 0",
+        "ship_default_off_done INTEGER DEFAULT 0",
+    )
+    logger.info("Setting shipping off on existing store products")
+    with engine.begin() as conn:
+        if _is_postgres(engine):
+            conn.execute(text("UPDATE store_products SET shipping_required = FALSE"))
+        else:
+            conn.execute(text("UPDATE store_products SET shipping_required = 0"))
+        if _table_exists(engine, "store_settings"):
+            conn.execute(text("UPDATE store_settings SET ship_default_off_done = 1"))
+
+
 def _ensure_store_customer_notices_table(engine):
     if _table_exists(engine, "store_customer_notices"):
         return
@@ -299,6 +322,7 @@ def run_schema_migrations():
 
     _ensure_store_customer_notices_table(engine)
     _migrate_store_customer_google(engine)
+    _default_product_shipping_off(engine)
 
     db.session.commit()
     logger.info("Schema migrations complete.")

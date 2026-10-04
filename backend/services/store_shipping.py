@@ -52,7 +52,7 @@ def calculate_shipping(country_name, region_name, subtotal_cents, products):
             "country": None,
             "region": None,
             "free_shipping": True,
-            "note": "Digital order — no shipping.",
+            "note": "No shipping.",
         }
 
     country = find_country(country_name)

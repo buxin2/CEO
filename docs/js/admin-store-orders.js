@@ -55,7 +55,7 @@
       <p>${escapeHtml(o.customer_name)} · ${escapeHtml(o.customer_email)} · ${escapeHtml(o.customer_phone)}</p>
       <p class="text-muted">${o.requires_shipping
         ? `${escapeHtml(o.ship_address || "")}, ${escapeHtml(o.ship_city || "")}, ${escapeHtml(o.ship_region || "")}, ${escapeHtml(o.ship_country || "")} ${escapeHtml(o.ship_postal || "")}`
-        : "Digital — no shipping address"}</p>
+        : "No shipping address"}</p>
       <p>Product ${(o.subtotal_cents / 100).toFixed(2)} · Shipping ${(o.shipping_cents / 100).toFixed(2)} · Discount ${(o.discount_cents / 100).toFixed(2)}</p>
       <p><strong>Total ${(o.total_cents / 100).toFixed(2)} ${escapeHtml(o.currency)}</strong></p>
       ${o.shipping_carrier ? `<p class="text-muted">${escapeHtml(o.shipping_carrier)} · ${escapeHtml(o.shipping_zone || "")}</p>` : ""}

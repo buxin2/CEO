@@ -27,7 +27,7 @@
       <p>${escapeHtml(o.product_summary || "")}</p>
       <p>Total: <strong>${money(o.total_cents, o.currency)}</strong></p>
       ${o.requires_shipping ? `<p>FedEx shipping (${escapeHtml(o.shipping_zone || "")}): ${money(o.shipping_cents, o.shipping_currency || o.currency)}</p>` : ""}
-      ${o.requires_shipping ? `<p>Shipping to ${escapeHtml(o.ship_city ? o.ship_city + ", " : "")}${escapeHtml(o.ship_country)} ${escapeHtml(o.ship_postal || "")}</p>` : "<p>Digital delivery — no shipping.</p>"}
+      ${o.requires_shipping ? `<p>Shipping to ${escapeHtml(o.ship_city ? o.ship_city + ", " : "")}${escapeHtml(o.ship_country)} ${escapeHtml(o.ship_postal || "")}</p>` : ""}
       <p>Status: ${escapeHtml(o.order_status)} · Payment: ${escapeHtml(o.payment_status)}</p>
       ${o.courier || o.tracking_number ? `
         <div style="margin-top:16px;text-align:left;">

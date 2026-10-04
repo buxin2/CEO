@@ -56,7 +56,7 @@ def _shipping_quote(requires_shipping, country):
             "shipping_cents": 0,
             "carrier": "",
             "zone_name": "",
-            "note": "Digital order — no shipping.",
+            "note": "No shipping.",
         }
     if not (country or "").strip():
         return {
@@ -215,7 +215,7 @@ def checkout_store(items, customer, delivery, coupon_code, payment_method, store
         ship_note = (
             f"{quote.get('carrier') or CARRIER} · {quote.get('zone_name') or ''}".strip(" ·")
             if requires_shipping
-            else "Digital order — no shipping."
+            else "No shipping."
         )
         country_label = (quote.get("country_name") or country)[:120]
         total = after_discount + shipping_cents

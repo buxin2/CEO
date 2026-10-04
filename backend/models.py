@@ -1621,7 +1621,7 @@ class StoreProduct(db.Model):
     currency = db.Column(db.String(10), default="USD")
     quantity_available = db.Column(db.Integer, nullable=True)
     quantity_reserved = db.Column(db.Integer, default=0)
-    shipping_required = db.Column(db.Boolean, default=True)
+    shipping_required = db.Column(db.Boolean, default=False)
     free_shipping = db.Column(db.Boolean, default=False)
     weight_kg = db.Column(db.Float, nullable=True)
     length_cm = db.Column(db.Float, nullable=True)

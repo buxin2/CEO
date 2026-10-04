@@ -202,7 +202,7 @@
             <button class="sf-btn sf-btn-ghost sf-btn-block" id="add-cart" style="color:inherit;background:#fff;box-shadow:inset 0 0 0 1px rgba(22,19,17,.12)" ${oos ? "disabled" : ""}>Add to cart</button>
           </div>
           <p class="sf-muted" style="margin-top:14px;">
-            ${product.shipping_required ? "Ships worldwide where available. Pay with card, PayPal, or Wave at checkout." : "Digital product — access after payment."}
+            ${product.shipping_required ? "Ships worldwide where available. Pay with card, PayPal, or Wave at checkout." : "Pay with card, PayPal, or Wave at checkout."}
           </p>
         </div>
       </div>
@@ -212,12 +212,12 @@
       </section>
       ${product.specifications ? `<section class="sf-section"><h2>Specifications</h2><div class="sf-prose">${StoreStatic.richText(product.specifications)}</div></section>` : ""}
       ${videosHtml ? `<section class="sf-section" id="videos"><h2>Videos</h2>${videosHtml}</section>` : ""}
-      <section class="sf-section">
+      ${product.shipping_required ? `<section class="sf-section">
         <h2>Shipping & payment</h2>
         <div class="sf-prose">
-          <p>Browse photos and videos here with no wait. Checkout uses PayPal or Wave / AfriMoney / QMoney when you are ready to pay.</p>
+          <p>Checkout adds FedEx shipping for your country. Pay with PayPal or Wave / AfriMoney / QMoney.</p>
         </div>
-      </section>
+      </section>` : ""}
       ${related ? `<section class="sf-section"><h2>You may also like</h2><div class="sf-grid">${related}</div></section>` : ""}
     `;
 

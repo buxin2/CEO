@@ -241,7 +241,7 @@
         <div class="form-group"><label class="form-label">City</label><input class="form-control" id="ship-city"></div>
         <div class="form-group"><label class="form-label">Address</label><textarea class="form-control" id="ship-address"></textarea></div>
         <div class="form-group"><label class="form-label">Postal / ZIP</label><input class="form-control" id="ship-postal"></div>
-        ` : `<p class="text-muted">Digital order — no shipping address required.</p><input type="hidden" id="ship-country">`}
+        ` : `<input type="hidden" id="ship-country">`}
         <div class="form-group">
           <label class="form-label">Coupon code</label>
           <div style="display:flex;gap:8px;">
@@ -261,9 +261,9 @@
         `).join("")}
         <div class="row"><span>Product</span><span>${money(t.subtotal_cents, t.currency)}</span></div>
         <div class="row"><span>Discount</span><span>− ${money(t.discount_cents, t.currency)}</span></div>
-        <div class="row"><span>FedEx Shipping</span><span id="sum-shipping">${shipLabel}</span></div>
+        ${needsShip ? `<div class="row"><span>FedEx Shipping</span><span id="sum-shipping">${shipLabel}</span></div>` : ""}
         <div class="row total"><span>Total</span><span id="sum-total">${totalLabel}</span></div>
-        <p id="sum-note" class="${shipOk ? "text-muted" : "form-error"}" style="margin-top:8px;">${escapeHtml(ship.note || "")}</p>
+        ${needsShip ? `<p id="sum-note" class="${shipOk ? "text-muted" : "form-error"}" style="margin-top:8px;">${escapeHtml(ship.note || "")}</p>` : ""}
       </aside>
     `;
 

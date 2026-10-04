@@ -99,14 +99,19 @@
         <div class="form-group"><label class="form-label">Description (HTML allowed)</label><textarea class="form-control" id="p-desc" rows="6"></textarea></div>
         <div class="form-group"><label class="form-label">Specifications (HTML allowed)</label><textarea class="form-control" id="p-specs" rows="3"></textarea></div>
         <div class="form-group">
-          <label><input type="checkbox" id="p-ship"> Shipping required</label>
-          <label style="margin-left:12px;"><input type="checkbox" id="p-free-ship"> Free shipping on this product</label>
+          <label><input type="checkbox" id="p-ship"> Show shipping on this product</label>
+          <p class="text-muted" style="margin-top:6px;">Off by default. Checkout then shows the product price only. Turn on to collect a shipping address and add FedEx.</p>
         </div>
-        <div class="form-grid">
-          <div class="form-group"><label class="form-label">Weight (kg)</label><input class="form-control" id="p-weight" type="number" step="0.01" placeholder="0.6"></div>
-          <div class="form-group"><label class="form-label">Length (cm)</label><input class="form-control" id="p-length" type="number" step="0.1"></div>
-          <div class="form-group"><label class="form-label">Width (cm)</label><input class="form-control" id="p-width" type="number" step="0.1"></div>
-          <div class="form-group"><label class="form-label">Height (cm)</label><input class="form-control" id="p-height" type="number" step="0.1"></div>
+        <div id="p-ship-fields">
+          <div class="form-group">
+            <label><input type="checkbox" id="p-free-ship"> Free shipping on this product</label>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label class="form-label">Weight (kg)</label><input class="form-control" id="p-weight" type="number" step="0.01" placeholder="0.6"></div>
+            <div class="form-group"><label class="form-label">Length (cm)</label><input class="form-control" id="p-length" type="number" step="0.1"></div>
+            <div class="form-group"><label class="form-label">Width (cm)</label><input class="form-control" id="p-width" type="number" step="0.1"></div>
+            <div class="form-group"><label class="form-label">Height (cm)</label><input class="form-control" id="p-height" type="number" step="0.1"></div>
+          </div>
         </div>
         <div class="form-group"><label class="form-label">Digital access URL</label><input class="form-control" id="p-dig-url"></div>
         <div class="form-group"><label class="form-label">Digital access instructions</label><textarea class="form-control" id="p-dig-text"></textarea></div>
@@ -172,9 +177,9 @@
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
-  <script src="js/store-static.js?v=1"></script>
+  <script src="js/store-static.js?v=3"></script>
   <script src="js/short-link.js?v=2"></script>
   <script src="js/product-share.js?v=2"></script>
-  <script src="js/admin-store.js?v=6"></script>
+  <script src="js/admin-store.js?v=7"></script>
 </body>
 </html>
