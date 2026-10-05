@@ -218,7 +218,7 @@
       preview.width = canvas.width;
       preview.height = canvas.height;
       preview.getContext("2d").drawImage(canvas, 0, 0);
-      document.getElementById("qr-share-status").textContent = "Scan the large QR code. Download this image to advertise.";
+      document.getElementById("qr-share-status").textContent = "Shop QR on the left, donate QR on the right. Download this image to advertise.";
     }).catch((e) => {
       document.getElementById("qr-share-status").textContent = e.message;
     });

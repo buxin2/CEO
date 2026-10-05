@@ -3,7 +3,7 @@
 (function (global) {
   const W = 1080;
   const H = 1920;
-  const QR = 680;
+  const QR = 400;
 
   function roundRect(ctx, x, y, w, h, r) {
     const rad = Math.min(r, w / 2, h / 2);
@@ -33,6 +33,27 @@
     return lines.slice(0, 3);
   }
 
+  function wrapChars(ctx, text, maxWidth, maxLines) {
+    const s = String(text || "");
+    const lines = [];
+    let line = "";
+    for (let i = 0; i < s.length; i++) {
+      const test = line + s[i];
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = s[i];
+        if (lines.length >= (maxLines || 2) - 1) {
+          line = s.slice(i);
+          break;
+        }
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.slice(0, maxLines || 2);
+  }
+
   function formatPrice(cents, currency) {
     const n = (Number(cents) || 0) / 100;
     const cur = currency || "USD";
@@ -60,6 +81,22 @@
     return "";
   }
 
+  function donatePageUrl(product, storeUrl) {
+    if (product && product.donate_url) return product.donate_url;
+    if (global.StoreShort) return StoreShort.donateUrl(product, storeUrl);
+    const base = String(storeUrl || "").replace(/store\.html.*$/i, "");
+    const slug = (product && product.slug) || "";
+    const code = (product && (product.short_code || "")) || "";
+    if (base && (code || slug)) {
+      return base + "donate.html" + (code ? "?c=" + encodeURIComponent(code) : "") + (slug ? (code ? "&" : "?") + "p=" + encodeURIComponent(slug) : "");
+    }
+    return "";
+  }
+
+  function displayUrl(url) {
+    return String(url || "").replace(/^https:\/\//i, "");
+  }
+
   function whatsappLabel() {
     const raw = (global.APP_CONFIG && APP_CONFIG.WHATSAPP_NUMBER) || "";
     const d = String(raw).replace(/\D/g, "");
@@ -85,35 +122,48 @@
     });
   }
 
-  async function makeQrDataUrl(text) {
+  async function makeQrDataUrl(text, size) {
+    const px = size || QR;
     if (global.QRCode && typeof global.QRCode.toDataURL === "function") {
       return global.QRCode.toDataURL(text, {
-        width: QR,
+        width: px,
         margin: 1,
         color: { dark: "#161311", light: "#fffaf2" },
         errorCorrectionLevel: "M",
       });
     }
-    const src = "https://api.qrserver.com/v1/create-qr-code/?size=" + QR + "x" + QR + "&margin=8&data=" + encodeURIComponent(text);
+    const src = "https://api.qrserver.com/v1/create-qr-code/?size=" + px + "x" + px + "&margin=8&data=" + encodeURIComponent(text);
     const img = await loadImage(src);
     if (!img) throw new Error("Could not generate QR code.");
     const c = document.createElement("canvas");
-    c.width = QR;
-    c.height = QR;
-    c.getContext("2d").drawImage(img, 0, 0, QR, QR);
+    c.width = px;
+    c.height = px;
+    c.getContext("2d").drawImage(img, 0, 0, px, px);
     return c.toDataURL("image/png");
   }
 
+  function drawQrCard(ctx, qrImg, x, y, size, label) {
+    const pad = 22;
+    roundRect(ctx, x - pad, y - pad - 48, size + pad * 2, size + pad * 2 + 48, 28);
+    ctx.fillStyle = "#fffaf2";
+    ctx.fill();
+    ctx.fillStyle = "#161311";
+    ctx.font = "700 28px Outfit, Segoe UI, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(label, x + size / 2, y - 12);
+    if (qrImg) ctx.drawImage(qrImg, x, y, size, size);
+  }
+
   async function drawPoster(product, storeUrl) {
-    const url = productPageUrl(product, storeUrl);
-    if (!url) throw new Error("Save the product first so it has a page link.");
+    const shopUrl = productPageUrl(product, storeUrl);
+    const giveUrl = donatePageUrl(product, storeUrl);
+    if (!shopUrl) throw new Error("Save the product first so it has a page link.");
     if (document.fonts && document.fonts.ready) {
       try { await document.fonts.ready; } catch (e) {}
     }
     const title = product.title || "Product";
     const price = formatPrice(product.unit_price_cents != null ? product.unit_price_cents : product.price_cents, product.currency);
     const wa = whatsappLabel();
-    const typeLine = url.replace(/^https:\/\//i, "");
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
@@ -132,13 +182,13 @@
     ctx.fill();
 
     ctx.fillStyle = "#e8c98a";
-    ctx.font = "600 28px Outfit, Segoe UI, sans-serif";
+    ctx.font = "600 26px Outfit, Segoe UI, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("SCAN THIS QR CODE", W / 2, 70);
+    ctx.fillText("SCAN TO SHOP OR GIVE", W / 2, 64);
 
     const photo = await loadImage(product.cover_image || ((product.images || [])[0] && product.images[0].url) || "");
-    const photoH = 360;
-    const photoY = 96;
+    const photoH = 300;
+    const photoY = 88;
     const photoX = 90;
     const photoW = W - 180;
     roundRect(ctx, photoX, photoY, photoW, photoH, 28);
@@ -159,44 +209,65 @@
     ctx.stroke();
 
     ctx.fillStyle = "#fffaf2";
-    ctx.font = "600 50px 'Cormorant Garamond', Georgia, serif";
+    ctx.font = "600 46px 'Cormorant Garamond', Georgia, serif";
     ctx.textAlign = "center";
     const lines = wrapText(ctx, title, W - 140);
-    let y = 500;
+    let y = 430;
     lines.forEach((line) => {
       ctx.fillText(line, W / 2, y);
-      y += 56;
+      y += 50;
     });
 
     ctx.fillStyle = "#e8c98a";
-    ctx.font = "700 46px Outfit, Segoe UI, sans-serif";
-    ctx.fillText(price, W / 2, y + 8);
-    y += 56;
+    ctx.font = "700 42px Outfit, Segoe UI, sans-serif";
+    ctx.fillText(price, W / 2, y + 6);
+    y += 50;
     if (wa) {
       ctx.fillStyle = "#fffaf2";
-      ctx.font = "600 32px Outfit, Segoe UI, sans-serif";
-      ctx.fillText(wa, W / 2, y + 8);
-      y += 48;
+      ctx.font = "600 28px Outfit, Segoe UI, sans-serif";
+      ctx.fillText(wa, W / 2, y + 6);
+      y += 42;
     }
 
-    const qrUrl = await makeQrDataUrl(url);
-    const qrImg = await loadImage(qrUrl);
-    const qrX = (W - QR) / 2;
-    const qrY = Math.min(y + 24, 780);
-    roundRect(ctx, qrX - 28, qrY - 28, QR + 56, QR + 56, 36);
-    ctx.fillStyle = "#fffaf2";
-    ctx.fill();
-    if (qrImg) ctx.drawImage(qrImg, qrX, qrY, QR, QR);
+    const shopQr = await makeQrDataUrl(shopUrl, QR);
+    const giveQr = giveUrl ? await makeQrDataUrl(giveUrl, QR) : null;
+    const shopImg = await loadImage(shopQr);
+    const giveImg = giveQr ? await loadImage(giveQr) : null;
+    const gap = 48;
+    const pairW = giveImg ? QR * 2 + gap : QR;
+    const leftX = (W - pairW) / 2;
+    const qrY = Math.min(Math.max(y + 56, 620), 820);
+    drawQrCard(ctx, shopImg, leftX, qrY, QR, "SHOP");
+    if (giveImg) drawQrCard(ctx, giveImg, leftX + QR + gap, qrY, QR, "GIVE");
 
+    let textY = qrY + QR + 56;
+    ctx.textAlign = "center";
     ctx.fillStyle = "#fffaf2";
-    ctx.font = "600 34px Outfit, Segoe UI, sans-serif";
-    ctx.fillText("Or type this short link", W / 2, qrY + QR + 78);
+    ctx.font = "600 26px Outfit, Segoe UI, sans-serif";
+    ctx.fillText("Shop link", W / 2, textY);
+    textY += 36;
     ctx.fillStyle = "#e8c98a";
-    ctx.font = "700 36px Outfit, Segoe UI, sans-serif";
-    ctx.fillText(typeLine, W / 2, qrY + QR + 124);
+    ctx.font = "700 28px Outfit, Segoe UI, sans-serif";
+    wrapChars(ctx, displayUrl(shopUrl), W - 100, 2).forEach((line) => {
+      ctx.fillText(line, W / 2, textY);
+      textY += 34;
+    });
+    if (giveUrl) {
+      textY += 18;
+      ctx.fillStyle = "#fffaf2";
+      ctx.font = "600 26px Outfit, Segoe UI, sans-serif";
+      ctx.fillText("Give / donate link", W / 2, textY);
+      textY += 36;
+      ctx.fillStyle = "#e8c98a";
+      ctx.font = "700 26px Outfit, Segoe UI, sans-serif";
+      wrapChars(ctx, displayUrl(giveUrl), W - 100, 3).forEach((line) => {
+        ctx.fillText(line, W / 2, textY);
+        textY += 32;
+      });
+    }
     ctx.fillStyle = "rgba(255,250,242,0.7)";
-    ctx.font = "500 26px Outfit, Segoe UI, sans-serif";
-    ctx.fillText("Message on WhatsApp if you want to talk first", W / 2, qrY + QR + 168);
+    ctx.font = "500 24px Outfit, Segoe UI, sans-serif";
+    ctx.fillText("Message on WhatsApp if you want to talk first", W / 2, Math.min(textY + 40, H - 48));
 
     return canvas;
   }
@@ -212,15 +283,17 @@
   function downloadUrlFile(product, storeUrl) {
     const short = productPageUrl(product, storeUrl);
     const long = longPageUrl(product, storeUrl);
+    const give = donatePageUrl(product, storeUrl);
     const price = formatPrice(product.unit_price_cents != null ? product.unit_price_cents : product.price_cents, product.currency);
     const body = [
       product.title || "Product",
       price,
       whatsappLabel(),
-      "Short: " + short,
-      "Full: " + long,
+      "Shop short: " + short,
+      "Shop full: " + long,
+      give ? "Give / donate: " + give : "",
       "",
-    ].join("\r\n");
+    ].filter(Boolean).join("\r\n");
     const slug = (product.slug || "product").replace(/[^\w-]+/g, "-");
     downloadBlob(slug + "-url.txt", new Blob([body], { type: "text/plain" }));
     return short;
@@ -244,6 +317,7 @@
   global.ProductShare = {
     productPageUrl,
     longPageUrl,
+    donatePageUrl,
     formatPrice,
     drawPoster,
     downloadUrlFile,
