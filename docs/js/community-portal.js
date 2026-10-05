@@ -19,7 +19,11 @@
   }
 
   function storeAccountGoogleHref() {
-    return "store-account.html?next=" + encodeURIComponent("community.html?token=" + TOKEN);
+    const paid = communityInfo && (communityInfo.community_type || "free") === "paid";
+    const next = paid
+      ? "community.html?token=" + encodeURIComponent(TOKEN)
+      : "community.html?token=" + encodeURIComponent(TOKEN);
+    return "store-account.html?next=" + encodeURIComponent(next);
   }
 
   function isPhoneBrowser() {
@@ -55,32 +59,53 @@
   async function loadInfo() {
     communityInfo = await fetch(apiUrl(`/api/public/community/${TOKEN}`), { credentials: "include" }).then((r) => r.json());
     if (communityInfo.error) throw new Error(communityInfo.error);
+    document.title = communityInfo.name || "Class";
     document.getElementById("community-name-label").textContent = communityInfo.name;
-    document.getElementById("community-desc-label").textContent = communityInfo.description || "";
+    document.getElementById("community-desc-label").innerHTML = formatContent(communityInfo.description || "Details will appear here.");
     const cover = document.getElementById("community-cover");
     if (communityInfo.image_url) {
       cover.src = communityInfo.image_url;
+      cover.alt = communityInfo.name || "Class";
       cover.classList.remove("hidden");
     }
+    const paid = (communityInfo.community_type || "free") === "paid";
     const priceEl = document.getElementById("community-price-label");
-    if ((communityInfo.community_type || "free") === "paid") {
-      const price = ((communityInfo.price_cents || 0) / 100).toFixed(2) + " " + (communityInfo.currency || "USD");
-      const bill = (communityInfo.billing_interval || "one_time") === "month" ? " monthly" : " one-time";
-      priceEl.textContent = "Paid community · " + price + bill;
+    const lead = document.getElementById("auth-lead");
+    const kicker = document.getElementById("community-kicker");
+    if (kicker) kicker.textContent = paid ? "Paid class" : "Community";
+    if (paid) {
+      const price = "$" + ((communityInfo.price_cents || 0) / 100).toFixed(2);
+      const bill = (communityInfo.billing_interval || "one_time") === "month" ? " / month" : " total";
+      priceEl.textContent = "Total fee: " + price + " " + (communityInfo.currency || "USD") + bill;
+      if (lead) lead.textContent = "Sign in with Google first. Then you can enroll and enter the class.";
     } else {
-      priceEl.textContent = "Free community";
+      priceEl.textContent = "Free to join";
+      if (lead) lead.textContent = "Sign in with Google to enter this community.";
+    }
+  }
+
+  async function isAlreadySignedIn() {
+    try {
+      const meStore = await storeFetch("/api/store/auth/me");
+      if (meStore.ok) return true;
+    } catch (e) {}
+    try {
+      const me = await fetch(apiUrl("/api/community-auth/me"), { credentials: "include" });
+      if (!me.ok) return false;
+      const data = await me.json();
+      return !!(data && data.authenticated);
+    } catch (e) {
+      return false;
     }
   }
 
   async function tryMemberSession() {
     try {
-      const meStore = await storeFetch("/api/store/auth/me");
-      if (meStore.ok) {
-        const joinData = await joinCommunity();
-        if (joinData.needs_payment) {
-          window.location.href = checkoutUrl({ membership_id: joinData.membership_id });
-          return false;
-        }
+      if (!(await isAlreadySignedIn())) return false;
+      const joinData = await joinCommunity();
+      if (joinData.needs_payment) {
+        window.location.href = checkoutUrl({ membership_id: joinData.membership_id });
+        return true;
       }
       const me = await fetch(apiUrl("/api/community-auth/me"), { credentials: "include" });
       if (!me.ok) return false;
@@ -90,14 +115,7 @@
       if (!membership.ok) return false;
       const m = await membership.json();
       if (m.status === "pending_payment") {
-        const banner = document.getElementById("renew-banner");
-        banner.classList.remove("hidden");
-        banner.innerHTML = `Your membership needs payment. <a href="${escapeHtml(checkoutUrl({ membership_id: m.id }))}">Pay to join</a>`;
-        document.getElementById("auth-screen").classList.add("hidden");
-        document.getElementById("feed-screen").classList.remove("hidden");
-        document.getElementById("feed-title").textContent = (communityInfo.name || "Community").toUpperCase();
-        document.getElementById("member-label").textContent = (data.user && (data.user.full_name || data.user.username)) || "";
-        document.getElementById("feed-panel").classList.add("hidden");
+        window.location.href = checkoutUrl({ membership_id: m.id });
         return true;
       }
       if (m.status !== "active") {
@@ -291,6 +309,16 @@
     if (!TOKEN) return;
     try {
       await loadInfo();
+      const lead = document.getElementById("auth-lead");
+      if (await isAlreadySignedIn()) {
+        if (lead) lead.textContent = "You're signed in. Opening enroll…";
+        document.getElementById("login-form").classList.add("hidden");
+        document.getElementById("register-form").classList.add("hidden");
+        const googleWrap = document.querySelector(".google-signin-wrap");
+        const orEl = document.querySelector(".auth-or");
+        if (googleWrap) googleWrap.classList.add("hidden");
+        if (orEl) orEl.classList.add("hidden");
+      }
       const ok = await tryMemberSession();
       if (!ok) {
         document.getElementById("auth-screen").classList.remove("hidden");

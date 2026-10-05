@@ -3173,3 +3173,54 @@ body.store-body {
     bottom: 84px;
   }
 }
+
+.class-pay-card {
+  max-width: 520px !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.class-pay-cover {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  display: block;
+  background: #1a1512;
+}
+
+.class-pay-body {
+  padding: 22px 20px 24px;
+}
+
+.class-pay-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.class-pay-body h1 {
+  margin: 0 0 10px;
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.class-pay-fee {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.class-pay-desc {
+  margin: 0 0 18px;
+  color: var(--color-text);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.class-pay-lead {
+  margin: 0 0 12px;
+  color: var(--color-text-muted);
+}

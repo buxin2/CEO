@@ -4,32 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Community</title>
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body class="group-page-body">
   <div id="community-root" class="group-root">
     <section id="auth-screen" class="group-entry">
-      <div class="group-entry-card">
-        <img id="community-cover" alt="" class="hidden" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px;margin-bottom:12px;">
-        <h1 id="community-name-label">Community</h1>
-        <p class="text-muted" id="community-desc-label"></p>
-        <p class="text-muted" id="community-price-label"></p>
-        <div id="account-error" class="form-error hidden"></div>
-        <div class="google-signin-wrap"><div id="google-signin-btn"></div></div>
-        <div class="auth-or"><span>or</span></div>
-        <div id="login-form">
-          <div class="form-group"><input class="form-control" id="login-email" type="email" placeholder="Email" autocomplete="email"></div>
-          <div class="form-group"><input class="form-control" id="login-pass" type="password" placeholder="Password" autocomplete="current-password"></div>
-          <button type="button" class="btn btn-primary btn-block" id="login-btn">Sign in</button>
-          <button type="button" class="btn btn-ghost btn-block" id="show-register-btn">Create account</button>
-        </div>
-        <div id="register-form" class="hidden">
-          <div class="form-group"><input class="form-control" id="reg-name" placeholder="Full name" autocomplete="name"></div>
-          <div class="form-group"><input class="form-control" id="reg-email" type="email" placeholder="Email" autocomplete="email"></div>
-          <div class="form-group"><input class="form-control" id="reg-phone" placeholder="Phone" inputmode="tel"></div>
-          <div class="form-group"><input class="form-control" id="reg-password" type="password" placeholder="Password (min 6 characters)" autocomplete="new-password"></div>
-          <button type="button" class="btn btn-primary btn-block" id="register-btn">Create account</button>
-          <button type="button" class="btn btn-ghost btn-block" id="show-login-btn">Back to sign in</button>
+      <div class="group-entry-card class-pay-card">
+        <img id="community-cover" alt="" class="class-pay-cover hidden">
+        <div class="class-pay-body">
+          <p class="class-pay-kicker" id="community-kicker">Class</p>
+          <h1 id="community-name-label">Community</h1>
+          <p class="class-pay-fee" id="community-price-label"></p>
+          <p class="class-pay-kicker">What you will learn</p>
+          <div class="class-pay-desc" id="community-desc-label"></div>
+          <p class="class-pay-lead" id="auth-lead">Sign in with Google first. After that you can pay and enter the class.</p>
+          <div id="account-error" class="form-error hidden"></div>
+          <div class="google-signin-wrap"><div id="google-signin-btn"></div></div>
+          <div class="auth-or"><span>or use email</span></div>
+          <div id="login-form">
+            <div class="form-group"><input class="form-control" id="login-email" type="email" placeholder="Email" autocomplete="email"></div>
+            <div class="form-group"><input class="form-control" id="login-pass" type="password" placeholder="Password" autocomplete="current-password"></div>
+            <button type="button" class="btn btn-primary btn-block" id="login-btn">Sign in</button>
+            <button type="button" class="btn btn-ghost btn-block" id="show-register-btn">Create account</button>
+          </div>
+          <div id="register-form" class="hidden">
+            <div class="form-group"><input class="form-control" id="reg-name" placeholder="Full name" autocomplete="name"></div>
+            <div class="form-group"><input class="form-control" id="reg-email" type="email" placeholder="Email" autocomplete="email"></div>
+            <div class="form-group"><input class="form-control" id="reg-phone" placeholder="Phone" inputmode="tel"></div>
+            <div class="form-group"><input class="form-control" id="reg-password" type="password" placeholder="Password (min 6 characters)" autocomplete="new-password"></div>
+            <button type="button" class="btn btn-primary btn-block" id="register-btn">Create account</button>
+            <button type="button" class="btn btn-ghost btn-block" id="show-login-btn">Back to sign in</button>
+          </div>
         </div>
       </div>
     </section>
@@ -60,6 +65,6 @@
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="js/store-cart.js?v=6"></script>
-  <script src="js/community-portal.js?v=3"></script>
+  <script src="js/community-portal.js?v=5"></script>
 </body>
 </html>

@@ -21,6 +21,7 @@ from services.community_service import (
     get_member_memberships,
     get_membership,
     join_community_for_store_customer,
+    join_or_get_membership,
     list_communities,
     list_communities_for_store_customer,
     list_comments,
@@ -438,23 +439,30 @@ def api_member_register(token):
 @community_bp.route("/api/public/community/<token>/join", methods=["POST"])
 def api_public_community_join(token):
     from services.store_customer_service import current_store_customer
+    from models import CommunityMemberUser
 
     customer = current_store_customer()
-    if not customer:
-        return jsonify({"error": "Sign in first."}), 401
+    uid = resolve_community_member_id()
     try:
-        user, membership = join_community_for_store_customer(token, customer)
+        if customer:
+            user, membership = join_community_for_store_customer(token, customer)
+        elif uid:
+            user = CommunityMemberUser.query.get(uid)
+            if not user:
+                return jsonify({"error": "Sign in first."}), 401
+            membership = join_or_get_membership(token, user)
+        else:
+            return jsonify({"error": "Sign in first."}), 401
         session["cm_user_id"] = user.id
         session.permanent = True
-        refresh = membership
         checkout_url = None
-        if refresh.status == "pending_payment":
-            checkout_url = f"checkout.html?membership_id={refresh.id}&token={token}"
+        if membership.status == "pending_payment":
+            checkout_url = f"checkout.html?membership_id={membership.id}&token={token}"
         return jsonify({
             "success": True,
-            "status": refresh.status,
-            "membership_id": refresh.id,
-            "needs_payment": refresh.status == "pending_payment",
+            "status": membership.status,
+            "membership_id": membership.id,
+            "needs_payment": membership.status == "pending_payment",
             "checkout_url": checkout_url,
             "user": user.to_dict(private=True),
         })
