@@ -29,7 +29,11 @@
       <p><strong>Posts:</strong> ${s.posts} · <strong>Comments:</strong> ${s.comments}</p>
       <p><strong>New members this week:</strong> ${s.new_members_week}</p>
       <p><strong>Products:</strong> ${s.products}</p>
-      <p class="text-muted">Link: ${escapeHtml(dash.community_link)}</p>`;
+      <label class="form-label" for="community-link-input">Community link</label>
+      <div class="flex gap-8" style="margin-top:8px;">
+        <input class="form-control" id="community-link-input" readonly value="${escapeHtml(communityShareLink())}">
+        <button type="button" class="btn btn-secondary" id="copy-link-inline">Copy</button>
+      </div>`;
     document.getElementById("settings-name").value = c.name;
     document.getElementById("settings-description").value = c.description || "";
     document.getElementById("settings-members-visible").checked = c.members_visible;
@@ -126,14 +130,37 @@
     });
   });
 
-  document.getElementById("copy-link-btn").addEventListener("click", () => {
-    if (!dash) return;
-    navigator.clipboard.writeText(dash.community_link).then(() => showToast("Link copied"));
+  function communityShareLink() {
+    const token = dash && dash.community && dash.community.community_token;
+    if (token && typeof communityLinkForToken === "function") {
+      return communityLinkForToken(token);
+    }
+    return (dash && (dash.community_link || (dash.community && dash.community.community_link))) || "";
+  }
+
+  function copyCommunityLink() {
+    const link = communityShareLink();
+    if (!link) {
+      showToast("Community link is not ready yet");
+      return;
+    }
+    copyToClipboard(link).then(() => showToast("Community link copied")).catch(() => {
+      showToast("Could not copy. Select the link and copy it.");
+    });
+  }
+
+  document.getElementById("copy-link-btn").addEventListener("click", copyCommunityLink);
+  document.getElementById("tab-overview").addEventListener("click", (ev) => {
+    if (ev.target && ev.target.id === "copy-link-inline") copyCommunityLink();
   });
 
   document.getElementById("open-community-btn").addEventListener("click", () => {
-    if (!dash) return;
-    window.open(dash.community_link, "_blank");
+    const link = communityShareLink();
+    if (!link) {
+      showToast("Community link is not ready yet");
+      return;
+    }
+    window.open(link, "_blank");
   });
 
   document.getElementById("admin-post-btn").addEventListener("click", async () => {

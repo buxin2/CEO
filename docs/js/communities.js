@@ -20,13 +20,38 @@
       list.innerHTML = `<div class="empty-state card"><p>No communities yet. Click <strong>+ Create Community</strong>.</p></div>`;
       return;
     }
-    list.innerHTML = rows.map((c) => `
-      <a class="card company-card" href="community-admin.html?id=${c.id}">
-        ${c.image_url ? `<img src="${escapeHtml(c.image_url)}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:10px;">` : ""}
-        <h3>${escapeHtml(c.name)}</h3>
-        <p class="text-muted">${escapeHtml((c.description || "").slice(0, 120))}</p>
-        <p class="text-muted">${escapeHtml(communityPriceLabel(c))}</p>
-      </a>`).join("");
+    list.innerHTML = rows.map((c) => {
+      const link = (c.community_token && typeof communityLinkForToken === "function")
+        ? communityLinkForToken(c.community_token)
+        : (c.community_link || "");
+      return `
+      <div class="card company-card">
+        <a href="community-admin.html?id=${c.id}" style="color:inherit;text-decoration:none;">
+          ${c.image_url ? `<img src="${escapeHtml(c.image_url)}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:10px;">` : ""}
+          <h3>${escapeHtml(c.name)}</h3>
+          <p class="text-muted">${escapeHtml((c.description || "").slice(0, 120))}</p>
+          <p class="text-muted">${escapeHtml(communityPriceLabel(c))}</p>
+        </a>
+        <div class="flex gap-8" style="margin-top:12px;">
+          <button type="button" class="btn btn-secondary btn-sm" data-copy-community="${escapeHtml(link)}">Copy link</button>
+          <a class="btn btn-primary btn-sm" href="community-admin.html?id=${c.id}">Open</a>
+        </div>
+      </div>`;
+    }).join("");
+    list.querySelectorAll("[data-copy-community]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const url = btn.getAttribute("data-copy-community") || "";
+        if (!url) {
+          showToast("Community link is not ready yet");
+          return;
+        }
+        copyToClipboard(url).then(() => showToast("Community link copied")).catch(() => {
+          showToast("Could not copy. Open the community and copy from there.");
+        });
+      });
+    });
   }
 
   document.getElementById("create-community-btn").addEventListener("click", () => {

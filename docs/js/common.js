@@ -54,6 +54,10 @@ function groupLinkForToken(token) {
   return new URL(pageUrl("group.html?token=" + encodeURIComponent(token)), window.location.href).href;
 }
 
+function communityLinkForToken(token) {
+  return new URL(pageUrl("community.html?token=" + encodeURIComponent(token)), window.location.href).href;
+}
+
 function groupAdminPageUrl(token, companyId) {
   const query =
     "group.html?token=" +
@@ -215,18 +219,30 @@ function formatDisplayDate(iso) {
 }
 
 function copyToClipboard(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    return navigator.clipboard.writeText(text);
+  const value = String(text || "");
+  function fallback() {
+    const el = document.createElement("textarea");
+    el.value = value;
+    el.setAttribute("readonly", "");
+    el.style.position = "fixed";
+    el.style.left = "0";
+    el.style.top = "0";
+    el.style.opacity = "0.01";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    el.setSelectionRange(0, value.length);
+    try {
+      document.execCommand("copy");
+    } finally {
+      document.body.removeChild(el);
+    }
+    return value;
   }
-  const el = document.createElement("textarea");
-  el.value = text;
-  el.style.position = "fixed";
-  el.style.opacity = "0";
-  document.body.appendChild(el);
-  el.select();
-  document.execCommand("copy");
-  document.body.removeChild(el);
-  return Promise.resolve();
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(value).catch(fallback);
+  }
+  return Promise.resolve(fallback());
 }
 
 function initMobileNav() {
