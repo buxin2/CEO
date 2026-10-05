@@ -18,25 +18,41 @@
 
   async function loadDashboard() {
     dash = await apiRequest(`/api/communities/${communityId}`);
-    const c = dash.community;
-    const s = dash.stats;
-    document.getElementById("community-title").textContent = c.name;
+    paintOverview();
+  }
+
+  function emptyStats() {
+    return {
+      total_members: 0,
+      active_members: 0,
+      pending_members: 0,
+      posts: 0,
+      products: 0,
+      new_members_week: 0,
+      comments: 0,
+    };
+  }
+
+  function paintOverview() {
+    const c = dash.community || {};
+    const s = dash.stats || emptyStats();
+    document.getElementById("community-title").textContent = c.name || "Community";
     document.getElementById("community-stats").textContent =
-      `${s.total_members} members · ${s.active_members} active · ${s.posts} posts · ${s.products} products`;
+      `${s.total_members || 0} members · ${s.active_members || 0} active · ${s.posts || 0} posts · ${s.products || 0} products`;
     document.getElementById("tab-overview").innerHTML = `
       <h3 class="section-subtitle">Overview</h3>
-      <p><strong>Members:</strong> ${s.total_members} (${s.active_members} active, ${s.pending_members} pending)</p>
-      <p><strong>Posts:</strong> ${s.posts} · <strong>Comments:</strong> ${s.comments}</p>
-      <p><strong>New members this week:</strong> ${s.new_members_week}</p>
-      <p><strong>Products:</strong> ${s.products}</p>
+      <p><strong>Members:</strong> ${s.total_members || 0} (${s.active_members || 0} active, ${s.pending_members || 0} pending)</p>
+      <p><strong>Posts:</strong> ${s.posts || 0} · <strong>Comments:</strong> ${s.comments || 0}</p>
+      <p><strong>New members this week:</strong> ${s.new_members_week || 0}</p>
+      <p><strong>Products:</strong> ${s.products || 0}</p>
       <label class="form-label" for="community-link-input">Community link</label>
       <div class="flex gap-8" style="margin-top:8px;">
         <input class="form-control" id="community-link-input" readonly value="${escapeHtml(communityShareLink())}">
         <button type="button" class="btn btn-secondary" id="copy-link-inline">Copy</button>
       </div>`;
-    document.getElementById("settings-name").value = c.name;
+    document.getElementById("settings-name").value = c.name || "";
     document.getElementById("settings-description").value = c.description || "";
-    document.getElementById("settings-members-visible").checked = c.members_visible;
+    document.getElementById("settings-members-visible").checked = !!c.members_visible;
     document.getElementById("settings-community-type").value = c.community_type || "free";
     document.getElementById("settings-price").value = ((c.price_cents || 0) / 100).toFixed(2);
     document.getElementById("settings-billing").value = (c.billing_interval === "year" ? "month" : (c.billing_interval || "one_time"));
@@ -45,6 +61,14 @@
       ? `<img src="${escapeHtml(c.image_url)}" alt="" style="max-width:180px;border-radius:12px;">`
       : "";
     togglePaidFields();
+  }
+
+  async function loadDashboardFallback() {
+    const data = await apiRequest("/api/communities");
+    const c = (data.communities || []).find((row) => String(row.id) === String(communityId));
+    if (!c) throw new Error("Community not found.");
+    dash = { community: c, stats: emptyStats(), community_link: c.community_link };
+    paintOverview();
   }
 
   async function loadMembers() {
@@ -283,13 +307,23 @@
       return;
     }
     try {
-      if (typeof wakeApiServer === "function") await wakeApiServer();
+      if (typeof wakeApiServer === "function") wakeApiServer().catch(function () {});
       await apiRequest("/api/me");
     } catch (e) {
       window.location.href = pageUrl("login.html");
       return;
     }
-    await loadDashboard();
+    try {
+      await loadDashboard();
+    } catch (e) {
+      try {
+        await loadDashboardFallback();
+      } catch (e2) {
+        document.getElementById("community-stats").textContent = "";
+        document.getElementById("tab-overview").innerHTML =
+          `<p class="form-error">${escapeHtml(e.message || "Could not load this community.")}</p>`;
+      }
+    }
     showTab("overview");
   })();
 })();

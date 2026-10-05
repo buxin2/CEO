@@ -117,32 +117,40 @@ def delete_community(community_id):
 
 def community_dashboard(community_id):
     c = _community_or_error(community_id)
-    memberships = CommunityMembership.query.filter_by(community_id=c.id)
-    total = memberships.filter(CommunityMembership.status != "removed").count()
-    active = memberships.filter_by(status="active").count()
-    pending = memberships.filter_by(status="pending").count()
-    posts = CommunityPost.query.filter_by(community_id=c.id, deleted_at=None).count()
-    products = CommunityProduct.query.filter_by(community_id=c.id).count()
-    week_ago = datetime.utcnow() - timedelta(days=7)
-    new_members = memberships.filter(
-        CommunityMembership.joined_at >= week_ago,
-        CommunityMembership.status != "removed",
-    ).count()
-    comments = CommunityComment.query.join(CommunityPost).filter(
-        CommunityPost.community_id == c.id,
-        CommunityComment.deleted_at.is_(None),
-    ).count()
+    stats = {
+        "total_members": 0,
+        "active_members": 0,
+        "pending_members": 0,
+        "posts": 0,
+        "products": 0,
+        "new_members_week": 0,
+        "comments": 0,
+    }
+    try:
+        memberships = CommunityMembership.query.filter_by(community_id=c.id)
+        stats["total_members"] = memberships.filter(CommunityMembership.status != "removed").count()
+        stats["active_members"] = memberships.filter_by(status="active").count()
+        stats["pending_members"] = memberships.filter_by(status="pending").count()
+        stats["posts"] = CommunityPost.query.filter_by(community_id=c.id, deleted_at=None).count()
+        stats["products"] = CommunityProduct.query.filter_by(community_id=c.id).count()
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        stats["new_members_week"] = memberships.filter(
+            CommunityMembership.joined_at >= week_ago,
+            CommunityMembership.status != "removed",
+        ).count()
+        stats["comments"] = (
+            CommunityComment.query.join(CommunityPost, CommunityComment.post_id == CommunityPost.id)
+            .filter(
+                CommunityPost.community_id == c.id,
+                CommunityComment.deleted_at.is_(None),
+            )
+            .count()
+        )
+    except Exception:
+        db.session.rollback()
     return {
         "community": c.to_dict(include_link=True),
-        "stats": {
-            "total_members": total,
-            "active_members": active,
-            "pending_members": pending,
-            "posts": posts,
-            "products": products,
-            "new_members_week": new_members,
-            "comments": comments,
-        },
+        "stats": stats,
         "community_link": community_link_for_token(c.community_token),
     }
 
