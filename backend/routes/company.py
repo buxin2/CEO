@@ -2,8 +2,14 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
-from models import db, Company, Employee, get_week_bounds, GroupJoinRequest
+from models import db, Company, Employee, WorkListRow, get_week_bounds, GroupJoinRequest
 from routes.auth import login_required
+from services.worklist_service import (
+    create_work_list,
+    delete_work_list,
+    list_work_lists,
+    update_work_list,
+)
 from utils import task_link_for_token, create_group_for_company, group_link_for_token
 
 company_bp = Blueprint("company", __name__)
@@ -158,3 +164,90 @@ def api_create_employee(company_id):
     result = employee.to_dict()
     result["task_link"] = task_link_for_token(employee.unique_token)
     return jsonify(result), 201
+
+
+@company_bp.route("/api/companies/<int:company_id>/work-lists", methods=["GET"])
+@login_required
+def api_list_work_lists(company_id):
+    company = Company.query.get(company_id)
+    if not company:
+        return jsonify({"error": "Company not found."}), 404
+    employee_id = request.args.get("employee_id", type=int)
+    rows = list_work_lists(company_id, employee_id=employee_id)
+    return jsonify({"work_lists": [w.to_dict() for w in rows]})
+
+
+@company_bp.route("/api/companies/<int:company_id>/work-lists", methods=["POST"])
+@login_required
+def api_upload_work_list(company_id):
+    company = Company.query.get(company_id)
+    if not company:
+        return jsonify({"error": "Company not found."}), 404
+    upload = request.files.get("file") or request.files.get("excel")
+    if not upload or not upload.filename:
+        return jsonify({"error": "Upload an Excel or CSV file."}), 400
+    try:
+        employee_id = int(request.form.get("employee_id") or 0)
+        work = create_work_list(
+            company_id,
+            employee_id,
+            upload,
+            daily_quota=request.form.get("daily_quota") or 5,
+        )
+        return jsonify(work.to_dict()), 201
+    except (ValueError, TypeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@company_bp.route("/api/work-lists/<int:work_list_id>", methods=["PUT"])
+@login_required
+def api_update_work_list(work_list_id):
+    data = request.get_json(silent=True) or {}
+    company_id = data.get("company_id")
+    work = None
+    from models import WorkList
+    work = WorkList.query.get(work_list_id)
+    if not work:
+        return jsonify({"error": "Task list not found."}), 404
+    try:
+        updated = update_work_list(work_list_id, work.company_id, data)
+        return jsonify(updated.to_dict())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@company_bp.route("/api/work-lists/<int:work_list_id>", methods=["DELETE"])
+@login_required
+def api_delete_work_list(work_list_id):
+    from models import WorkList
+    work = WorkList.query.get(work_list_id)
+    if not work:
+        return jsonify({"error": "Task list not found."}), 404
+    try:
+        delete_work_list(work_list_id, work.company_id)
+        return jsonify({"success": True})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@company_bp.route("/api/work-lists/<int:work_list_id>/rows", methods=["GET"])
+@login_required
+def api_work_list_rows(work_list_id):
+    from models import WorkList
+    from services.worklist_service import release_today
+    work = WorkList.query.get(work_list_id)
+    if not work:
+        return jsonify({"error": "Task list not found."}), 404
+    release_today(work)
+    q = WorkListRow.query.filter_by(work_list_id=work.id).order_by(WorkListRow.row_number.asc())
+    status = (request.args.get("status") or "").strip().lower()
+    if status == "waiting":
+        q = q.filter(WorkListRow.assigned_date.is_(None))
+    elif status == "today":
+        from datetime import date as date_cls
+        q = q.filter_by(assigned_date=date_cls.today())
+    elif status in ("pending", "done"):
+        q = q.filter_by(status=status)
+        if status == "pending":
+            q = q.filter(WorkListRow.assigned_date.isnot(None))
+    return jsonify({"work_list": work.to_dict(), "rows": [r.to_dict() for r in q.all()]})

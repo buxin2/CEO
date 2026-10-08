@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Employee Tasks &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -68,6 +68,12 @@
         <button class="filter-tab" data-value="high">High</button>
         <button class="filter-tab" data-value="medium">Medium</button>
         <button class="filter-tab" data-value="low">Low</button>
+      </div>
+
+      <div class="card" id="excel-lists-card" style="margin-bottom:20px;">
+        <h2 class="section-title">Excel tasks</h2>
+        <p class="text-muted">Rows from the uploaded sheet. Each day this employee gets the next set from Settings on the company page.</p>
+        <div id="excel-lists-box"><p class="text-muted">Loading…</p></div>
       </div>
 
       <div id="tasks-container">
@@ -305,7 +311,42 @@
     setupFilterTabs("status-filter-tabs", (val) => { statusFilter = val; loadTasks(currentWeekStart); });
     setupFilterTabs("priority-filter-tabs", (val) => { priorityFilter = val; loadTasks(currentWeekStart); });
 
-    loadEmployeeMeta().then(() => loadTasks(null));
+    async function loadExcelLists() {
+      const box = document.getElementById("excel-lists-box");
+      if (!box || !COMPANY_ID) return;
+      try {
+        const data = await apiRequest(`/api/companies/${COMPANY_ID}/work-lists?employee_id=${EMPLOYEE_ID}`);
+        const lists = data.work_lists || [];
+        if (!lists.length) {
+          box.innerHTML = "<p class=\"text-muted\">No Excel list for this employee yet. Upload one on the company page.</p>";
+          return;
+        }
+        const blocks = [];
+        for (const w of lists) {
+          const rowsData = await apiRequest("/api/work-lists/" + w.id + "/rows?status=pending");
+          const rows = rowsData.rows || [];
+          blocks.push(`
+            <p><strong>${escapeHtml(w.filename)}</strong> · ${w.daily_quota}/day · ${w.remaining} waiting · ${w.done} done</p>
+            ${rows.length ? rows.map((r) => `
+              <div class="work-row-card ${r.status === "done" ? "done" : ""}">
+                <div class="work-row-head">
+                  <strong>#${r.row_number} ${escapeHtml(r.title)}</strong>
+                  <span class="badge">${escapeHtml(r.status)} · ${escapeHtml(r.assigned_date || "today")}</span>
+                </div>
+                ${r.notes ? `<p class="text-muted">${escapeHtml(r.notes)}</p>` : ""}
+              </div>`).join("") : "<p class=\"text-muted\">No open given tasks right now.</p>"}
+          `);
+        }
+        box.innerHTML = blocks.join("");
+      } catch (err) {
+        box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    loadEmployeeMeta().then(() => {
+      loadTasks(null);
+      loadExcelLists();
+    });
   </script>
 </body>
 </html>

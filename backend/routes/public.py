@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request
 
 from models import db, Employee, Task, Earning, get_week_bounds
+from services.worklist_service import assigned_rows_for_employee, update_row_for_employee
 from utils import group_link_for_token, create_group_for_company
 
 public_bp = Blueprint("public", __name__)
@@ -48,6 +49,8 @@ def api_get_public_tasks(token):
     )
     today_total = sum(float(e.amount) for e in today_earnings)
 
+    work_rows, work_lists = assigned_rows_for_employee(employee)
+    today_iso = date.today().isoformat()
     return jsonify({
         "employee_name": employee.name,
         "company_name": employee.company.name,
@@ -62,6 +65,9 @@ def api_get_public_tasks(token):
             "total": today_total,
             "records": [e.to_dict() for e in today_earnings],
         },
+        "work_lists": [w.to_dict() for w in work_lists],
+        "work_rows": [r.to_dict() for r in work_rows],
+        "today": today_iso,
     })
 
 
@@ -120,3 +126,16 @@ def api_public_uncomplete_task(token, task_id):
     task.completed_at = None
     db.session.commit()
     return jsonify(task.to_dict())
+
+
+@public_bp.route("/api/public/tasks/<token>/work-rows/<int:row_id>", methods=["PUT"])
+def api_public_update_work_row(token, row_id):
+    employee = Employee.query.filter_by(unique_token=token).first()
+    if not employee:
+        return jsonify({"error": "This task link is invalid or no longer available."}), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        row = update_row_for_employee(employee, row_id, data)
+        return jsonify(row.to_dict())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400

@@ -84,6 +84,67 @@ def _default_product_shipping_off(engine):
             conn.execute(text("UPDATE store_settings SET ship_default_off_done = 1"))
 
 
+def _ensure_work_list_tables(engine):
+    if _table_exists(engine, "work_lists"):
+        return
+    logger.info("Creating work_lists tables")
+    if _is_postgres(engine):
+        lists_ddl = (
+            "CREATE TABLE work_lists ("
+            "id SERIAL PRIMARY KEY, "
+            "company_id INTEGER NOT NULL, "
+            "employee_id INTEGER NOT NULL, "
+            "filename VARCHAR(255) DEFAULT '', "
+            "daily_quota INTEGER DEFAULT 5, "
+            "headers_json TEXT DEFAULT '[]', "
+            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            ")"
+        )
+        rows_ddl = (
+            "CREATE TABLE work_list_rows ("
+            "id SERIAL PRIMARY KEY, "
+            "work_list_id INTEGER NOT NULL, "
+            "row_number INTEGER NOT NULL, "
+            "data_json TEXT DEFAULT '{}', "
+            "assigned_date DATE, "
+            "status VARCHAR(20) DEFAULT 'pending', "
+            "notes TEXT DEFAULT '', "
+            "completed_at TIMESTAMP, "
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            ")"
+        )
+    else:
+        lists_ddl = (
+            "CREATE TABLE work_lists ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "company_id INTEGER NOT NULL, "
+            "employee_id INTEGER NOT NULL, "
+            "filename VARCHAR(255) DEFAULT '', "
+            "daily_quota INTEGER DEFAULT 5, "
+            "headers_json TEXT DEFAULT '[]', "
+            "created_at DATETIME, "
+            "updated_at DATETIME"
+            ")"
+        )
+        rows_ddl = (
+            "CREATE TABLE work_list_rows ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "work_list_id INTEGER NOT NULL, "
+            "row_number INTEGER NOT NULL, "
+            "data_json TEXT DEFAULT '{}', "
+            "assigned_date DATE, "
+            "status VARCHAR(20) DEFAULT 'pending', "
+            "notes TEXT DEFAULT '', "
+            "completed_at DATETIME, "
+            "updated_at DATETIME"
+            ")"
+        )
+    with engine.begin() as conn:
+        conn.execute(text(lists_ddl))
+        conn.execute(text(rows_ddl))
+
+
 def _ensure_store_customer_notices_table(engine):
     if _table_exists(engine, "store_customer_notices"):
         return
@@ -323,6 +384,7 @@ def run_schema_migrations():
     _ensure_store_customer_notices_table(engine)
     _migrate_store_customer_google(engine)
     _default_product_shipping_off(engine)
+    _ensure_work_list_tables(engine)
 
     db.session.commit()
     logger.info("Schema migrations complete.")

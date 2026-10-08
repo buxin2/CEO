@@ -326,6 +326,104 @@ class Task(db.Model):
         }
 
 
+class WorkList(db.Model):
+    """Excel/CSV task pool drip-fed to an employee each day."""
+
+    __tablename__ = "work_lists"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=False, index=True)
+    filename = db.Column(db.String(255), default="")
+    daily_quota = db.Column(db.Integer, default=5)
+    headers_json = db.Column(db.Text, default="[]")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    company = db.relationship("Company", backref="work_lists")
+    employee = db.relationship("Employee", backref="work_lists")
+    rows = db.relationship(
+        "WorkListRow", backref="work_list", cascade="all, delete-orphan",
+        lazy="dynamic", order_by="WorkListRow.row_number",
+    )
+
+    def headers(self):
+        import json
+        try:
+            data = json.loads(self.headers_json or "[]")
+            return data if isinstance(data, list) else []
+        except json.JSONDecodeError:
+            return []
+
+    def to_dict(self, include_counts=True):
+        data = {
+            "id": self.id,
+            "company_id": self.company_id,
+            "employee_id": self.employee_id,
+            "employee_name": self.employee.name if self.employee else "",
+            "filename": self.filename or "",
+            "daily_quota": int(self.daily_quota or 5),
+            "headers": self.headers(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_counts:
+            q = WorkListRow.query.filter_by(work_list_id=self.id)
+            data["total_rows"] = q.count()
+            data["remaining"] = q.filter(WorkListRow.assigned_date.is_(None)).count()
+            data["assigned"] = q.filter(WorkListRow.assigned_date.isnot(None)).count()
+            data["done"] = q.filter_by(status="done").count()
+        return data
+
+
+class WorkListRow(db.Model):
+    __tablename__ = "work_list_rows"
+
+    id = db.Column(db.Integer, primary_key=True)
+    work_list_id = db.Column(db.Integer, db.ForeignKey("work_lists.id"), nullable=False, index=True)
+    row_number = db.Column(db.Integer, nullable=False, index=True)
+    data_json = db.Column(db.Text, default="{}")
+    assigned_date = db.Column(db.Date, nullable=True, index=True)
+    status = db.Column(db.String(20), default="pending")  # pending, done
+    notes = db.Column(db.Text, default="")
+    completed_at = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def fields(self):
+        import json
+        try:
+            data = json.loads(self.data_json or "{}")
+            return data if isinstance(data, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+
+    def title(self):
+        fields = self.fields()
+        for key in ("Organization", "organization", "Name", "name", "Company", "company", "Title", "title"):
+            val = (fields.get(key) or "").strip()
+            if val:
+                return val
+        for key, val in fields.items():
+            if str(key).strip() in ("#", "No", "no", "ID", "id"):
+                continue
+            text = str(val or "").strip()
+            if text:
+                return text
+        return "Task " + str(self.row_number)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "work_list_id": self.work_list_id,
+            "row_number": self.row_number,
+            "title": self.title(),
+            "fields": self.fields(),
+            "assigned_date": self.assigned_date.isoformat() if self.assigned_date else None,
+            "status": self.status or "pending",
+            "notes": self.notes or "",
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
 class Product(db.Model):
     __tablename__ = "products"
 

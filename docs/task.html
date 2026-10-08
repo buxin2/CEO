@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Weekly Tasks</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body>
   <div class="public-page">
@@ -43,7 +43,9 @@
 
         let tasksHtml;
         if (!data.tasks.length) {
-          tasksHtml = `<div class="empty-state"><p>You don't have any tasks for this week.</p></div>`;
+          tasksHtml = (data.work_rows && data.work_rows.length)
+            ? ""
+            : `<div class="empty-state"><p>You don't have any tasks for this week.</p></div>`;
         } else {
           tasksHtml = data.tasks.map(renderTaskCard).join("");
         }
@@ -72,6 +74,7 @@
             </form>
             <div id="earnings-today-summary" class="public-earnings-summary"></div>
           </div>
+          <div id="excel-task-list">${renderWorkRows(data)}</div>
           <div id="task-list">${tasksHtml}</div>
         `;
 
@@ -82,6 +85,7 @@
         document.querySelectorAll(".task-checkbox-btn").forEach((btn) => {
           btn.addEventListener("click", () => toggleTask(btn.dataset.taskId, btn.dataset.completed === "true"));
         });
+        bindWorkRowButtons();
       }
 
       function renderEarningsSummary(earningsToday) {
@@ -115,6 +119,87 @@
         } catch (err) {
           showToast(err.message);
         }
+      }
+
+      function skipField(key) {
+        const k = String(key || "").trim().toLowerCase();
+        return k === "#" || k === "no" || k === "id" || k === "assigned team member";
+      }
+
+      function fieldHtml(key, val) {
+        const text = String(val || "").trim();
+        if (!text) return "";
+        const k = String(key || "").toLowerCase();
+        let body = escapeHtml(text);
+        if (k.indexOf("website") >= 0 || /^https?:\/\//i.test(text)) {
+          const href = /^https?:\/\//i.test(text) ? text : "https://" + text;
+          body = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>`;
+        } else if (k.indexOf("email") >= 0 && text.indexOf("@") >= 0) {
+          body = `<a href="mailto:${escapeHtml(text)}">${escapeHtml(text)}</a>`;
+        }
+        return `<div class="work-row-field"><label>${escapeHtml(key)}</label><div>${body}</div></div>`;
+      }
+
+      function renderWorkRows(data) {
+        const rows = data.work_rows || [];
+        if (!rows.length) return "";
+        const lists = data.work_lists || [];
+        const quota = lists[0] ? lists[0].daily_quota : 5;
+        const todayCount = rows.filter((r) => r.assigned_date === data.today).length;
+        return `
+          <h3 class="section-title" style="margin:20px 0 8px;">Today's Excel tasks</h3>
+          <p class="text-muted">${todayCount} new today (up to ${quota} per day). Open each row, do the work, write notes, then mark done.</p>
+          ${rows.map((r) => {
+            const fields = Object.keys(r.fields || {}).map((k) => skipField(k) ? "" : fieldHtml(k, r.fields[k])).join("");
+            return `
+            <div class="work-row-card ${r.status === "done" ? "done" : ""}">
+              <div class="work-row-head">
+                <strong>#${r.row_number} ${escapeHtml(r.title)}</strong>
+                <span class="badge">${r.assigned_date === data.today ? "Today" : escapeHtml(r.assigned_date || "")}</span>
+              </div>
+              <div class="work-row-fields">${fields}</div>
+              <label class="form-label" style="margin-top:12px;">Notes of what you did</label>
+              <textarea class="form-control" id="work-notes-${r.id}" rows="2" placeholder="Write what you completed">${escapeHtml(r.notes || "")}</textarea>
+              <div class="flex gap-8" style="margin-top:8px;">
+                <button type="button" class="btn btn-secondary btn-sm" data-save-work="${r.id}">Save notes</button>
+                <button type="button" class="btn btn-primary btn-sm" data-done-work="${r.id}" data-status="${r.status}">${r.status === "done" ? "Undo done" : "Mark done"}</button>
+              </div>
+            </div>`;
+          }).join("")}`;
+      }
+
+      function bindWorkRowButtons() {
+        document.querySelectorAll("[data-save-work]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-save-work");
+            const notes = (document.getElementById("work-notes-" + id) || {}).value || "";
+            try {
+              await apiRequest(`/api/public/tasks/${TOKEN}/work-rows/${id}`, {
+                method: "PUT",
+                body: JSON.stringify({ notes }),
+              });
+              showToast("Notes saved");
+            } catch (err) {
+              showToast(err.message);
+            }
+          });
+        });
+        document.querySelectorAll("[data-done-work]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-done-work");
+            const cur = btn.getAttribute("data-status");
+            const notes = (document.getElementById("work-notes-" + id) || {}).value || "";
+            try {
+              await apiRequest(`/api/public/tasks/${TOKEN}/work-rows/${id}`, {
+                method: "PUT",
+                body: JSON.stringify({ notes, status: cur === "done" ? "pending" : "done" }),
+              });
+              loadPublicTasks();
+            } catch (err) {
+              showToast(err.message);
+            }
+          });
+        });
       }
 
       function renderTaskCard(t) {
