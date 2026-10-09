@@ -13,19 +13,27 @@
 
   function renderList() {
     const q = (document.getElementById("order-search").value || "").trim().toLowerCase();
-    const rows = orders.filter((o) => matchesSearch(o, q));
-    document.getElementById("orders-list").innerHTML = rows.map((o) => `
-      <div class="card" style="padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
-        <div>
-          <div><strong>${escapeHtml(o.product_summary || "Store order")}</strong></div>
-          <div class="text-muted">${escapeHtml(o.customer_name || "Customer")} · ${escapeHtml(o.order_number || "")} · ${escapeHtml(o.order_status || "")}</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    const st = (document.getElementById("order-status-filter") || {}).value || "";
+    const rows = orders.filter((o) => matchesSearch(o, q) && (!st || o.order_status === st));
+    document.getElementById("orders-list").innerHTML = rows.length ? `<table class="ui-table"><thead><tr>
+      <th><input type="checkbox" id="order-chk-all" aria-label="Select all"></th>
+      <th>Order</th><th>Customer</th><th>Status</th><th></th></tr></thead><tbody>
+      ${rows.map((o) => `
+      <tr>
+        <td><input type="checkbox" data-bulk="${o.id}"></td>
+        <td><strong>${escapeHtml(o.order_number || "")}</strong><div class="text-muted">${escapeHtml(o.product_summary || "Store order")}</div></td>
+        <td>${escapeHtml(o.customer_name || "Customer")}</td>
+        <td>
+          <select class="form-control" data-status="${o.id}" aria-label="Order status">
+            ${statuses.map((s) => `<option value="${s}" ${o.order_status === s ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+        </td>
+        <td>
           <button class="btn btn-secondary btn-sm" data-view="${o.id}">View</button>
           <button class="btn btn-danger btn-sm" data-delete="${o.id}">Delete</button>
-        </div>
-      </div>
-    `).join("") || "<p class='text-muted'>No matching store orders.</p>";
+        </td>
+      </tr>`).join("")}
+    </tbody></table>` : "<p class='text-muted'>No matching store orders.</p>";
 
     document.querySelectorAll("[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => openOrder(parseInt(btn.dataset.view, 10)));
@@ -33,6 +41,24 @@
     document.querySelectorAll("[data-delete]").forEach((btn) => {
       btn.addEventListener("click", () => deleteOrder(parseInt(btn.dataset.delete, 10)));
     });
+    document.querySelectorAll("[data-status]").forEach((sel) => {
+      sel.addEventListener("change", async () => {
+        const id = parseInt(sel.getAttribute("data-status"), 10);
+        await apiRequest("/api/admin/store/orders/" + id, {
+          method: "PUT",
+          body: JSON.stringify({ order_status: sel.value }),
+        });
+        const o = orders.find((row) => row.id === id);
+        if (o) o.order_status = sel.value;
+        showToast("Status updated");
+      });
+    });
+    const all = document.getElementById("order-chk-all");
+    if (all) {
+      all.addEventListener("change", () => {
+        document.querySelectorAll("[data-bulk]").forEach((cb) => { cb.checked = all.checked; });
+      });
+    }
   }
 
   function receiptHtml(o) {
@@ -155,8 +181,27 @@
   }
 
   document.getElementById("order-search").addEventListener("input", renderList);
+  const statusFilter = document.getElementById("order-status-filter");
+  if (statusFilter) statusFilter.addEventListener("change", renderList);
+  const bulkBtn = document.getElementById("bulk-delete-orders-btn");
+  if (bulkBtn) {
+    bulkBtn.addEventListener("click", async () => {
+      const ids = Array.from(document.querySelectorAll("[data-bulk]:checked")).map((cb) => parseInt(cb.getAttribute("data-bulk"), 10));
+      if (!ids.length) {
+        showToast("Select orders first");
+        return;
+      }
+      if (!confirm("Delete " + ids.length + " selected order(s)? This cannot be undone.")) return;
+      for (const id of ids) {
+        await apiRequest("/api/admin/store/orders/" + id, { method: "DELETE" });
+      }
+      showToast("Deleted " + ids.length + " orders");
+      await load();
+    });
+  }
   document.getElementById("clear-orders-btn").addEventListener("click", async () => {
     if (!confirm("Delete ALL store orders? This cannot be undone.")) return;
+    if (!confirm("This will permanently remove every store order. Continue?")) return;
     try {
       await apiRequest("/api/admin/store/orders/clear", { method: "POST" });
       closeModal("order-modal");

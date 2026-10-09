@@ -9,24 +9,28 @@
       const hay = [c.full_name, c.email, c.phone].join(" ").toLowerCase();
       return hay.indexOf(q) >= 0;
     });
-    document.getElementById("users-list").innerHTML = rows.map((c) => `
-      <div class="card" style="padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
-        <div>
-          <div><strong>${escapeHtml(c.full_name || "Customer")}</strong></div>
-          <div class="text-muted">${escapeHtml(c.email || "")} · ${escapeHtml(c.phone || "")}${c.google ? " · Google" : ""}</div>
-          <div class="text-muted">${c.order_count || 0} order(s)</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    document.getElementById("users-list").innerHTML = rows.length ? `<table class="ui-table"><thead><tr>
+      <th>Name</th><th>Contact</th><th>Orders</th><th></th></tr></thead><tbody>
+      ${rows.map((c) => `
+      <tr>
+        <td><strong>${escapeHtml(c.full_name || "Customer")}</strong></td>
+        <td>${escapeHtml(c.email || "")}<div class="text-muted">${escapeHtml(c.phone || "")}${c.google ? " · Google" : ""}</div></td>
+        <td>${c.order_count || 0}</td>
+        <td>
           <button class="btn btn-secondary btn-sm" data-view="${c.id}">View</button>
+          <button class="btn btn-secondary btn-sm" data-reset="${c.id}">Reset password</button>
           <button class="btn btn-danger btn-sm" data-delete="${c.id}">Delete</button>
-        </div>
-      </div>
-    `).join("") || "<p class='text-muted'>No store users yet.</p>";
+        </td>
+      </tr>`).join("")}
+    </tbody></table>` : "<p class='text-muted'>No store users yet.</p>";
     document.querySelectorAll("[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => openUser(parseInt(btn.dataset.view, 10)));
     });
     document.querySelectorAll("[data-delete]").forEach((btn) => {
       btn.addEventListener("click", () => deleteUser(parseInt(btn.dataset.delete, 10)));
+    });
+    document.querySelectorAll("[data-reset]").forEach((btn) => {
+      btn.addEventListener("click", () => openUser(parseInt(btn.dataset.reset, 10)));
     });
   }
 

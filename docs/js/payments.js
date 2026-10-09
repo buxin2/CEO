@@ -25,6 +25,11 @@
     document.getElementById("mode-label").textContent = live
       ? "Currently: LIVE — real charges."
       : "Currently: TEST — PayPal sandbox + test Wave secret if saved.";
+    const badge = document.getElementById("mode-badge");
+    if (badge) {
+      badge.textContent = live ? "LIVE" : "TEST";
+      badge.className = "mode-badge " + (live ? "live" : "test");
+    }
   }
 
   function fillPlaceholders() {
@@ -202,6 +207,46 @@
   document.getElementById("test-paypal").addEventListener("click", () => testPay("paypal"));
   document.getElementById("test-modem").addEventListener("click", () => testPay("modem"));
 
+  let allPayments = [];
+  let txPage = 0;
+  const TX_PAGE = 40;
+
+  function filteredPayments() {
+    const kind = (document.getElementById("tx-kind") || {}).value || "";
+    const status = (document.getElementById("tx-status") || {}).value || "";
+    return allPayments.filter((p) => {
+      if (kind && p.payment_kind !== kind) return false;
+      if (status && p.status !== status) return false;
+      return true;
+    });
+  }
+
+  function paintTransactions() {
+    const rows = filteredPayments();
+    const pages = Math.max(1, Math.ceil(rows.length / TX_PAGE));
+    if (txPage >= pages) txPage = pages - 1;
+    const slice = rows.slice(txPage * TX_PAGE, txPage * TX_PAGE + TX_PAGE);
+    const label = document.getElementById("tx-page-label");
+    if (label) label.textContent = rows.length ? `Page ${txPage + 1} of ${pages} · ${rows.length} payments` : "No payments";
+    const list = document.getElementById("payments-list");
+    if (!list) return;
+    list.innerHTML = slice.length ? `<table class="ui-table"><thead><tr><th>Reference</th><th>Type</th><th>Status</th><th>Amount</th><th>Customer</th><th></th></tr></thead><tbody>
+      ${slice.map((p) => `
+        <tr>
+          <td>${escapeHtml(p.payment_reference)}</td>
+          <td>${escapeHtml(p.payment_kind)}</td>
+          <td><span class="status-chip ${p.status === "succeeded" ? "done" : "open"}">${escapeHtml(p.status)}</span></td>
+          <td>${cents(p.total_cents)} ${escapeHtml(p.currency)}</td>
+          <td>${escapeHtml(p.customer_name || p.customer_email || "")}</td>
+          <td>
+            ${p.receipt_url ? `<a href="${escapeHtml(p.receipt_url)}" target="_blank" rel="noopener">Receipt</a>` : ""}
+            ${p.status === "manual_pending" ? `<button class="btn btn-primary btn-sm" onclick="approvePayment(${p.id})">Approve</button>
+            <button class="btn btn-secondary btn-sm" onclick="rejectPayment(${p.id})">Reject</button>` : ""}
+          </td>
+        </tr>`).join("")}
+    </tbody></table>` : `<div class="empty-lite">No payments match these filters.</div>`;
+  }
+
   async function loadPayments() {
     const data = await apiRequest("/api/admin/payments");
     const s = data.summary || {};
@@ -209,15 +254,18 @@
       <p><strong>Total:</strong> ${s.total} · <strong>Successful:</strong> ${s.succeeded} ·
       <strong>Pending:</strong> ${s.pending} · <strong>Manual pending:</strong> ${s.manual_pending} ·
       <strong>Revenue:</strong> ${cents(s.revenue_cents)}</p>`;
-    document.getElementById("payments-list").innerHTML = (data.payments || []).map((p) => `
-      <div class="card card-inner" style="margin-bottom:8px;">
-        <div><strong>${escapeHtml(p.payment_reference)}</strong> · ${escapeHtml(p.payment_kind)} · ${escapeHtml(p.status)}</div>
-        <div>${cents(p.total_cents)} ${escapeHtml(p.currency)} · ${escapeHtml(p.provider)} · ${escapeHtml(p.customer_name || p.customer_email || "")}</div>
-        ${p.receipt_url ? `<a href="${escapeHtml(p.receipt_url)}" target="_blank" rel="noopener">View receipt</a>` : ""}
-        ${p.status === "manual_pending" ? `
-          <button class="btn btn-primary btn-sm" onclick="approvePayment(${p.id})">Approve</button>
-          <button class="btn btn-secondary btn-sm" onclick="rejectPayment(${p.id})">Reject</button>` : ""}
-      </div>`).join("") || "<p class=\"text-muted\">No payments yet.</p>";
+    allPayments = data.payments || [];
+    const kinds = Array.from(new Set(allPayments.map((p) => p.payment_kind).filter(Boolean)));
+    const statuses = Array.from(new Set(allPayments.map((p) => p.status).filter(Boolean)));
+    const kindSel = document.getElementById("tx-kind");
+    const stSel = document.getElementById("tx-status");
+    if (kindSel && kindSel.options.length <= 1) {
+      kinds.forEach((k) => kindSel.appendChild(new Option(k, k)));
+    }
+    if (stSel && stSel.options.length <= 1) {
+      statuses.forEach((k) => stSel.appendChild(new Option(k, k)));
+    }
+    paintTransactions();
   }
 
   window.approvePayment = async (id) => {
@@ -246,6 +294,24 @@
       document.getElementById("test-result").textContent = e.message;
     }
   }
+
+  document.getElementById("pay-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-pay-tab]");
+    if (!btn) return;
+    const tab = btn.getAttribute("data-pay-tab");
+    document.querySelectorAll("#pay-tabs [data-pay-tab]").forEach((b) => b.classList.toggle("active", b === btn));
+    document.getElementById("pay-panel-overview").classList.toggle("hidden", tab !== "overview");
+    document.getElementById("pay-panel-test").classList.toggle("hidden", tab !== "test");
+    document.getElementById("pay-panel-keys").classList.toggle("hidden", tab !== "keys");
+    document.getElementById("pay-panel-keys-forms").classList.toggle("hidden", tab !== "keys");
+    document.getElementById("pay-panel-tx").classList.toggle("hidden", tab !== "tx");
+  });
+  const kindSel = document.getElementById("tx-kind");
+  const stSel = document.getElementById("tx-status");
+  if (kindSel) kindSel.addEventListener("change", () => { txPage = 0; paintTransactions(); });
+  if (stSel) stSel.addEventListener("change", () => { txPage = 0; paintTransactions(); });
+  document.getElementById("tx-prev").addEventListener("click", () => { if (txPage > 0) { txPage -= 1; paintTransactions(); } });
+  document.getElementById("tx-next").addEventListener("click", () => { txPage += 1; paintTransactions(); });
 
   loadSettings().catch((e) => showErr(e.message));
   loadPayments().catch((e) => showErr(e.message));

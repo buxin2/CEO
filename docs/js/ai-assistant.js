@@ -744,6 +744,22 @@
   patchAiVoiceApi();
   setAiMode(loadAiMode());
 
+  const aiView = (new URLSearchParams(location.search).get("view") || "chat").toLowerCase();
+  document.querySelectorAll("#ai-page-tabs [data-ai-tab]").forEach((a) => {
+    a.classList.toggle("btn-primary", a.getAttribute("data-ai-tab") === aiView);
+    a.classList.toggle("btn-secondary", a.getAttribute("data-ai-tab") !== aiView);
+  });
+  const chatPanel = document.getElementById("ai-view-chat");
+  const settingsPanel = document.getElementById("ai-view-settings");
+  if (chatPanel) chatPanel.classList.toggle("hidden", aiView === "settings");
+  if (settingsPanel) settingsPanel.classList.toggle("hidden", aiView !== "settings");
+  const hint = document.getElementById("ai-chat-hint");
+  const clearBtn = document.getElementById("clear-ai-chat-btn");
+  if (hint) hint.classList.toggle("hidden", aiView === "settings");
+  if (clearBtn) clearBtn.classList.toggle("hidden", aiView === "settings");
+  if (aiView === "manage") setAiMode("manage");
+  else if (aiView !== "settings") setAiMode("chat");
+
   document.getElementById("ai-mode-chat").addEventListener("click", () => setAiMode("chat"));
   document.getElementById("ai-mode-manage").addEventListener("click", () => setAiMode("manage"));
 
@@ -763,5 +779,5 @@
     loadGroqKeys();
     loadOwnerProfile();
   });
-  input.focus();
+  if (input && aiView !== "settings") input.focus();
 })();

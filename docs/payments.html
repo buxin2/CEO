@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payments · Admin</title>
   <link rel="stylesheet" href="css/style.css?v=6">
+  <link rel="stylesheet" href="css/admin-ui.css?v=2">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -14,31 +15,30 @@
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="admin-store.html">Products</a>
-        <a class="sidebar-link" href="admin-shipping.html">Shipping</a>
-        <a class="sidebar-link" href="admin-store-orders.html">Store Orders</a>
-        <a class="sidebar-link" href="admin-store-users.html">Store Users</a>
-        <a class="sidebar-link active" href="payments.html">Payments</a>
-        <a class="sidebar-link" href="orders.html">Community Orders</a>
-        <a class="sidebar-link" href="ai-assistant.html">AI Assistant</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
     <main class="main-content">
-      <div class="page-header">
+      <div class="page-head">
         <div>
           <h1>Payments</h1>
           <div class="page-subtitle">Keys, live/test mode, and a tiny checkout to confirm Card/PayPal and Wave work.</div>
         </div>
+        <span class="mode-badge test" id="mode-badge">TEST</span>
+      </div>
+      <div class="ui-tabs" id="pay-tabs">
+        <button type="button" class="active" data-pay-tab="overview">Overview</button>
+        <button type="button" data-pay-tab="test">Test payments</button>
+        <button type="button" data-pay-tab="keys">Keys &amp; Mode</button>
+        <button type="button" data-pay-tab="tx">Transactions</button>
       </div>
 
       <div id="pay-settings-error" class="form-error hidden"></div>
       <div id="pay-settings-ok" class="text-muted hidden" style="margin-bottom:12px;"></div>
 
+      <div id="pay-panel-overview">
+      <div id="payments-summary" class="card card-inner"></div>
+      </div>
+
+      <div id="pay-panel-keys" class="hidden">
       <section class="card" style="padding:20px;margin-bottom:20px;">
         <h2>Mode</h2>
         <p class="text-muted">Live takes real money. Test uses PayPal sandbox and the Modem Pay test secret if you saved one.</p>
@@ -49,6 +49,8 @@
         <p id="mode-label" style="margin-top:10px;font-weight:700;"></p>
       </section>
 
+      </div>
+      <div id="pay-panel-test" class="hidden">
       <section class="card" style="padding:20px;margin-bottom:20px;">
         <h2>Test a payment</h2>
         <p class="text-muted" id="test-note">Click Test Card / PayPal to open a $1.00 checkout popup. You can pay with a card or PayPal. Wave tests use 1 GMD.</p>
@@ -60,7 +62,8 @@
         </div>
         <p id="test-result" class="text-muted" style="margin-top:12px;"></p>
       </section>
-
+      </div>
+      <div id="pay-panel-keys-forms" class="hidden">
       <section class="card" style="padding:20px;margin-bottom:20px;">
         <h2>PayPal keys</h2>
         <p class="text-muted">Leave a field blank to keep the key already saved. Paste the full key, not the dots.</p>
@@ -112,9 +115,22 @@
           <button class="btn btn-primary" type="submit">Save Wave keys</button>
         </form>
       </section>
+      </div>
 
-      <div id="payments-summary" class="card card-inner"></div>
-      <div id="payments-list" style="margin-top:16px;"></div>
+      <div id="pay-panel-tx" class="hidden">
+        <div class="filter-bar">
+          <select class="form-control" id="tx-kind" aria-label="Filter type">
+            <option value="">All types</option>
+          </select>
+          <select class="form-control" id="tx-status" aria-label="Filter status">
+            <option value="">All status</option>
+          </select>
+          <button type="button" class="btn btn-secondary btn-sm" id="tx-prev">Previous</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="tx-next">Next</button>
+          <span class="text-muted" id="tx-page-label"></span>
+        </div>
+        <div id="payments-list"></div>
+      </div>
     </main>
   </div>
 
@@ -133,7 +149,9 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js?v=2"></script>
+  <script src="js/nav-config.js?v=1"></script>
+  <script src="js/shell.js?v=2"></script>
   <script src="js/paypal-buttons.js?v=1"></script>
-  <script src="js/payments.js?v=4"></script>
+  <script src="js/payments.js?v=5"></script>
 </body>
 </html>

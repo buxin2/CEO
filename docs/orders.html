@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Orders · Admin</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin-ui.css?v=2">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -14,25 +15,34 @@
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="communities.html">Communities</a>
-        <a class="sidebar-link" href="admin-store.html">Products</a>
-        <a class="sidebar-link" href="admin-store-orders.html">Store Orders</a>
-        <a class="sidebar-link" href="payments.html">Payments</a>
-        <a class="sidebar-link active" href="orders.html">Orders</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
     <main class="main-content">
-      <div class="page-header"><h1>Orders</h1></div>
+      <div class="page-head">
+        <div>
+          <h1>Community orders</h1>
+          <div class="page-subtitle">Paid community checkouts. Filter by status and update fulfillment here.</div>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <input class="form-control" id="order-search" placeholder="Search order, product, or name">
+        <select class="form-control" id="order-status-filter" aria-label="Status filter">
+          <option value="">All statuses</option>
+          <option value="pending_payment">pending_payment</option>
+          <option value="paid">paid</option>
+          <option value="processing">processing</option>
+          <option value="shipped">shipped</option>
+          <option value="delivered">delivered</option>
+          <option value="cancelled">cancelled</option>
+          <option value="refunded">refunded</option>
+        </select>
+      </div>
       <div id="orders-list"></div>
     </main>
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js?v=2"></script>
-  <script src="js/orders.js?v=1"></script>
+  <script src="js/nav-config.js?v=1"></script>
+  <script src="js/shell.js?v=2"></script>
+  <script src="js/orders.js?v=2"></script>
 </body>
 </html>

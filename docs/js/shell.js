@@ -15,42 +15,109 @@
     list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
     chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h16"/><path d="M8 16v-5M12 16V8M16 16v-8"/></svg>',
     logout: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
+    card: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+    chevron: '<svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
   };
 
   function href(path) {
     return typeof pageUrl === "function" ? pageUrl(path) : path;
   }
 
-  function link(path, key, label, active) {
-    const isActive = active === key ? " active" : "";
-    return `<a class="sidebar-link${isActive}" href="${href(path)}" data-nav="${key}" title="${label}">${ICONS[key] || ICONS.grid}<span class="sidebar-link-text">${label}</span></a>`;
+  function currentPage() {
+    const file = (location.pathname.split("/").pop() || "dashboard.html").split("?")[0] || "dashboard.html";
+    const view = new URLSearchParams(location.search).get("view") || "";
+    const hash = (location.hash || "").replace("#", "");
+    return { file, view, hash, search: location.search || "" };
   }
 
-  function renderSidebar(active) {
+  function itemMatches(item, loc) {
+    const keys = item.match || (item.href ? [item.href] : []);
+    return keys.some((raw) => {
+      const [pathPart, hashPart] = String(raw).split("#");
+      const [file, qs] = pathPart.split("?");
+      if (file && file !== loc.file) return false;
+      if (qs) {
+        const want = new URLSearchParams(qs).get("view") || "";
+        if ((loc.view || "") !== want) return false;
+      } else if (file === "ai-assistant.html" && loc.file === "ai-assistant.html") {
+        if (item.id === "ai-chat" && loc.view) return false;
+      } else if (file === "communities.html" && loc.file === "communities.html") {
+        if (item.id === "communities-all" && loc.view === "members") return false;
+        if (item.id === "community-members" && loc.view !== "members") return false;
+      } else if (file === "dashboard.html" && loc.file === "dashboard.html") {
+        if (hashPart === "companies") return loc.hash === "companies";
+        if (item.id === "dashboard") return loc.hash !== "companies";
+      }
+      if (hashPart) return loc.hash === hashPart;
+      return true;
+    });
+  }
+
+  function collectActive(loc) {
+    const active = {};
+    (window.NAV_GROUPS || []).forEach((group) => {
+      (group.items || []).forEach((item) => {
+        if (item.children) {
+          item.children.forEach((child) => {
+            if (itemMatches(child, loc)) {
+              active[child.id] = true;
+              active[item.id] = true;
+              active[group.id] = true;
+            }
+          });
+        } else if (itemMatches(item, loc)) {
+          active[item.id] = true;
+          active[group.id] = true;
+        }
+      });
+    });
+    return active;
+  }
+
+  function loadOpen() {
+    try {
+      const raw = JSON.parse(localStorage.getItem("ui-nav-open") || "[]");
+      return Array.isArray(raw) ? raw : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveOpen(ids) {
+    try { localStorage.setItem("ui-nav-open", JSON.stringify(ids)); } catch (e) {}
+  }
+
+  function linkHtml(item, active, extraClass) {
+    const on = active[item.id] ? " active" : "";
+    return `<a class="sidebar-link${on}${extraClass ? " " + extraClass : ""}" href="${href(item.href)}" data-nav="${item.id}" title="${item.label}">${ICONS[item.icon] || ""}<span class="sidebar-link-text">${item.label}</span></a>`;
+  }
+
+  function renderSidebar(active, openIds) {
+    const groups = window.NAV_GROUPS || [];
+    const nav = groups.map((group) => {
+      const items = (group.items || []).map((item) => {
+        if (item.children) {
+          const isOpen = openIds.indexOf(item.id) >= 0 || !!active[item.id];
+          const parentOn = active[item.id] ? " active-parent" : "";
+          const kids = item.children.map((c) => linkHtml(c, active, "nav-sublink")).join("");
+          return `<div class="nav-drop${isOpen ? " open" : ""}${parentOn}" data-drop="${item.id}">
+            <button type="button" class="sidebar-link nav-drop-btn" aria-expanded="${isOpen}" title="${item.label}">
+              ${ICONS[item.icon] || ICONS.grid}<span class="sidebar-link-text">${item.label}</span>${ICONS.chevron}
+            </button>
+            <div class="nav-sub">${kids}</div>
+          </div>`;
+        }
+        return linkHtml(item, active);
+      }).join("");
+      return `<div class="sidebar-group-label">${group.label}</div>${items}`;
+    }).join("");
+
     return `
       <div class="sidebar-brand-row">
         <div class="sidebar-brand">My Management System</div>
         <button type="button" class="sidebar-collapse-btn" id="sidebar-collapse-btn" aria-label="Collapse sidebar">${ICONS.grid}</button>
       </div>
-      <nav class="sidebar-nav">
-        <div class="sidebar-group-label">Work</div>
-        ${link("dashboard.html", "grid", "Dashboard", active)}
-        ${link("dashboard.html#companies", "building", "Companies", active)}
-        ${link("communities.html", "users", "Communities", active)}
-        ${link("admin-store.html", "box", "Products", active)}
-        ${link("admin-shipping.html", "truck", "Shipping", active)}
-        ${link("excel-lists.html", "list", "Excel lists", active)}
-        ${link("reports.html", "chart", "Reports", active)}
-        <div class="sidebar-group-label">Store</div>
-        ${link("admin-store-orders.html", "receipt", "Store Orders", active)}
-        ${link("admin-store-users.html", "user", "Store Users", active)}
-        <div class="sidebar-group-label">Personal</div>
-        ${link("ai-assistant.html", "spark", "AI Assistant", active)}
-        ${link("mentor.html", "brain", "Mentor", active)}
-        ${link("ideas.html", "lamp", "My Ideas", active)}
-        ${link("timetable.html", "cal", "My Timetable", active)}
-        ${link("news.html", "news", "News", active)}
-      </nav>
+      <nav class="sidebar-nav">${nav}</nav>
       <div class="sidebar-footer">
         <div class="sidebar-user">
           <span class="ui-avatar" id="sidebar-avatar">A</span>
@@ -67,14 +134,68 @@
     if (btn) btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
   }
 
-  window.mountAdminShell = function (active) {
+  function ensureChrome() {
+    if (!document.getElementById("sidebar-backdrop")) {
+      const bd = document.createElement("div");
+      bd.className = "sidebar-backdrop";
+      bd.id = "sidebar-backdrop";
+      document.body.insertBefore(bd, document.body.firstChild);
+    }
+    if (!document.querySelector(".mobile-navbar")) {
+      const bar = document.createElement("div");
+      bar.className = "mobile-navbar";
+      bar.innerHTML = `<button class="hamburger-btn" id="mobile-nav-toggle" aria-label="Open menu">☰</button>
+        <div class="brand">My Management System</div>
+        <button type="button" class="icon-btn" id="theme-toggle-btn" aria-label="Toggle color theme">◐</button>`;
+      document.body.insertBefore(bar, document.body.firstChild);
+    } else if (!document.getElementById("theme-toggle-btn")) {
+      const nav = document.querySelector(".mobile-navbar");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "icon-btn";
+      btn.id = "theme-toggle-btn";
+      btn.setAttribute("aria-label", "Toggle color theme");
+      btn.textContent = "◐";
+      nav.appendChild(btn);
+    }
+    if (!document.getElementById("sidebar")) {
+      const shell = document.querySelector(".app-shell") || document.body;
+      const aside = document.createElement("aside");
+      aside.className = "sidebar";
+      aside.id = "sidebar";
+      shell.insertBefore(aside, shell.firstChild);
+    }
+  }
+
+  window.mountAdminShell = function (force) {
+    if (document.body.dataset.adminShell === "1" && !force) return;
+    document.body.dataset.adminShell = "1";
+    ensureChrome();
+
     const savedTheme = (function () {
       try { return localStorage.getItem("ui-theme") || "light"; } catch (e) { return "light"; }
     })();
     applyTheme(savedTheme);
 
+    const loc = currentPage();
+    const active = collectActive(loc);
+    let openIds = loadOpen();
+    Object.keys(active).forEach((id) => {
+      if (openIds.indexOf(id) < 0) openIds.push(id);
+    });
+
     const sidebar = document.getElementById("sidebar");
-    if (sidebar) sidebar.innerHTML = renderSidebar(active);
+    sidebar.innerHTML = renderSidebar(active, openIds);
+
+    sidebar.querySelectorAll(".nav-drop-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const wrap = btn.closest(".nav-drop");
+        wrap.classList.toggle("open");
+        btn.setAttribute("aria-expanded", wrap.classList.contains("open") ? "true" : "false");
+        const ids = Array.from(sidebar.querySelectorAll(".nav-drop.open")).map((el) => el.getAttribute("data-drop"));
+        saveOpen(ids);
+      });
+    });
 
     try {
       if (localStorage.getItem("ui-sidebar") === "collapsed") {
@@ -93,7 +214,8 @@
     }
 
     const themeBtn = document.getElementById("theme-toggle-btn");
-    if (themeBtn) {
+    if (themeBtn && !themeBtn.dataset.bound) {
+      themeBtn.dataset.bound = "1";
       themeBtn.addEventListener("click", () => {
         const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
         applyTheme(next);
@@ -132,4 +254,16 @@
   window.uiEmptyState = function (text, actionHtml) {
     return `<div class="empty-lite"><p>${text}</p>${actionHtml || ""}</div>`;
   };
+
+  function boot() {
+    if (!document.getElementById("sidebar") && !document.querySelector(".app-shell")) return;
+    window.mountAdminShell();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+  window.addEventListener("hashchange", () => window.mountAdminShell(true));
 })();

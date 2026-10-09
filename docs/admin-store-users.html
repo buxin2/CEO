@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Store Users · Admin</title>
   <link rel="stylesheet" href="css/style.css?v=8">
+  <link rel="stylesheet" href="css/admin-ui.css?v=2">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -14,25 +15,12 @@
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="admin-store.html">Products</a>
-        <a class="sidebar-link" href="admin-shipping.html">Shipping</a>
-        <a class="sidebar-link" href="admin-store-orders.html">Store Orders</a>
-        <a class="sidebar-link active" href="admin-store-users.html">Store Users</a>
-        <a class="sidebar-link" href="payments.html">Payments</a>
-        <a class="sidebar-link" href="orders.html">Community Orders</a>
-        <a class="sidebar-link" href="ai-assistant.html">AI Assistant</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
     <main class="main-content">
-      <div class="page-header">
+      <div class="page-head">
         <div>
           <h1>Store Users</h1>
-          <div class="page-subtitle">See accounts, emails, and set a new password when someone forgets theirs.</div>
+          <div class="page-subtitle">Accounts, order counts, password resets, and delete — search without leaving this table.</div>
         </div>
         <button class="btn btn-danger" type="button" id="clear-users-btn">Clear all users</button>
       </div>
@@ -55,6 +43,8 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/admin-store-users.js?v=2"></script>
+  <script src="js/nav-config.js?v=1"></script>
+  <script src="js/shell.js?v=2"></script>
+  <script src="js/admin-store-users.js?v=3"></script>
 </body>
 </html>

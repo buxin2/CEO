@@ -48,25 +48,25 @@
     productsById = {};
     (prod.products || []).forEach((p) => { productsById[p.id] = p; });
 
-    document.getElementById("product-list").innerHTML = (prod.products || []).map((p) => {
+    const grid = document.getElementById("product-list");
+    grid.classList.add("company-grid");
+    grid.innerHTML = (prod.products || []).map((p) => {
       const an = p.analytics || {};
       return `
-      <div class="card" style="padding:16px;margin-bottom:12px;">
-        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">
-          ${p.cover_image ? `<img src="${escapeHtml(p.cover_image)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;">` : ""}
-          <div style="flex:1;">
-            <h3>${escapeHtml(p.title)}</h3>
-            <div class="text-muted">${escapeHtml(p.status)} · ${(p.unit_price_cents / 100).toFixed(2)} ${escapeHtml(p.currency)} · ${escapeHtml(p.availability)}</div>
-            <div class="text-muted" style="font-size:13px;">Views ${an.views || 0} · Orders ${an.total_orders || 0} · Sold ${an.units_sold || 0} · Left ${an.units_remaining == null ? "∞" : an.units_remaining} · Revenue ${((an.revenue_cents || 0) / 100).toFixed(2)} · Pending ${an.pending_orders || 0}</div>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm" data-copy="${escapeHtml(p.product_url || "")}">Copy product URL</button>
-            <button class="btn btn-secondary btn-sm" data-donate="${p.id}">Copy donate link</button>
-            <button class="btn btn-secondary btn-sm" data-dl-url="${p.id}">Download URL</button>
-            <button class="btn btn-primary btn-sm" data-qr="${p.id}">QR poster</button>
-            <button class="btn btn-secondary btn-sm" data-edit="${p.id}">Edit</button>
-            <button class="btn btn-ghost btn-sm" data-del="${p.id}">Delete</button>
-          </div>
+      <div class="ui-card company-card">
+        ${p.cover_image ? `<img src="${escapeHtml(p.cover_image)}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;">` : ""}
+        <div class="entity-card-title">${escapeHtml(p.title)}</div>
+        <div class="text-muted">${escapeHtml(p.status)} · ${(p.unit_price_cents / 100).toFixed(2)} ${escapeHtml(p.currency)}</div>
+        <div class="text-muted" style="font-size:12px;">${an.views || 0} views · ${an.total_orders || 0} orders</div>
+        <div class="flex gap-8 flex-wrap">
+          <button class="btn btn-secondary btn-sm" data-copy="${escapeHtml(p.product_url || "")}">Copy link</button>
+          <a class="btn btn-secondary btn-sm" href="${escapeHtml(p.product_url || "store.html")}" target="_blank" rel="noopener">Open</a>
+          <button class="btn btn-primary btn-sm" data-edit="${p.id}">Edit</button>
+        </div>
+        <div class="flex gap-8 flex-wrap">
+          <button class="btn btn-ghost btn-sm" data-donate="${p.id}">Donate link</button>
+          <button class="btn btn-ghost btn-sm" data-qr="${p.id}">QR poster</button>
+          <button class="btn btn-ghost btn-sm" data-del="${p.id}">Delete</button>
         </div>
       </div>`;
     }).join("") || "<p class='text-muted'>No products yet. Click Add Product.</p>";

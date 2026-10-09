@@ -139,10 +139,14 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/shell.js?v=1"></script>
+  <script src="js/nav-config.js?v=1"></script>
+  <script src="js/shell.js?v=2"></script>
   <script>
-    mountAdminShell("grid");
-    document.getElementById("theme-toggle-btn-desk").addEventListener("click", () => document.getElementById("theme-toggle-btn").click());
+    const deskTheme = document.getElementById("theme-toggle-btn-desk");
+    if (deskTheme) deskTheme.addEventListener("click", () => {
+      const t = document.getElementById("theme-toggle-btn");
+      if (t) t.click();
+    });
 
     let currentWeekStart = null;
     let currentWeekEnd = null;

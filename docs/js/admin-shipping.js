@@ -2,22 +2,22 @@
   async function load() {
     const data = await apiRequest("/api/admin/shipping");
     const zones = data.zones || [];
-    document.getElementById("zone-list").innerHTML = zones.map((z) => `
-      <div class="card" style="padding:16px;margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;">
-          <div>
-            <h3>${escapeHtml(z.name)}</h3>
-            <p class="text-muted">FedEx · ${(z.countries || []).length} countries</p>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <span>USD</span>
-            <input class="form-control" style="max-width:120px;" id="rate-${escapeHtml(z.slug)}" value="${((z.rate_cents || 0) / 100).toFixed(2)}">
-            <button class="btn btn-secondary btn-sm" data-save="${escapeHtml(z.slug)}">Save price</button>
-          </div>
-        </div>
-        <p style="margin-top:10px;font-size:13px;">${(z.countries || []).map((c) => escapeHtml(c.name)).join(", ")}</p>
-      </div>
-    `).join("") || "<p class='text-muted'>No zones configured.</p>";
+    document.getElementById("zone-list").innerHTML = zones.length ? `
+      <table class="ui-table zones-table">
+        <thead><tr><th>Zone</th><th>Countries</th><th>Price (USD)</th><th></th></tr></thead>
+        <tbody>
+          ${zones.map((z) => `
+            <tr>
+              <td><strong>${escapeHtml(z.name)}</strong><div class="text-muted">FedEx</div></td>
+              <td>
+                <button type="button" class="btn btn-ghost btn-sm" data-toggle-countries="${escapeHtml(z.slug)}">${(z.countries || []).length} countries</button>
+                <div class="countries-cell collapsed" id="countries-${escapeHtml(z.slug)}" title="${escapeHtml((z.countries || []).map((c) => c.name).join(", "))}">${(z.countries || []).map((c) => escapeHtml(c.name)).join(", ")}</div>
+              </td>
+              <td><input class="form-control" style="max-width:120px;" id="rate-${escapeHtml(z.slug)}" value="${((z.rate_cents || 0) / 100).toFixed(2)}" aria-label="${escapeHtml(z.name)} price"></td>
+              <td><button class="btn btn-secondary btn-sm" data-save="${escapeHtml(z.slug)}">Save</button></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>` : "<p class='text-muted'>No zones configured.</p>";
 
     document.querySelectorAll("[data-save]").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -28,6 +28,12 @@
         });
         showToast("FedEx price saved");
         await load();
+      });
+    });
+    document.querySelectorAll("[data-toggle-countries]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const el = document.getElementById("countries-" + btn.getAttribute("data-toggle-countries"));
+        if (el) el.classList.toggle("collapsed");
       });
     });
   }

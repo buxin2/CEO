@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Assistant &middot; My Management System</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin-ui.css?v=2">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -15,32 +16,23 @@
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="dashboard.html">Companies</a>
-        <a class="sidebar-link" href="communities.html">&#128101; Communities</a>
-        <a class="sidebar-link" href="admin-store.html">Products</a>
-        <a class="sidebar-link" href="admin-shipping.html">Shipping</a>
-        <a class="sidebar-link" href="admin-store-orders.html">Store Orders</a>
-        <a class="sidebar-link active" href="ai-assistant.html">&#129302; AI Assistant</a>
-        <a class="sidebar-link" href="mentor.html">&#129504; Mentor</a>
-        <a class="sidebar-link" href="ideas.html">&#128161; My Ideas</a>
-        <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
-        <a class="sidebar-link" href="news.html">&#128240; News</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main-content ai-assistant-page">
-        <div class="ai-assistant-header">
-        <h1>AI Management Assistant</h1>
-        <p class="page-subtitle">Tell me what you want to do, and I'll handle it for you.</p>
-        <p class="page-subtitle text-muted" style="margin-top:4px;font-size:13px;">
-          The AI remembers your last 2 messages plus live app data. Use
-          <strong>Clear conversation</strong> to start fresh.
-          <button type="button" class="btn btn-secondary btn-sm" id="clear-ai-chat-btn" style="margin-left:8px;">Clear conversation</button>
+        <div class="page-head ai-assistant-header">
+        <div>
+        <h1>AI Assistant</h1>
+        <p class="page-subtitle">Chat, manage the app, or set API keys — same assistant, one menu.</p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="clear-ai-chat-btn">Clear conversation</button>
+        </div>
+        <div class="ui-tabs" id="ai-page-tabs">
+          <a class="btn btn-secondary btn-sm" href="ai-assistant.html" data-ai-tab="chat">Chat</a>
+          <a class="btn btn-secondary btn-sm" href="ai-assistant.html?view=manage" data-ai-tab="manage">Manage</a>
+          <a class="btn btn-secondary btn-sm" href="ai-assistant.html?view=settings" data-ai-tab="settings">Settings &amp; API keys</a>
+        </div>
+        <p class="page-subtitle text-muted" id="ai-chat-hint" style="margin-bottom:12px;font-size:13px;">
+          The AI remembers your last 2 messages plus live app data.
         </p>
         <div id="ai-server-status" class="ai-server-status ai-server-status-waking" aria-live="polite">
           Connecting to server…
@@ -48,6 +40,7 @@
         <div id="ai-config-warning" class="form-error"></div>
       </div>
 
+      <div id="ai-view-chat">
       <div class="ai-chat-shell">
         <div class="ai-chat-messages" id="ai-chat-messages" aria-live="polite">
           <div class="ai-chat-welcome">
@@ -66,13 +59,9 @@
         </div>
 
         <form class="ai-chat-composer" id="ai-chat-form">
-          <div class="ai-chat-mode-bar" role="group" aria-label="AI conversation mode">
-            <button type="button" class="ai-mode-btn active" id="ai-mode-chat" data-mode="chat">
-              💬 Chat — mentor &amp; friend
-            </button>
-            <button type="button" class="ai-mode-btn" id="ai-mode-manage" data-mode="manage">
-              ⚙️ Manage — create &amp; update app
-            </button>
+          <div class="ai-chat-mode-bar hidden" role="group" aria-label="AI conversation mode">
+            <button type="button" class="ai-mode-btn active" id="ai-mode-chat" data-mode="chat">Chat</button>
+            <button type="button" class="ai-mode-btn" id="ai-mode-manage" data-mode="manage">Manage</button>
           </div>
           <div class="ai-chat-composer-inner-row">
           <div class="ai-chat-input-wrap">
@@ -111,7 +100,9 @@
           </div>
         </form>
       </div>
+      </div>
 
+      <div id="ai-view-settings" class="hidden">
       <section class="card ai-owner-profile-section" id="ai-owner-profile-section">
         <div class="page-header" style="margin-bottom:12px;">
           <h2 class="section-title" style="margin:0;">About you — AI knows you</h2>
@@ -183,6 +174,7 @@
         <h3 class="section-subtitle">Saved Groq APIs</h3>
         <div id="groq-keys-list" class="groq-keys-list"></div>
       </section>
+      </div>
     </main>
   </div>
 
@@ -253,7 +245,9 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/nav-config.js?v=1"></script>
+  <script src="js/shell.js?v=2"></script>
   <script src="js/ai-voice.js?v=7"></script>
-  <script src="js/ai-assistant.js?v=10"></script>
+  <script src="js/ai-assistant.js?v=11"></script>
 </body>
 </html>

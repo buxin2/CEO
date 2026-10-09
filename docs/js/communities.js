@@ -25,16 +25,15 @@
         ? communityLinkForToken(c.community_token)
         : (c.community_link || "");
       return `
-      <div class="card company-card">
-        <a href="community-admin.html?id=${c.id}" style="color:inherit;text-decoration:none;">
-          ${c.image_url ? `<img src="${escapeHtml(c.image_url)}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:10px;">` : ""}
-          <h3>${escapeHtml(c.name)}</h3>
-          <p class="text-muted">${escapeHtml((c.description || "").slice(0, 120))}</p>
-          <p class="text-muted">${escapeHtml(communityPriceLabel(c))}</p>
-        </a>
-        <div class="flex gap-8" style="margin-top:12px;">
+      <div class="ui-card company-card">
+        ${c.image_url ? `<img src="${escapeHtml(c.image_url)}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;">` : ""}
+        <div class="entity-card-title">${escapeHtml(c.name)}</div>
+        <p class="text-muted">${escapeHtml((c.description || "").slice(0, 120))}</p>
+        <p class="text-muted">${escapeHtml(communityPriceLabel(c))}</p>
+        <div class="flex gap-8 flex-wrap">
           <button type="button" class="btn btn-secondary btn-sm" data-copy-community="${escapeHtml(link)}">Copy link</button>
-          <a class="btn btn-primary btn-sm" href="community-admin.html?id=${c.id}">Open</a>
+          <a class="btn btn-secondary btn-sm" href="community-admin.html?id=${c.id}">Open</a>
+          <a class="btn btn-primary btn-sm" href="community-admin.html?id=${c.id}#settings">Edit</a>
         </div>
       </div>`;
     }).join("");
@@ -107,11 +106,6 @@
     }
   });
 
-  document.getElementById("logout-btn").addEventListener("click", async () => {
-    try { await apiRequest("/api/auth/logout", { method: "POST" }); } catch (e) {}
-    window.location.href = pageUrl("login.html");
-  });
-
   if (typeof initMobileNav === "function") initMobileNav();
 
   (async function init() {
@@ -120,6 +114,37 @@
       await apiRequest("/api/me");
     } catch (e) {
       window.location.href = pageUrl("login.html");
+      return;
+    }
+    const view = (typeof getQueryParam === "function" && getQueryParam("view")) || "";
+    const list = document.getElementById("communities-list");
+    const membersBox = document.getElementById("members-overview");
+    if (view === "members") {
+      if (list) list.classList.add("hidden");
+      if (membersBox) {
+        membersBox.classList.remove("hidden");
+        membersBox.innerHTML = "<p class='text-muted'>Loading members…</p>";
+        const data = await apiRequest("/api/communities");
+        const rows = data.communities || [];
+        const collected = [];
+        for (const c of rows) {
+          try {
+            const md = await apiRequest("/api/communities/" + c.id + "/members");
+            (md.members || []).forEach((m) => collected.push(Object.assign({ community_name: c.name, community_id: c.id }, m)));
+          } catch (e) {
+            /* skip */
+          }
+        }
+        membersBox.innerHTML = collected.length ? `<table class="ui-table"><thead><tr><th>Member</th><th>Community</th><th>Status</th><th></th></tr></thead><tbody>
+          ${collected.map((m) => `
+            <tr>
+              <td>${escapeHtml(m.full_name || m.username || m.email || "Member")}<div class="text-muted">${escapeHtml(m.email || "")}</div></td>
+              <td>${escapeHtml(m.community_name)}</td>
+              <td>${escapeHtml(m.status || "")}</td>
+              <td><a class="btn btn-secondary btn-sm" href="community-admin.html?id=${m.community_id}">Open</a></td>
+            </tr>`).join("")}
+        </tbody></table>` : "<div class='empty-lite'>No members yet.</div>";
+      }
       return;
     }
     await load();

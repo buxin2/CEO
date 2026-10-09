@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Communities &middot; My Management System</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin-ui.css?v=2">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -14,34 +15,17 @@
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="dashboard.html">Companies</a>
-        <a class="sidebar-link active" href="communities.html">&#128101; Communities</a>
-        <a class="sidebar-link" href="admin-store.html">Products</a>
-        <a class="sidebar-link" href="admin-shipping.html">Shipping</a>
-        <a class="sidebar-link" href="admin-store-orders.html">Store Orders</a>
-        <a class="sidebar-link" href="payments.html">Payments</a>
-        <a class="sidebar-link" href="orders.html">Orders</a>
-        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
-        <a class="sidebar-link" href="mentor.html">&#129504; Mentor</a>
-        <a class="sidebar-link" href="ideas.html">&#128161; My Ideas</a>
-        <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
-        <a class="sidebar-link" href="news.html">&#128240; News</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
     <main class="main-content">
-      <div class="page-header">
+      <div class="page-head">
         <div>
-          <h1>&#128101; Communities</h1>
-          <p class="page-subtitle">Manage audiences, students, and followers</p>
+          <h1>Communities</h1>
+          <p class="page-subtitle">Audiences, students, and followers — copy a link or open the admin.</p>
         </div>
         <button type="button" class="btn btn-primary" id="create-community-btn">+ Create Community</button>
       </div>
-      <div id="communities-list" class="card-grid"></div>
+      <div id="communities-list" class="company-grid"></div>
+      <div id="members-overview" class="hidden"></div>
     </main>
   </div>
   <div class="modal-overlay" id="create-community-modal">
@@ -93,6 +77,8 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/common.js?v=3"></script>
-  <script src="js/communities.js?v=3"></script>
+  <script src="js/nav-config.js?v=1"></script>
+  <script src="js/shell.js?v=2"></script>
+  <script src="js/communities.js?v=4"></script>
 </body>
 </html>

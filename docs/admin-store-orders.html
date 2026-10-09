@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Store Orders · Admin</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin-ui.css?v=2">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -14,31 +15,32 @@
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="admin-store.html">Products</a>
-        <a class="sidebar-link" href="admin-shipping.html">Shipping</a>
-        <a class="sidebar-link active" href="admin-store-orders.html">Store Orders</a>
-        <a class="sidebar-link" href="admin-store-users.html">Store Users</a>
-        <a class="sidebar-link" href="payments.html">Payments</a>
-        <a class="sidebar-link" href="orders.html">Community Orders</a>
-        <a class="sidebar-link" href="ai-assistant.html">AI Assistant</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
     <main class="main-content">
-      <div class="page-header">
+      <div class="page-head">
         <div>
-          <h1>Store Orders</h1>
-          <div class="page-subtitle">Customer account help requests appear first. Search orders by name, product, or number.</div>
+          <h1>Store orders</h1>
+          <div class="page-subtitle">Search, filter by status, and update fulfillment without leaving this table.</div>
         </div>
-        <button class="btn btn-danger" type="button" id="clear-orders-btn">Clear all orders</button>
+        <div class="flex gap-8">
+          <button class="btn btn-secondary" type="button" id="bulk-delete-orders-btn">Delete selected</button>
+          <button class="btn btn-danger" type="button" id="clear-orders-btn">Clear all orders</button>
+        </div>
       </div>
       <div id="help-list" style="margin-bottom:24px;"></div>
-      <div class="card" style="padding:12px;margin-bottom:16px;">
+      <div class="filter-bar">
         <input class="form-control" id="order-search" placeholder="Search name, product, order number, email…">
+        <select class="form-control" id="order-status-filter" aria-label="Status filter">
+          <option value="">All statuses</option>
+          <option value="pending_payment">pending_payment</option>
+          <option value="paid">paid</option>
+          <option value="processing">processing</option>
+          <option value="packed">packed</option>
+          <option value="shipped">shipped</option>
+          <option value="delivered">delivered</option>
+          <option value="cancelled">cancelled</option>
+          <option value="refunded">refunded</option>
+        </select>
       </div>
       <div id="orders-list"></div>
     </main>
@@ -56,6 +58,8 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/admin-store-orders.js?v=7"></script>
+  <script src="js/nav-config.js?v=1"></script>
+  <script src="js/shell.js?v=2"></script>
+  <script src="js/admin-store-orders.js?v=8"></script>
 </body>
 </html>
