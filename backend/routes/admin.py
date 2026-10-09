@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from flask import Blueprint, jsonify, request
 
 from models import Company, Employee, get_week_bounds
 from routes.auth import login_required
+from services.dashboard_report import dashboard_work_report
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -33,6 +34,9 @@ def api_dashboard():
     total_tasks = 0
     completed_tasks = 0
 
+    work = dashboard_work_report(include_details=False)
+    work_by_company = {c["id"]: c for c in work.get("companies") or []}
+
     company_list = []
     for c in companies:
         stats = c.get_week_stats(week_start, week_end)
@@ -40,6 +44,14 @@ def api_dashboard():
         completed_tasks += stats["completed"]
         company_data = c.to_dict()
         company_data["stats"] = stats
+        company_data["excel"] = work_by_company.get(c.id) or {
+            "today_given": 0,
+            "today_done": 0,
+            "leftover": 0,
+            "on_track": 0,
+            "lacking": 0,
+            "excel_people": 0,
+        }
         company_list.append(company_data)
 
     pending_tasks = total_tasks - completed_tasks
@@ -54,6 +66,7 @@ def api_dashboard():
             "pending_tasks": pending_tasks,
             "completion_pct": completion_pct,
         },
+        "work": work,
         "companies": company_list,
         "week": {
             "week_start": week_start.isoformat(),
@@ -62,3 +75,16 @@ def api_dashboard():
             "next_week_start": (week_start + timedelta(days=7)).isoformat(),
         },
     })
+
+
+@admin_bp.route("/api/dashboard/day-report")
+@login_required
+def api_dashboard_day_report():
+    raw = (request.args.get("date") or "").strip()
+    day = date.today()
+    if raw:
+        try:
+            day = date.fromisoformat(raw)
+        except ValueError:
+            return jsonify({"error": "Date must be YYYY-MM-DD."}), 400
+    return jsonify(dashboard_work_report(day=day, include_details=True))
