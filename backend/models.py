@@ -417,7 +417,7 @@ class WorkListRow(db.Model):
             "row_number": self.row_number,
             "title": self.title(),
             "fields": self.fields(),
-            "assigned_date": self.assigned_date.isoformat() if self.assigned_date else None,
+            "assigned_date": (self.assigned_date.isoformat()[:10] if self.assigned_date else None),
             "status": self.status or "pending",
             "notes": self.notes or "",
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,

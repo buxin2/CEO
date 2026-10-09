@@ -174,7 +174,24 @@ def release_for_employee(employee):
     return lists
 
 
+def _as_date(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()[:10]
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
 def _weekday_name(d):
+    d = _as_date(d)
+    if not d:
+        return ""
     return ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")[d.weekday()]
 
 
@@ -198,6 +215,7 @@ def _days_from_pairs(pairs, today=None):
     today = today or date.today()
     by = {}
     for assigned, status in pairs:
+        assigned = _as_date(assigned)
         if not assigned:
             continue
         item = by.setdefault(assigned, {"given": 0, "done": 0, "pending": 0})
@@ -221,28 +239,41 @@ def _days_from_pairs(pairs, today=None):
     return days
 
 
-def progress_for_work(work, today=None):
-    q = WorkListRow.query.filter_by(work_list_id=work.id)
-    total = q.count()
-    remaining = q.filter(WorkListRow.assigned_date.is_(None)).count()
-    given = total - remaining
-    done = q.filter_by(status="done").count()
-    pending = (
-        q.filter(WorkListRow.assigned_date.isnot(None))
-        .filter(WorkListRow.status != "done")
-        .count()
+def _progress_from_assigned(lists, rows, today=None):
+    today = today or date.today()
+    ids = [w.id for w in lists]
+    remaining = 0
+    if ids:
+        remaining = (
+            WorkListRow.query.filter(WorkListRow.work_list_id.in_(ids))
+            .filter(WorkListRow.assigned_date.is_(None))
+            .count()
+        )
+    given = len(rows)
+    done = sum(1 for r in rows if (r.status or "") == "done")
+    pending = given - done
+    total = remaining + given
+    pairs = [(_as_date(r.assigned_date), r.status or "pending") for r in rows]
+    quota = lists[0].daily_quota if lists else 5
+    payload = _progress_payload(
+        total, remaining, given, done, pending,
+        _days_from_pairs(pairs, today=today),
+        quota,
     )
-    pairs = (
-        db.session.query(WorkListRow.assigned_date, WorkListRow.status)
-        .filter_by(work_list_id=work.id)
+    payload["previous_pending"] = sum(
+        1 for r in rows
+        if _as_date(r.assigned_date) and _as_date(r.assigned_date) < today and (r.status or "") != "done"
+    )
+    return payload
+
+
+def progress_for_work(work, today=None):
+    rows = (
+        WorkListRow.query.filter_by(work_list_id=work.id)
         .filter(WorkListRow.assigned_date.isnot(None))
         .all()
     )
-    return _progress_payload(
-        total, remaining, given, done, pending,
-        _days_from_pairs(pairs, today=today),
-        work.daily_quota,
-    )
+    return _progress_from_assigned([work], rows, today=today)
 
 
 def progress_for_employee(employee, today=None):
@@ -275,18 +306,17 @@ def progress_for_employee(employee, today=None):
 
 
 def assigned_rows_for_employee(employee):
-    release_for_employee(employee)
-    progress, lists = progress_for_employee(employee)
+    lists = release_for_employee(employee)
     ids = [w.id for w in lists]
     if not ids:
-        return [], lists, progress
+        return [], lists, _progress_from_assigned(lists, [])
     rows = (
         WorkListRow.query.filter(WorkListRow.work_list_id.in_(ids))
         .filter(WorkListRow.assigned_date.isnot(None))
         .order_by(WorkListRow.assigned_date.desc(), WorkListRow.row_number.asc())
         .all()
     )
-    return rows, lists, progress
+    return rows, lists, _progress_from_assigned(lists, rows)
 
 
 def update_row_for_employee(employee, row_id, data):

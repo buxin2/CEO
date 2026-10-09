@@ -457,7 +457,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js?v=3"></script>
-  <script src="js/work-list-ui.js?v=1"></script>
+  <script src="js/work-list-ui.js?v=2"></script>
   <script>
     const COMPANY_ID = getQueryParam("id");
     if (!COMPANY_ID) {
@@ -1118,14 +1118,11 @@
 
     function paintWorkListBlock(host, w, rows) {
       const today = localTodayIso();
-      const progress = w.progress || {};
+      const progress = workMergedProgress(rows, [w], w.progress, today);
       const prev = workListState[w.id] && workListState[w.id].view;
       const view = workDefaultView(progress, today, prev);
       workListState[w.id] = { view, rows, list: w };
       const visible = workFilterRows(rows, view, today);
-      const empty = view.mode === "pending"
-        ? "<p class=\"text-muted\">No pending tasks.</p>"
-        : "<p class=\"text-muted\">No tasks for this day.</p>";
       host.innerHTML = `
         <div class="card-inner" style="margin-bottom:12px;">
           <strong>${escapeHtml(w.filename || "Task list")}</strong>
@@ -1138,7 +1135,7 @@
           ${workProgressHtml(progress)}
           <h3 class="section-title" style="margin:8px 0 4px;">${escapeHtml(workHeading(view, today))}</h3>
           ${workDayTabsHtml(progress, view, today)}
-          ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editable: false })).join("") : empty}
+          ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editable: false })).join("") : workEmptyMessage(view)}
         </div>`;
       bindWorkDayTabs(host, (next) => {
         workListState[w.id].view = next;

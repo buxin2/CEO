@@ -17,7 +17,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/work-list-ui.js?v=1"></script>
+  <script src="js/work-list-ui.js?v=2"></script>
   <script>
     const TOKEN = getQueryParam("token");
     let lastPublicData = null;
@@ -128,24 +128,23 @@
       function paintExcelSection(data) {
         const box = document.getElementById("excel-task-list");
         if (!box) return;
-        const progress = data.work_progress || {};
         const lists = data.work_lists || [];
-        if (!lists.length && !(data.work_rows || []).length) {
+        const rows = data.work_rows || [];
+        if (!lists.length && !rows.length) {
           box.innerHTML = "";
           return;
         }
-        workView = workDefaultView(progress, data.today, workView);
-        const visible = workFilterRows(data.work_rows || [], workView, data.today);
-        const quota = lists[0] ? lists[0].daily_quota : progress.daily_quota || 5;
-        const empty = workView.mode === "pending"
-          ? "<p class=\"text-muted\">No pending Excel tasks.</p>"
-          : "<p class=\"text-muted\">No Excel tasks for this day.</p>";
+        const today = workDateKey(data.today) || localTodayIso();
+        const progress = workMergedProgress(rows, lists, data.work_progress, today);
+        workView = workDefaultView(progress, today, workView);
+        const visible = workFilterRows(rows, workView, today);
+        const quota = progress.daily_quota || 5;
         box.innerHTML = `
           ${workProgressHtml(progress)}
-          <h3 class="section-title" style="margin:8px 0;">${escapeHtml(workHeading(workView, data.today))}</h3>
-          <p class="text-muted">Up to ${quota} new tasks each day. Open a day to review it, or Pending for unfinished work.</p>
-          ${workDayTabsHtml(progress, workView, data.today)}
-          ${visible.length ? visible.map((r) => workRowCardHtml(r, data.today, { editable: true })).join("") : empty}
+          <h3 class="section-title" style="margin:8px 0;">${escapeHtml(workHeading(workView, today))}</h3>
+          <p class="text-muted">Up to ${quota} new tasks each day. Open Previous for leftover work, a day to review it, or Pending for everything unfinished.</p>
+          ${workDayTabsHtml(progress, workView, today)}
+          ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editable: true })).join("") : workEmptyMessage(workView)}
         `;
         bindWorkDayTabs(box, (next) => {
           workView = next;
