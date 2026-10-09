@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, date
 
 from flask import Blueprint, jsonify, request
 
-from models import Company, Employee, get_week_bounds
+from models import Company, Employee, WorkList, get_week_bounds
 from routes.auth import login_required
 from services.dashboard_report import dashboard_work_report
 
@@ -57,14 +57,21 @@ def api_dashboard():
         completed_tasks += stats["completed"]
         company_data = c.to_dict()
         company_data["stats"] = stats
-        company_data["excel"] = work_by_company.get(c.id) or {
+        excel = work_by_company.get(c.id) or {
             "today_given": 0,
             "today_done": 0,
             "leftover": 0,
             "on_track": 0,
             "lacking": 0,
             "excel_people": 0,
+            "excel_lists": 0,
+            "all_given": 0,
+            "all_done": 0,
         }
+        list_count = WorkList.query.filter_by(company_id=c.id).count()
+        if list_count and not excel.get("excel_lists"):
+            excel["excel_lists"] = list_count
+        company_data["excel"] = excel
         company_list.append(company_data)
 
     pending_tasks = total_tasks - completed_tasks

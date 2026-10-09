@@ -3,8 +3,9 @@
 import logging
 from datetime import date
 
-from models import Company, Employee, Earning, WorkList, WorkListRow
-from services.worklist_service import _as_date, release_today
+from models import Company, Employee, Earning, WorkList, WorkListRow, db
+from services.worklist_service import _as_date
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +71,11 @@ def dashboard_work_report(day=None, include_details=True):
     day = day or date.today()
     day_iso = day.isoformat()
     try:
-        if day == date.today():
-            for work in WorkList.query.all():
-                release_today(work, today=day)
         lists = WorkList.query.order_by(WorkList.id.asc()).all()
+        if not lists:
+            raw = db.session.execute(text("SELECT COUNT(*) FROM work_lists")).scalar()
+            if raw:
+                lists = WorkList.query.all()
     except Exception as exc:
         logger.exception("Excel dashboard query failed")
         return _empty_report(day, error=str(exc))
