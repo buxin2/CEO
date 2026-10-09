@@ -3,7 +3,7 @@
 import csv
 import io
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from models import db, Employee, WorkList, WorkListRow
 
@@ -174,19 +174,119 @@ def release_for_employee(employee):
     return lists
 
 
+def _weekday_name(d):
+    return ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")[d.weekday()]
+
+
+def _progress_payload(total, remaining, given, done, pending, days, daily_quota=5):
+    sheet_pct = int(round(100.0 * done / total)) if total else 0
+    given_pct = int(round(100.0 * done / given)) if given else 0
+    return {
+        "total": total,
+        "remaining": remaining,
+        "given": given,
+        "done": done,
+        "pending": pending,
+        "sheet_pct": sheet_pct,
+        "given_pct": given_pct,
+        "daily_quota": int(daily_quota or 5),
+        "days": days,
+    }
+
+
+def _days_from_pairs(pairs, today=None):
+    today = today or date.today()
+    by = {}
+    for assigned, status in pairs:
+        if not assigned:
+            continue
+        item = by.setdefault(assigned, {"given": 0, "done": 0, "pending": 0})
+        item["given"] += 1
+        if status == "done":
+            item["done"] += 1
+        else:
+            item["pending"] += 1
+    days = []
+    for d in sorted(by.keys()):
+        item = by[d]
+        days.append({
+            "date": d.isoformat(),
+            "weekday": _weekday_name(d),
+            "is_today": d == today,
+            "is_yesterday": d == today - timedelta(days=1),
+            "given": item["given"],
+            "done": item["done"],
+            "pending": item["pending"],
+        })
+    return days
+
+
+def progress_for_work(work, today=None):
+    q = WorkListRow.query.filter_by(work_list_id=work.id)
+    total = q.count()
+    remaining = q.filter(WorkListRow.assigned_date.is_(None)).count()
+    given = total - remaining
+    done = q.filter_by(status="done").count()
+    pending = (
+        q.filter(WorkListRow.assigned_date.isnot(None))
+        .filter(WorkListRow.status != "done")
+        .count()
+    )
+    pairs = (
+        db.session.query(WorkListRow.assigned_date, WorkListRow.status)
+        .filter_by(work_list_id=work.id)
+        .filter(WorkListRow.assigned_date.isnot(None))
+        .all()
+    )
+    return _progress_payload(
+        total, remaining, given, done, pending,
+        _days_from_pairs(pairs, today=today),
+        work.daily_quota,
+    )
+
+
+def progress_for_employee(employee, today=None):
+    lists = WorkList.query.filter_by(employee_id=employee.id).all()
+    if not lists:
+        return _progress_payload(0, 0, 0, 0, 0, [], 5), lists
+    ids = [w.id for w in lists]
+    q = WorkListRow.query.filter(WorkListRow.work_list_id.in_(ids))
+    total = q.count()
+    remaining = q.filter(WorkListRow.assigned_date.is_(None)).count()
+    given = total - remaining
+    done = q.filter_by(status="done").count()
+    pending = (
+        q.filter(WorkListRow.assigned_date.isnot(None))
+        .filter(WorkListRow.status != "done")
+        .count()
+    )
+    pairs = (
+        db.session.query(WorkListRow.assigned_date, WorkListRow.status)
+        .filter(WorkListRow.work_list_id.in_(ids))
+        .filter(WorkListRow.assigned_date.isnot(None))
+        .all()
+    )
+    quota = lists[0].daily_quota if lists else 5
+    return _progress_payload(
+        total, remaining, given, done, pending,
+        _days_from_pairs(pairs, today=today),
+        quota,
+    ), lists
+
+
 def assigned_rows_for_employee(employee):
     release_for_employee(employee)
-    lists = WorkList.query.filter_by(employee_id=employee.id).all()
+    progress, lists = progress_for_employee(employee)
     ids = [w.id for w in lists]
     if not ids:
-        return [], lists
+        return [], lists, progress
     rows = (
         WorkListRow.query.filter(WorkListRow.work_list_id.in_(ids))
         .filter(WorkListRow.assigned_date.isnot(None))
         .order_by(WorkListRow.assigned_date.desc(), WorkListRow.row_number.asc())
         .all()
     )
-    return rows, lists
+    return rows, lists, progress
 
 
 def update_row_for_employee(employee, row_id, data):

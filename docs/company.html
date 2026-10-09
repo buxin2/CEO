@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Company &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css?v=12">
+  <link rel="stylesheet" href="css/style.css?v=13">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -115,7 +115,7 @@
         <div class="page-header" style="margin-bottom:12px;">
           <div>
             <h2 class="section-title" style="margin:0;">Excel task lists</h2>
-            <p class="page-subtitle">Upload a sheet of numbered tasks. Each day the app gives that employee the next set until the list is finished.</p>
+            <p class="page-subtitle">Upload a sheet of numbered tasks. Each day the app gives that employee the next set. Open Today, Monday, Tuesday, or Pending, and watch progress.</p>
           </div>
           <button type="button" class="btn btn-primary btn-sm" id="open-upload-excel-btn">Upload Excel</button>
         </div>
@@ -457,6 +457,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js?v=3"></script>
+  <script src="js/work-list-ui.js?v=1"></script>
   <script>
     const COMPANY_ID = getQueryParam("id");
     if (!COMPANY_ID) {
@@ -1113,46 +1114,81 @@
       ).join("");
     }
 
+    const workListState = {};
+
+    function paintWorkListBlock(host, w, rows) {
+      const today = localTodayIso();
+      const progress = w.progress || {};
+      const prev = workListState[w.id] && workListState[w.id].view;
+      const view = workDefaultView(progress, today, prev);
+      workListState[w.id] = { view, rows, list: w };
+      const visible = workFilterRows(rows, view, today);
+      const empty = view.mode === "pending"
+        ? "<p class=\"text-muted\">No pending tasks.</p>"
+        : "<p class=\"text-muted\">No tasks for this day.</p>";
+      host.innerHTML = `
+        <div class="card-inner" style="margin-bottom:12px;">
+          <strong>${escapeHtml(w.filename || "Task list")}</strong>
+          <p class="text-muted">${escapeHtml(w.employee_name)} · ${w.daily_quota} tasks/day</p>
+          <div class="flex gap-8 flex-wrap" style="margin-bottom:8px;">
+            <label class="text-muted">Per day <input class="form-control" style="width:72px;display:inline-block;" type="number" min="1" max="50" value="${w.daily_quota}" data-quota="${w.id}"></label>
+            <button type="button" class="btn btn-secondary btn-sm" data-save-quota="${w.id}">Save</button>
+            <button type="button" class="btn btn-danger btn-sm" data-del-list="${w.id}">Delete</button>
+          </div>
+          ${workProgressHtml(progress)}
+          <h3 class="section-title" style="margin:8px 0 4px;">${escapeHtml(workHeading(view, today))}</h3>
+          ${workDayTabsHtml(progress, view, today)}
+          ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editable: false })).join("") : empty}
+        </div>`;
+      bindWorkDayTabs(host, (next) => {
+        workListState[w.id].view = next;
+        paintWorkListBlock(host, w, rows);
+      });
+    }
+
     async function loadWorkLists() {
       const box = document.getElementById("work-lists-container");
       if (!box) return;
       try {
         const data = await apiRequest(`/api/companies/${COMPANY_ID}/work-lists`);
-        const rows = data.work_lists || [];
-        if (!rows.length) {
+        const lists = data.work_lists || [];
+        if (!lists.length) {
           box.innerHTML = "<p class=\"text-muted\">No Excel lists yet. Upload a sheet and choose an employee.</p>";
           return;
         }
-        box.innerHTML = rows.map((w) => `
-          <div class="card-inner" style="margin-bottom:10px;">
-            <strong>${escapeHtml(w.filename || "Task list")}</strong>
-            <p class="text-muted">${escapeHtml(w.employee_name)} · ${w.daily_quota} tasks/day · ${w.done || 0} done · ${w.assigned || 0} given · ${w.remaining || 0} waiting</p>
-            <div class="flex gap-8 flex-wrap">
-              <label class="text-muted">Per day <input class="form-control" style="width:72px;display:inline-block;" type="number" min="1" max="50" value="${w.daily_quota}" data-quota="${w.id}"></label>
-              <button type="button" class="btn btn-secondary btn-sm" data-save-quota="${w.id}">Save</button>
-              <button type="button" class="btn btn-danger btn-sm" data-del-list="${w.id}">Delete</button>
-            </div>
-          </div>`).join("");
-        box.querySelectorAll("[data-save-quota]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            const id = btn.getAttribute("data-save-quota");
-            const input = box.querySelector('[data-quota="' + id + '"]');
-            await apiRequest("/api/work-lists/" + id, {
-              method: "PUT",
-              body: JSON.stringify({ daily_quota: Number(input.value) }),
-            });
-            showToast("Daily tasks saved");
-            await loadWorkLists();
+        box.innerHTML = lists.map((w) => `<div data-work-block="${w.id}"></div>`).join("");
+        for (const w of lists) {
+          const host = box.querySelector('[data-work-block="' + w.id + '"]');
+          const rowsData = await apiRequest("/api/work-lists/" + w.id + "/rows");
+          const work = rowsData.work_list || w;
+          paintWorkListBlock(host, work, rowsData.rows || []);
+        }
+        if (!box.dataset.workBound) {
+          box.dataset.workBound = "1";
+          box.addEventListener("click", async (e) => {
+            const saveBtn = e.target.closest("[data-save-quota]");
+            const delBtn = e.target.closest("[data-del-list]");
+            try {
+              if (saveBtn) {
+                const id = saveBtn.getAttribute("data-save-quota");
+                const input = box.querySelector('[data-quota="' + id + '"]');
+                await apiRequest("/api/work-lists/" + id, {
+                  method: "PUT",
+                  body: JSON.stringify({ daily_quota: Number(input.value) }),
+                });
+                showToast("Daily tasks saved");
+                await loadWorkLists();
+              } else if (delBtn) {
+                if (!confirm("Delete this Excel list?")) return;
+                await apiRequest("/api/work-lists/" + delBtn.getAttribute("data-del-list"), { method: "DELETE" });
+                showToast("List deleted");
+                await loadWorkLists();
+              }
+            } catch (ex) {
+              showToast(ex.message);
+            }
           });
-        });
-        box.querySelectorAll("[data-del-list]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("Delete this Excel list?")) return;
-            await apiRequest("/api/work-lists/" + btn.getAttribute("data-del-list"), { method: "DELETE" });
-            showToast("List deleted");
-            await loadWorkLists();
-          });
-        });
+        }
       } catch (err) {
         box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
       }

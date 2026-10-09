@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Employee Tasks &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css?v=12">
+  <link rel="stylesheet" href="css/style.css?v=13">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -72,7 +72,7 @@
 
       <div class="card" id="excel-lists-card" style="margin-bottom:20px;">
         <h2 class="section-title">Excel tasks</h2>
-        <p class="text-muted">Rows from the uploaded sheet. Each day this employee gets the next set from Settings on the company page.</p>
+        <p class="text-muted">Today’s batch first. Open Monday, Tuesday, and other days, or Pending for unfinished work. Progress is below.</p>
         <div id="excel-lists-box"><p class="text-muted">Loading…</p></div>
       </div>
 
@@ -123,6 +123,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/work-list-ui.js?v=1"></script>
   <script>
     const EMPLOYEE_ID = getQueryParam("id");
     if (!EMPLOYEE_ID) {
@@ -311,6 +312,31 @@
     setupFilterTabs("status-filter-tabs", (val) => { statusFilter = val; loadTasks(currentWeekStart); });
     setupFilterTabs("priority-filter-tabs", (val) => { priorityFilter = val; loadTasks(currentWeekStart); });
 
+    const empWorkState = {};
+
+    function paintEmpWorkBlock(host, w, rows) {
+      const today = localTodayIso();
+      const progress = w.progress || {};
+      const prev = empWorkState[w.id] && empWorkState[w.id].view;
+      const view = workDefaultView(progress, today, prev);
+      empWorkState[w.id] = { view, rows, list: w };
+      const visible = workFilterRows(rows, view, today);
+      const empty = view.mode === "pending"
+        ? "<p class=\"text-muted\">No pending tasks.</p>"
+        : "<p class=\"text-muted\">No tasks for this day.</p>";
+      host.innerHTML = `
+        <p><strong>${escapeHtml(w.filename)}</strong> · ${w.daily_quota} tasks/day</p>
+        ${workProgressHtml(progress)}
+        <h3 class="section-title" style="margin:8px 0 4px;">${escapeHtml(workHeading(view, today))}</h3>
+        ${workDayTabsHtml(progress, view, today)}
+        ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editable: false })).join("") : empty}
+      `;
+      bindWorkDayTabs(host, (next) => {
+        empWorkState[w.id].view = next;
+        paintEmpWorkBlock(host, w, rows);
+      });
+    }
+
     async function loadExcelLists() {
       const box = document.getElementById("excel-lists-box");
       if (!box || !COMPANY_ID) return;
@@ -321,23 +347,12 @@
           box.innerHTML = "<p class=\"text-muted\">No Excel list for this employee yet. Upload one on the company page.</p>";
           return;
         }
-        const blocks = [];
+        box.innerHTML = lists.map((w) => `<div data-emp-work="${w.id}"></div>`).join("");
         for (const w of lists) {
-          const rowsData = await apiRequest("/api/work-lists/" + w.id + "/rows?status=pending");
-          const rows = rowsData.rows || [];
-          blocks.push(`
-            <p><strong>${escapeHtml(w.filename)}</strong> · ${w.daily_quota}/day · ${w.remaining} waiting · ${w.done} done</p>
-            ${rows.length ? rows.map((r) => `
-              <div class="work-row-card ${r.status === "done" ? "done" : ""}">
-                <div class="work-row-head">
-                  <strong>#${r.row_number} ${escapeHtml(r.title)}</strong>
-                  <span class="badge">${escapeHtml(r.status)} · ${escapeHtml(r.assigned_date || "today")}</span>
-                </div>
-                ${r.notes ? `<p class="text-muted">${escapeHtml(r.notes)}</p>` : ""}
-              </div>`).join("") : "<p class=\"text-muted\">No open given tasks right now.</p>"}
-          `);
+          const host = box.querySelector('[data-emp-work="' + w.id + '"]');
+          const rowsData = await apiRequest("/api/work-lists/" + w.id + "/rows");
+          paintEmpWorkBlock(host, rowsData.work_list || w, rowsData.rows || []);
         }
-        box.innerHTML = blocks.join("");
       } catch (err) {
         box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
       }

@@ -8,6 +8,7 @@ from services.worklist_service import (
     create_work_list,
     delete_work_list,
     list_work_lists,
+    progress_for_work,
     update_work_list,
 )
 from utils import task_link_for_token, create_group_for_company, group_link_for_token
@@ -174,7 +175,12 @@ def api_list_work_lists(company_id):
         return jsonify({"error": "Company not found."}), 404
     employee_id = request.args.get("employee_id", type=int)
     rows = list_work_lists(company_id, employee_id=employee_id)
-    return jsonify({"work_lists": [w.to_dict() for w in rows]})
+    payload = []
+    for w in rows:
+        item = w.to_dict()
+        item["progress"] = progress_for_work(w)
+        payload.append(item)
+    return jsonify({"work_lists": payload})
 
 
 @company_bp.route("/api/companies/<int:company_id>/work-lists", methods=["POST"])
@@ -239,15 +245,26 @@ def api_work_list_rows(work_list_id):
     if not work:
         return jsonify({"error": "Task list not found."}), 404
     release_today(work)
-    q = WorkListRow.query.filter_by(work_list_id=work.id).order_by(WorkListRow.row_number.asc())
+    q = WorkListRow.query.filter_by(work_list_id=work.id).order_by(
+        WorkListRow.assigned_date.desc(), WorkListRow.row_number.asc()
+    )
     status = (request.args.get("status") or "").strip().lower()
+    day = (request.args.get("date") or "").strip()
     if status == "waiting":
         q = q.filter(WorkListRow.assigned_date.is_(None))
-    elif status == "today":
-        from datetime import date as date_cls
-        q = q.filter_by(assigned_date=date_cls.today())
-    elif status in ("pending", "done"):
-        q = q.filter_by(status=status)
-        if status == "pending":
-            q = q.filter(WorkListRow.assigned_date.isnot(None))
-    return jsonify({"work_list": work.to_dict(), "rows": [r.to_dict() for r in q.all()]})
+    else:
+        q = q.filter(WorkListRow.assigned_date.isnot(None))
+        if status == "today":
+            from datetime import date as date_cls
+            q = q.filter_by(assigned_date=date_cls.today())
+        elif day:
+            from datetime import date as date_cls
+            try:
+                q = q.filter_by(assigned_date=date_cls.fromisoformat(day))
+            except ValueError:
+                return jsonify({"error": "Date must be YYYY-MM-DD."}), 400
+        if status in ("pending", "done"):
+            q = q.filter_by(status=status)
+    item = work.to_dict()
+    item["progress"] = progress_for_work(work)
+    return jsonify({"work_list": item, "rows": [r.to_dict() for r in q.all()]})

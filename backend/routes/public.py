@@ -49,7 +49,7 @@ def api_get_public_tasks(token):
     )
     today_total = sum(float(e.amount) for e in today_earnings)
 
-    work_rows, work_lists = assigned_rows_for_employee(employee)
+    work_rows, work_lists, work_progress = assigned_rows_for_employee(employee)
     today_iso = date.today().isoformat()
     return jsonify({
         "employee_name": employee.name,
@@ -67,6 +67,7 @@ def api_get_public_tasks(token):
         },
         "work_lists": [w.to_dict() for w in work_lists],
         "work_rows": [r.to_dict() for r in work_rows],
+        "work_progress": work_progress,
         "today": today_iso,
     })
 

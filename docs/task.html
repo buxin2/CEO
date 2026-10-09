@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Weekly Tasks</title>
-  <link rel="stylesheet" href="css/style.css?v=12">
+  <link rel="stylesheet" href="css/style.css?v=13">
 </head>
 <body>
   <div class="public-page">
@@ -17,8 +17,11 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/work-list-ui.js?v=1"></script>
   <script>
     const TOKEN = getQueryParam("token");
+    let lastPublicData = null;
+    let workView = { mode: "day", date: null };
     if (!TOKEN) {
       document.getElementById("page-body").innerHTML = `
         <div class="empty-state">
@@ -43,7 +46,7 @@
 
         let tasksHtml;
         if (!data.tasks.length) {
-          tasksHtml = (data.work_rows && data.work_rows.length)
+          tasksHtml = (data.work_lists && data.work_lists.length)
             ? ""
             : `<div class="empty-state"><p>You don't have any tasks for this week.</p></div>`;
         } else {
@@ -74,7 +77,7 @@
             </form>
             <div id="earnings-today-summary" class="public-earnings-summary"></div>
           </div>
-          <div id="excel-task-list">${renderWorkRows(data)}</div>
+          <div id="excel-task-list"></div>
           <div id="task-list">${tasksHtml}</div>
         `;
 
@@ -85,7 +88,8 @@
         document.querySelectorAll(".task-checkbox-btn").forEach((btn) => {
           btn.addEventListener("click", () => toggleTask(btn.dataset.taskId, btn.dataset.completed === "true"));
         });
-        bindWorkRowButtons();
+        lastPublicData = data;
+        paintExcelSection(data);
       }
 
       function renderEarningsSummary(earningsToday) {
@@ -121,51 +125,33 @@
         }
       }
 
-      function skipField(key) {
-        const k = String(key || "").trim().toLowerCase();
-        return k === "#" || k === "no" || k === "id" || k === "assigned team member";
-      }
-
-      function fieldHtml(key, val) {
-        const text = String(val || "").trim();
-        if (!text) return "";
-        const k = String(key || "").toLowerCase();
-        let body = escapeHtml(text);
-        if (k.indexOf("website") >= 0 || /^https?:\/\//i.test(text)) {
-          const href = /^https?:\/\//i.test(text) ? text : "https://" + text;
-          body = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>`;
-        } else if (k.indexOf("email") >= 0 && text.indexOf("@") >= 0) {
-          body = `<a href="mailto:${escapeHtml(text)}">${escapeHtml(text)}</a>`;
-        }
-        return `<div class="work-row-field"><label>${escapeHtml(key)}</label><div>${body}</div></div>`;
-      }
-
-      function renderWorkRows(data) {
-        const rows = data.work_rows || [];
-        if (!rows.length) return "";
+      function paintExcelSection(data) {
+        const box = document.getElementById("excel-task-list");
+        if (!box) return;
+        const progress = data.work_progress || {};
         const lists = data.work_lists || [];
-        const quota = lists[0] ? lists[0].daily_quota : 5;
-        const todayCount = rows.filter((r) => r.assigned_date === data.today).length;
-        return `
-          <h3 class="section-title" style="margin:20px 0 8px;">Today's Excel tasks</h3>
-          <p class="text-muted">${todayCount} new today (up to ${quota} per day). Open each row, do the work, write notes, then mark done.</p>
-          ${rows.map((r) => {
-            const fields = Object.keys(r.fields || {}).map((k) => skipField(k) ? "" : fieldHtml(k, r.fields[k])).join("");
-            return `
-            <div class="work-row-card ${r.status === "done" ? "done" : ""}">
-              <div class="work-row-head">
-                <strong>#${r.row_number} ${escapeHtml(r.title)}</strong>
-                <span class="badge">${r.assigned_date === data.today ? "Today" : escapeHtml(r.assigned_date || "")}</span>
-              </div>
-              <div class="work-row-fields">${fields}</div>
-              <label class="form-label" style="margin-top:12px;">Notes of what you did</label>
-              <textarea class="form-control" id="work-notes-${r.id}" rows="2" placeholder="Write what you completed">${escapeHtml(r.notes || "")}</textarea>
-              <div class="flex gap-8" style="margin-top:8px;">
-                <button type="button" class="btn btn-secondary btn-sm" data-save-work="${r.id}">Save notes</button>
-                <button type="button" class="btn btn-primary btn-sm" data-done-work="${r.id}" data-status="${r.status}">${r.status === "done" ? "Undo done" : "Mark done"}</button>
-              </div>
-            </div>`;
-          }).join("")}`;
+        if (!lists.length && !(data.work_rows || []).length) {
+          box.innerHTML = "";
+          return;
+        }
+        workView = workDefaultView(progress, data.today, workView);
+        const visible = workFilterRows(data.work_rows || [], workView, data.today);
+        const quota = lists[0] ? lists[0].daily_quota : progress.daily_quota || 5;
+        const empty = workView.mode === "pending"
+          ? "<p class=\"text-muted\">No pending Excel tasks.</p>"
+          : "<p class=\"text-muted\">No Excel tasks for this day.</p>";
+        box.innerHTML = `
+          ${workProgressHtml(progress)}
+          <h3 class="section-title" style="margin:8px 0;">${escapeHtml(workHeading(workView, data.today))}</h3>
+          <p class="text-muted">Up to ${quota} new tasks each day. Open a day to review it, or Pending for unfinished work.</p>
+          ${workDayTabsHtml(progress, workView, data.today)}
+          ${visible.length ? visible.map((r) => workRowCardHtml(r, data.today, { editable: true })).join("") : empty}
+        `;
+        bindWorkDayTabs(box, (next) => {
+          workView = next;
+          paintExcelSection(lastPublicData || data);
+        });
+        bindWorkRowButtons();
       }
 
       function bindWorkRowButtons() {
