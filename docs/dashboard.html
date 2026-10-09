@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css?v=15">
+  <link rel="stylesheet" href="css/style.css?v=16">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -46,12 +46,12 @@
       <section class="dash-hero card">
         <div class="dash-hero-top">
           <div>
-            <h2 class="section-title" style="margin:0;">Today’s Excel work</h2>
+            <h2 class="section-title" style="margin:0;">Excel work</h2>
             <p class="text-muted" id="work-date-label" style="margin:6px 0 0;">Loading…</p>
           </div>
         </div>
         <div class="work-stat-grid" id="work-summary-grid">
-          <div class="work-stat"><span>Given today</span><strong id="w-given">–</strong></div>
+          <div class="work-stat"><span>Given</span><strong id="w-given">–</strong></div>
           <div class="work-stat"><span>Completed</span><strong id="w-done">–</strong></div>
           <div class="work-stat"><span>Not done</span><strong id="w-open">–</strong></div>
           <div class="work-stat"><span>Leftover</span><strong id="w-left">–</strong></div>
@@ -158,8 +158,9 @@
 
     function personLine(p) {
       const bits = [];
+      if (p.all_given) bits.push((p.all_done || 0) + "/" + p.all_given + " given");
       if (p.today_given) bits.push(p.today_done + "/" + p.today_given + " today");
-      else bits.push("no new work today");
+      else bits.push("no new batch today");
       if (p.leftover) bits.push(p.leftover + " leftover");
       return `
         <a class="dash-person ${p.lacking ? "is-lack" : "is-ok"}" href="${pageUrl("employee-tasks.html?id=" + p.employee_id)}">
@@ -179,15 +180,19 @@
 
     function renderWorkSummary(work) {
       const s = (work && work.summary) || {};
-      document.getElementById("w-given").textContent = s.today_given || 0;
-      document.getElementById("w-done").textContent = s.today_done || 0;
-      document.getElementById("w-open").textContent = s.today_open || 0;
+      document.getElementById("w-given").textContent = s.all_given || 0;
+      document.getElementById("w-done").textContent = s.all_done || 0;
+      document.getElementById("w-open").textContent = s.all_open || 0;
       document.getElementById("w-left").textContent = s.leftover || 0;
       document.getElementById("w-track").textContent = s.on_track || 0;
       document.getElementById("w-lack").textContent = s.lacking || 0;
-      document.getElementById("work-date-label").textContent = "Excel lists given to employees · " + (work.date || localTodayIso());
-      renderPeople("on-track-list", work.on_track || [], "Nobody with an Excel list is fully on track yet.");
-      renderPeople("lacking-list", work.lacking || [], "Nobody is behind right now.");
+      const err = work && work.error ? " · " + work.error : "";
+      document.getElementById("work-date-label").textContent =
+        (s.excel_lists || 0) + " Excel lists · " + (s.excel_people || 0) + " people · today " +
+        (s.today_done || 0) + "/" + (s.today_given || 0) + " · " + (work.date || localTodayIso()) + err;
+      const people = work.people || [];
+      renderPeople("on-track-list", work.on_track || [], people.length ? "Nobody is fully on track yet." : "No Excel lists found. Open a company and upload a sheet.");
+      renderPeople("lacking-list", work.lacking || [], people.length ? "Nobody is behind right now." : "No Excel lists found.");
     }
 
     function workItemHtml(item) {
@@ -210,23 +215,29 @@
         const s = data.summary || {};
         const done = data.completed_work || [];
         const open = data.open_work || [];
+        const anyDone = data.completed_any || [];
         const finished = data.finished_today || [];
         const lacking = data.lacking || [];
+        const people = data.people || [];
         box.innerHTML = `
           <div class="work-stat-grid" style="margin-bottom:16px;">
-            <div class="work-stat"><span>Given</span><strong>${s.today_given || 0}</strong></div>
-            <div class="work-stat"><span>Completed</span><strong>${s.today_done || 0}</strong></div>
-            <div class="work-stat"><span>Not done</span><strong>${s.today_open || 0}</strong></div>
-            <div class="work-stat"><span>Finished the day</span><strong>${s.finished_today || 0}</strong></div>
+            <div class="work-stat"><span>All given</span><strong>${s.all_given || 0}</strong></div>
+            <div class="work-stat"><span>All completed</span><strong>${s.all_done || 0}</strong></div>
+            <div class="work-stat"><span>This day given</span><strong>${s.today_given || 0}</strong></div>
+            <div class="work-stat"><span>Marked done this day</span><strong>${done.length}</strong></div>
           </div>
-          <h3 class="dash-col-title">Who finished their work</h3>
-          ${finished.length ? finished.map(personLine).join("") : "<p class=\"text-muted\">Nobody finished every given task this day.</p>"}
+          <h3 class="dash-col-title">People with Excel lists</h3>
+          ${people.length ? people.map(personLine).join("") : "<p class=\"text-muted\">No Excel lists are in the system.</p>"}
+          <h3 class="dash-col-title">Who finished this day's batch</h3>
+          ${finished.length ? finished.map(personLine).join("") : "<p class=\"text-muted\">Nobody finished every task given this day.</p>"}
           <h3 class="dash-col-title">Who still needs to catch up</h3>
-          ${lacking.length ? lacking.map(personLine).join("") : "<p class=\"text-muted\">Nobody is lacking this day.</p>"}
-          <h3 class="dash-col-title">Completed work</h3>
-          ${done.length ? done.map(workItemHtml).join("") : "<p class=\"text-muted\">No Excel tasks were marked done this day.</p>"}
+          ${lacking.length ? lacking.map(personLine).join("") : "<p class=\"text-muted\">Nobody is behind.</p>"}
+          <h3 class="dash-col-title">Completed this day</h3>
+          ${done.length ? done.map(workItemHtml).join("") : "<p class=\"text-muted\">Nothing was marked done on this calendar day.</p>"}
           <h3 class="dash-col-title">Still open this day</h3>
-          ${open.length ? open.map(workItemHtml).join("") : "<p class=\"text-muted\">No open given tasks for this day.</p>"}
+          ${open.length ? open.map(workItemHtml).join("") : "<p class=\"text-muted\">No open tasks assigned this day.</p>"}
+          <h3 class="dash-col-title">All completed Excel work</h3>
+          ${anyDone.length ? anyDone.map(workItemHtml).join("") : "<p class=\"text-muted\">No completed Excel rows yet.</p>"}
         `;
       } catch (err) {
         box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
@@ -237,8 +248,8 @@
       const container = document.getElementById("companies-container");
       container.innerHTML = '<div class="empty-state"><span class="spinner"></span></div>';
 
-      let url = "/api/dashboard";
-      if (weekStart) url += "?week_start=" + weekStart;
+      let url = "/api/dashboard?work_date=" + encodeURIComponent(localTodayIso());
+      if (weekStart) url += "&week_start=" + weekStart;
 
       try {
         const data = await apiRequest(url);
@@ -287,7 +298,7 @@
       return `
         <a class="entity-card" href="company.html?id=${c.id}" style="text-decoration:none;">
           <div class="entity-card-title">${escapeHtml(c.name)}</div>
-          <div class="entity-card-meta">${c.employee_count} people · ${x.excel_people || 0} with Excel lists</div>
+          <div class="entity-card-meta">${c.employee_count} people · ${x.excel_people || 0} with Excel lists · ${x.all_done || 0}/${x.all_given || 0} given done</div>
           <div>
             <div class="progress-label"><span>Excel today ${done}/${given}</span><span>${pct}%</span></div>
             <div class="progress-track"><div class="progress-fill ${pct >= 100 && given ? "success" : ""}" style="width:${pct}%"></div></div>

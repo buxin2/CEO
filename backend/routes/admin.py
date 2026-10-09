@@ -34,7 +34,20 @@ def api_dashboard():
     total_tasks = 0
     completed_tasks = 0
 
-    work = dashboard_work_report(include_details=False)
+    work_raw = (request.args.get("work_date") or request.args.get("date") or "").strip()
+    work_day = date.today()
+    if work_raw:
+        try:
+            work_day = date.fromisoformat(work_raw)
+        except ValueError:
+            work_day = date.today()
+    try:
+        work = dashboard_work_report(day=work_day, include_details=False)
+    except Exception:
+        import logging
+        from services.dashboard_report import _empty_report
+        logging.getLogger(__name__).exception("Dashboard Excel report failed")
+        work = _empty_report(work_day, error="Excel report failed.")
     work_by_company = {c["id"]: c for c in work.get("companies") or []}
 
     company_list = []
