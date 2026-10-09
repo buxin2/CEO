@@ -3,31 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Company &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css?v=14">
+  <title>Company · My Management System</title>
+  <link rel="stylesheet" href="css/style.css?v=17">
+  <link rel="stylesheet" href="css/admin-ui.css?v=1">
 </head>
 <body>
   <div class="mobile-navbar">
-    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <button class="hamburger-btn" id="mobile-nav-toggle" aria-label="Open menu">☰</button>
     <div class="brand">My Management System</div>
-    <div style="width:36px;"></div>
+    <button type="button" class="icon-btn" id="theme-toggle-btn" aria-label="Toggle color theme">◐</button>
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="dashboard.html">Companies</a>
-        <a class="sidebar-link" href="communities.html">&#128101; Communities</a>
-        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
-        <a class="sidebar-link" href="mentor.html">&#129504; Mentor</a>
-        <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
-        <a class="sidebar-link" href="news.html">&#128240; News</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main-content">
       <div class="breadcrumb"><a href="dashboard.html">Dashboard</a> / <span id="breadcrumb-name">Company</span></div>
@@ -43,6 +32,15 @@
         </div>
       </div>
 
+      <div class="ui-tabs" id="company-tabs" role="tablist">
+        <button type="button" class="active" data-company-tab="overview">Overview</button>
+        <button type="button" data-company-tab="people">People</button>
+        <button type="button" data-company-tab="excel">Excel Lists</button>
+        <button type="button" data-company-tab="weekly">Weekly Tasks</button>
+        <button type="button" data-company-tab="reports">Reports</button>
+      </div>
+
+      <div id="tab-overview" class="company-tab-panel">
       <div class="summary-grid" id="company-summary-grid">
         <div class="summary-card"><div class="label">Employees</div><div class="value" id="stat-employees">&ndash;</div></div>
         <div class="summary-card"><div class="label">Tasks This Week</div><div class="value" id="stat-tasks">&ndash;</div></div>
@@ -111,6 +109,9 @@
         </div>
       </div>
 
+      </div>
+
+      <div id="tab-excel" class="company-tab-panel hidden">
       <div class="card company-section-card" id="excel-tasks-section">
         <div class="page-header" style="margin-bottom:12px;">
           <div>
@@ -120,6 +121,7 @@
           <button type="button" class="btn btn-primary btn-sm" id="open-upload-excel-btn">Upload Excel</button>
         </div>
         <div id="work-lists-container"><p class="text-muted">No Excel lists yet.</p></div>
+      </div>
       </div>
 
       <div class="modal-overlay" id="upload-excel-modal">
@@ -151,6 +153,7 @@
         </div>
       </div>
 
+      <div id="tab-people" class="company-tab-panel hidden">
       <div class="page-header">
         <h2 class="section-title" style="margin:0;">Employees</h2>
         <button class="btn btn-primary" id="open-add-employee-btn">+ Add Employee</button>
@@ -162,6 +165,29 @@
 
       <div id="employees-container">
         <div class="empty-state"><span class="spinner"></span></div>
+      </div>
+      </div>
+
+      <div id="tab-weekly" class="company-tab-panel hidden">
+        <div class="ui-card">
+          <h2 class="ui-section-title">Weekly tasks</h2>
+          <p class="text-muted">Open a person to add or copy weekly tasks. Counts use this company’s current week.</p>
+          <div id="company-weekly-box"></div>
+        </div>
+      </div>
+
+      <div id="tab-reports" class="company-tab-panel hidden">
+        <div class="ui-card">
+          <div class="flex-between" style="flex-wrap:wrap;gap:8px;">
+            <h2 class="ui-section-title" style="margin:0;">Company reports</h2>
+            <div class="flex gap-8">
+              <button type="button" class="btn btn-secondary btn-sm" id="company-export-csv">Export CSV</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="company-export-pdf">Export PDF</button>
+            </div>
+          </div>
+          <div id="company-report-stats" class="stat-strip"></div>
+          <div class="chart-bar" id="company-report-chart"></div>
+        </div>
       </div>
 
       <div class="modal-overlay" id="add-employee-modal">
@@ -457,8 +483,10 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js?v=3"></script>
+  <script src="js/shell.js?v=1"></script>
   <script src="js/work-list-ui.js?v=4"></script>
   <script>
+    mountAdminShell("building");
     const COMPANY_ID = getQueryParam("id");
     if (!COMPANY_ID) {
       window.location.href = pageUrl("dashboard.html");
@@ -706,6 +734,7 @@
         allEmployees = data.employees;
         populateEmployeeSelects();
         renderEmployees(allEmployees);
+        paintCompanyWeekly(allEmployees, stats);
       } catch (err) {
         container.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
       }
@@ -751,6 +780,89 @@
           </div>
         </div>`;
     }
+
+    function showCompanyTab(name) {
+      document.querySelectorAll("#company-tabs [data-company-tab]").forEach((b) => {
+        b.classList.toggle("active", b.getAttribute("data-company-tab") === name);
+      });
+      ["overview", "people", "excel", "weekly", "reports"].forEach((id) => {
+        const el = document.getElementById("tab-" + id);
+        if (el) el.classList.toggle("hidden", id !== name);
+      });
+      if (name === "reports") loadCompanyReport();
+    }
+
+    document.getElementById("company-tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-company-tab]");
+      if (btn) showCompanyTab(btn.getAttribute("data-company-tab"));
+    });
+    if (location.hash.replace("#", "") === "excel") showCompanyTab("excel");
+    if (location.hash.replace("#", "") === "people") showCompanyTab("people");
+
+    function paintCompanyWeekly(employees, stats) {
+      const box = document.getElementById("company-weekly-box");
+      if (!box) return;
+      if (!employees.length) {
+        box.innerHTML = `<div class="empty-lite"><p>No people yet.</p><button class="btn btn-primary btn-sm" onclick="showCompanyTab('people')">Add employee</button></div>`;
+        return;
+      }
+      box.innerHTML = `<div class="stat-strip"><span>Weekly tasks<strong>${(stats && stats.total) || 0}</strong></span><span>Weekly done<strong>${(stats && stats.completed) || 0}</strong></span></div>` +
+        employees.map((e) => {
+          const s = e.stats || { total: 0, completed: 0 };
+          return `<div class="person-row">
+            <span class="ui-avatar">${escapeHtml(uiInitials(e.name))}</span>
+            <div class="person-meta"><strong>${escapeHtml(e.name)}</strong><span class="company-tag">${s.completed}/${s.total} this week</span></div>
+            <a class="btn btn-secondary btn-sm" href="${pageUrl("employee-tasks.html?id=" + e.id)}">Open week</a>
+          </div>`;
+        }).join("");
+    }
+
+    let companyReportRows = [];
+    async function loadCompanyReport() {
+      const chart = document.getElementById("company-report-chart");
+      chart.innerHTML = '<div class="skeleton" style="height:120px;width:100%;"></div>';
+      companyReportRows = [];
+      try {
+        const data = await apiRequest(`/api/companies/${COMPANY_ID}/work-lists`);
+        const lists = data.work_lists || [];
+        for (const w of lists) {
+          const rd = await apiRequest("/api/work-lists/" + w.id + "/rows");
+          (rd.rows || []).forEach((r) => companyReportRows.push(Object.assign({}, r, { employee_name: w.employee_name })));
+        }
+      } catch (err) {
+        chart.innerHTML = `<p class="text-muted">${escapeHtml(err.message)}</p>`;
+        return;
+      }
+      const days = {};
+      companyReportRows.forEach((r) => {
+        const d = String(r.assigned_date || "").slice(0, 10);
+        if (!d) return;
+        if (!days[d]) days[d] = { given: 0, done: 0 };
+        days[d].given += 1;
+        if (String(r.status).toLowerCase() === "done") days[d].done += 1;
+      });
+      const keys = Object.keys(days).sort().slice(-7);
+      const max = Math.max(1, ...keys.map((k) => days[k].given));
+      chart.innerHTML = keys.length ? keys.map((k) => {
+        const h = Math.round((100 * days[k].done) / max);
+        return `<div class="chart-col" style="height:${h}%" title="${k}: ${days[k].done}/${days[k].given}"><span>${k.slice(5)}</span></div>`;
+      }).join("") : `<div class="empty-lite">No Excel dates to chart yet.</div>`;
+      document.getElementById("company-report-stats").innerHTML =
+        `<span>Excel rows<strong>${companyReportRows.length}</strong></span><span>Days shown<strong>${keys.length}</strong></span>`;
+    }
+
+    document.getElementById("company-export-csv").addEventListener("click", () => {
+      const lines = ["date,employee,task,status,notes"];
+      companyReportRows.forEach((r) => {
+        lines.push([r.assigned_date, r.employee_name, (r.title || "").replace(/,/g, " "), r.status, (r.notes || "").replace(/,/g, " ")].join(","));
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "company-report.csv";
+      a.click();
+    });
+    document.getElementById("company-export-pdf").addEventListener("click", () => window.print());
 
     function copyEmployeeLink(token) {
       copyToClipboard(taskLinkForToken(token)).then(() => showToast("Task link copied!"));
@@ -1200,6 +1312,7 @@
     }
 
     function openExcelForEmployee(id) {
+      showCompanyTab("excel");
       populateExcelEmployeeSelect();
       const sel = document.getElementById("excel-employee");
       if (sel) sel.value = String(id);

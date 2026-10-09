@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports · My Management System</title>
+  <link rel="stylesheet" href="css/style.css?v=17">
+  <link rel="stylesheet" href="css/admin-ui.css?v=1">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle" aria-label="Open menu">☰</button>
+    <div class="brand">My Management System</div>
+    <button type="button" class="icon-btn" id="theme-toggle-btn" aria-label="Toggle color theme">◐</button>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content">
+      <div class="topbar">
+        <h1 class="topbar-title">Reports</h1>
+        <button type="button" class="btn btn-secondary" id="export-csv">Export CSV</button>
+        <button type="button" class="btn btn-secondary" id="export-pdf">Export PDF</button>
+      </div>
+      <div class="stat-strip" id="report-strip"></div>
+      <section class="ui-section ui-card">
+        <h2 class="ui-section-title">Daily completion</h2>
+        <p class="text-muted">Last 14 days of Excel work given vs done.</p>
+        <div class="chart-bar" id="daily-chart"></div>
+      </section>
+      <section class="ui-section ui-card">
+        <h2 class="ui-section-title">Weekly completion</h2>
+        <p class="text-muted">By ISO week of assigned date.</p>
+        <div class="chart-bar" id="weekly-chart"></div>
+      </section>
+    </main>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/shell.js?v=1"></script>
+  <script>
+    mountAdminShell("chart");
+    let exportRows = [];
+
+    function bars(map, keys, host) {
+      const max = Math.max(1, ...keys.map((k) => map[k].given));
+      host.innerHTML = keys.length ? keys.map((k) => {
+        const h = Math.round((100 * map[k].done) / max);
+        return `<div class="chart-col" style="height:${Math.max(4, h)}%" title="${k}: ${map[k].done}/${map[k].given} done"><span>${String(k).slice(-5)}</span></div>`;
+      }).join("") : `<div class="empty-lite">No dated Excel work yet.</div>`;
+    }
+
+    function isoWeek(iso) {
+      const d = new Date(iso + "T12:00:00");
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+      const week1 = new Date(d.getFullYear(), 0, 4);
+      const n = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+      return d.getFullYear() + "-W" + String(n).padStart(2, "0");
+    }
+
+    (async function load() {
+      document.getElementById("daily-chart").innerHTML = '<div class="skeleton" style="height:120px;width:100%;"></div>';
+      try {
+        const dash = await apiRequest("/api/dashboard");
+        const companies = dash.companies || [];
+        const daily = {};
+        const weekly = {};
+        let given = 0, done = 0;
+        for (const c of companies) {
+          const data = await apiRequest("/api/companies/" + c.id + "/work-lists");
+          for (const w of (data.work_lists || [])) {
+            const rd = await apiRequest("/api/work-lists/" + w.id + "/rows");
+            (rd.rows || []).forEach((r) => {
+              const day = String(r.assigned_date || "").slice(0, 10);
+              if (!day) return;
+              const isDone = String(r.status).toLowerCase() === "done";
+              given += 1;
+              if (isDone) done += 1;
+              if (!daily[day]) daily[day] = { given: 0, done: 0 };
+              daily[day].given += 1;
+              if (isDone) daily[day].done += 1;
+              const wk = isoWeek(day);
+              if (!weekly[wk]) weekly[wk] = { given: 0, done: 0 };
+              weekly[wk].given += 1;
+              if (isDone) weekly[wk].done += 1;
+              exportRows.push({ day, company: c.name, person: w.employee_name, task: r.title, status: r.status, notes: r.notes || "" });
+            });
+          }
+        }
+        document.getElementById("report-strip").innerHTML =
+          `<span>Given<strong>${given}</strong></span><span>Completed<strong>${done}</strong></span><span>Open<strong>${given - done}</strong></span>`;
+        const dkeys = Object.keys(daily).sort().slice(-14);
+        const wkeys = Object.keys(weekly).sort().slice(-8);
+        bars(daily, dkeys, document.getElementById("daily-chart"));
+        bars(weekly, wkeys, document.getElementById("weekly-chart"));
+      } catch (err) {
+        document.getElementById("daily-chart").innerHTML = `<div class="empty-lite">${escapeHtml(err.message)}</div>`;
+      }
+    })();
+
+    document.getElementById("export-csv").addEventListener("click", () => {
+      const lines = ["date,company,person,task,status,notes"];
+      exportRows.forEach((r) => {
+        lines.push([r.day, r.company, r.person, String(r.task || "").replace(/,/g, " "), r.status, String(r.notes || "").replace(/,/g, " ")].join(","));
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "excel-report.csv";
+      a.click();
+    });
+    document.getElementById("export-pdf").addEventListener("click", () => window.print());
+  </script>
+</body>
+</html>

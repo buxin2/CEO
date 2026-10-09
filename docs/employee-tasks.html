@@ -3,31 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Employee Tasks &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css?v=14">
+  <title>Person · My Management System</title>
+  <link rel="stylesheet" href="css/style.css?v=17">
+  <link rel="stylesheet" href="css/admin-ui.css?v=1">
 </head>
 <body>
   <div class="mobile-navbar">
-    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <button class="hamburger-btn" id="mobile-nav-toggle" aria-label="Open menu">☰</button>
     <div class="brand">My Management System</div>
-    <div style="width:36px;"></div>
+    <button type="button" class="icon-btn" id="theme-toggle-btn" aria-label="Toggle color theme">◐</button>
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="dashboard.html">Companies</a>
-        <a class="sidebar-link" href="communities.html">&#128101; Communities</a>
-        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
-        <a class="sidebar-link" href="mentor.html">&#129504; Mentor</a>
-        <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
-        <a class="sidebar-link" href="news.html">&#128240; News</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main-content">
       <div class="breadcrumb" id="breadcrumb">
@@ -46,6 +35,13 @@
         </div>
       </div>
 
+      <div class="ui-tabs" id="person-tabs">
+        <button type="button" class="active" data-person-tab="all">All tasks</button>
+        <button type="button" data-person-tab="excel">Excel & leftover</button>
+        <button type="button" data-person-tab="history">Progress history</button>
+      </div>
+
+      <div id="person-tab-all">
       <div class="week-nav">
         <button class="btn btn-secondary btn-sm" id="prev-week-btn">&larr; Previous Week</button>
         <span class="week-label" id="week-label">This week</span>
@@ -69,11 +65,17 @@
         <button class="filter-tab" data-value="medium">Medium</button>
         <button class="filter-tab" data-value="low">Low</button>
       </div>
+      </div>
 
-      <div class="card" id="excel-lists-card" style="margin-bottom:20px;">
+      <div class="card hidden" id="excel-lists-card" style="margin-bottom:20px;">
         <h2 class="section-title">Excel tasks</h2>
         <p class="text-muted">Open a day to review only that day's work. Previous is leftover unfinished work. Edit to mark completed or not done.</p>
+        <div id="leftover-box" class="ui-card" style="margin-bottom:16px;"></div>
         <div id="excel-lists-box"><p class="text-muted">Loading…</p></div>
+      </div>
+      <div class="ui-card hidden" id="history-card" style="margin-bottom:20px;">
+        <h2 class="ui-section-title">Progress history</h2>
+        <div id="history-box"></div>
       </div>
 
       <div id="tasks-container">
@@ -123,8 +125,10 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/shell.js?v=1"></script>
   <script src="js/work-list-ui.js?v=4"></script>
   <script>
+    mountAdminShell("building");
     const EMPLOYEE_ID = getQueryParam("id");
     if (!EMPLOYEE_ID) {
       window.location.href = pageUrl("dashboard.html");
@@ -312,7 +316,19 @@
     setupFilterTabs("status-filter-tabs", (val) => { statusFilter = val; loadTasks(currentWeekStart); });
     setupFilterTabs("priority-filter-tabs", (val) => { priorityFilter = val; loadTasks(currentWeekStart); });
 
+    document.getElementById("person-tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-person-tab]");
+      if (!btn) return;
+      const tab = btn.getAttribute("data-person-tab");
+      document.querySelectorAll("#person-tabs [data-person-tab]").forEach((b) => b.classList.toggle("active", b === btn));
+      document.getElementById("person-tab-all").classList.toggle("hidden", tab !== "all");
+      document.getElementById("excel-lists-card").classList.toggle("hidden", tab !== "excel");
+      document.getElementById("history-card").classList.toggle("hidden", tab !== "history");
+      document.getElementById("tasks-container").classList.toggle("hidden", tab !== "all");
+    });
+
     const empWorkState = {};
+    let personExcelRows = [];
 
     function paintEmpWorkBlock(host, w, rows) {
       const today = localTodayIso();
@@ -352,14 +368,40 @@
         const lists = data.work_lists || [];
         if (!lists.length) {
           box.innerHTML = "<p class=\"text-muted\">No Excel list for this employee yet. Upload one on the company page.</p>";
+          document.getElementById("leftover-box").innerHTML = `<div class="empty-lite">No leftover tasks.</div>`;
+          document.getElementById("history-box").innerHTML = `<div class="empty-lite">No dated Excel work yet.</div>`;
           return;
         }
         box.innerHTML = lists.map((w) => `<div data-emp-work="${w.id}"></div>`).join("");
+        personExcelRows = [];
+        const today = localTodayIso();
         for (const w of lists) {
           const host = box.querySelector('[data-emp-work="' + w.id + '"]');
           const rowsData = await apiRequest("/api/work-lists/" + w.id + "/rows");
-          paintEmpWorkBlock(host, rowsData.work_list || w, rowsData.rows || []);
+          const rows = rowsData.rows || [];
+          personExcelRows = personExcelRows.concat(rows);
+          paintEmpWorkBlock(host, rowsData.work_list || w, rows);
         }
+        const leftover = personExcelRows.filter((r) => {
+          const day = String(r.assigned_date || "").slice(0, 10);
+          return day && day < today && String(r.status).toLowerCase() !== "done";
+        });
+        const leftBox = document.getElementById("leftover-box");
+        leftBox.innerHTML = leftover.length
+          ? `<strong>${leftover.length} leftover</strong>` + leftover.map((r) => `<div class="person-row"><div class="person-meta"><strong>${escapeHtml(r.title)}</strong><span class="company-tag">${escapeHtml(String(r.assigned_date || "").slice(0, 10))}</span></div></div>`).join("")
+          : `<div class="empty-lite">No leftover tasks. This person is caught up.</div>`;
+        const byDay = {};
+        personExcelRows.forEach((r) => {
+          const d = String(r.assigned_date || "").slice(0, 10);
+          if (!d) return;
+          if (!byDay[d]) byDay[d] = { given: 0, done: 0 };
+          byDay[d].given += 1;
+          if (String(r.status).toLowerCase() === "done") byDay[d].done += 1;
+        });
+        const days = Object.keys(byDay).sort().reverse();
+        document.getElementById("history-box").innerHTML = days.length
+          ? days.map((d) => `<div class="person-row"><div class="person-meta"><strong>${d}</strong><div class="progress-track" style="margin-top:6px;"><div class="progress-fill" style="width:${Math.round(100 * byDay[d].done / Math.max(1, byDay[d].given))}%"></div></div></div><span>${byDay[d].done}/${byDay[d].given}</span></div>`).join("")
+          : `<div class="empty-lite">No dated Excel work yet.</div>`;
       } catch (err) {
         box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
       }

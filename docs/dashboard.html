@@ -3,108 +3,113 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css?v=16">
+  <title>Dashboard · My Management System</title>
+  <link rel="stylesheet" href="css/style.css?v=17">
+  <link rel="stylesheet" href="css/admin-ui.css?v=1">
 </head>
 <body>
   <div class="mobile-navbar">
-    <button class="hamburger-btn" id="mobile-nav-toggle">&#9776;</button>
+    <button class="hamburger-btn" id="mobile-nav-toggle" aria-label="Open menu">☰</button>
     <div class="brand">My Management System</div>
-    <div style="width:36px;"></div>
+    <button type="button" class="icon-btn" id="theme-toggle-btn" aria-label="Toggle color theme">◐</button>
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">My Management System</div>
-      <nav class="sidebar-nav">
-        <a class="sidebar-link active" href="dashboard.html">Dashboard</a>
-        <a class="sidebar-link" href="dashboard.html">Companies</a>
-        <a class="sidebar-link" href="communities.html">&#128101; Communities</a>
-        <a class="sidebar-link" href="admin-store.html">Products</a>
-        <a class="sidebar-link" href="admin-shipping.html">Shipping</a>
-        <a class="sidebar-link" href="admin-store-orders.html">Store Orders</a>
-        <a class="sidebar-link" href="admin-store-users.html">Store Users</a>
-        <a class="sidebar-link" href="ai-assistant.html">&#129302; AI Assistant</a>
-        <a class="sidebar-link" href="mentor.html">&#129504; Mentor</a>
-        <a class="sidebar-link" href="ideas.html">&#128161; My Ideas</a>
-        <a class="sidebar-link" href="timetable.html">&#128197; My Timetable</a>
-        <a class="sidebar-link" href="news.html">&#128240; News</a>
-      </nav>
-      <button class="sidebar-link" id="logout-btn">Logout</button>
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main-content">
-      <div class="page-header">
-        <div>
-          <h1>Dashboard</h1>
-          <div class="page-subtitle" id="week-subtitle">Who finished today’s work, who is on track, and who still has leftover tasks.</div>
-        </div>
+      <div class="topbar">
+        <h1 class="topbar-title">Dashboard</h1>
+        <label class="sr-only" for="global-search">Search</label>
+        <input class="form-control topbar-search" id="global-search" placeholder="Search people or companies">
+        <input class="form-control" id="report-date" type="date" aria-label="Report date" style="width:auto;">
+        <button type="button" class="icon-btn" id="notify-btn" aria-label="Follow-up alerts"><span id="bell-count" class="bell-count hidden">0</span>🔔</button>
+        <button type="button" class="icon-btn" id="theme-toggle-btn-desk" aria-label="Toggle color theme">◐</button>
         <button class="btn btn-primary" id="open-create-company-btn">+ Create Company</button>
       </div>
+      <p class="page-subtitle" id="work-date-label" style="margin-top:-16px;margin-bottom:24px;">Loading Excel work…</p>
 
-      <section class="dash-hero card">
-        <div class="dash-hero-top">
-          <div>
-            <h2 class="section-title" style="margin:0;">Excel work</h2>
-            <p class="text-muted" id="work-date-label" style="margin:6px 0 0;">Loading…</p>
+      <div class="kpi-row" id="kpi-row">
+        <button type="button" class="kpi-card active" data-filter="given"><span class="label"><span class="kpi-dot indigo"></span>Given</span><div class="value" id="w-given">–</div><div class="hint" id="w-given-hint">All handed out</div></button>
+        <button type="button" class="kpi-card" data-filter="completed"><span class="label"><span class="kpi-dot green"></span>Completed</span><div class="value" id="w-done">–</div><div class="hint" id="w-done-hint">Marked done</div></button>
+        <button type="button" class="kpi-card" data-filter="open"><span class="label"><span class="kpi-dot amber"></span>Not done</span><div class="value" id="w-open">–</div><div class="hint">Still open</div></button>
+        <button type="button" class="kpi-card" data-filter="leftover"><span class="label"><span class="kpi-dot red"></span>Leftover</span><div class="value" id="w-left">–</div><div class="hint">From earlier days</div></button>
+        <button type="button" class="kpi-card" data-filter="on_track"><span class="label"><span class="kpi-dot green"></span>On track</span><div class="value" id="w-track">–</div><div class="hint">No leftover</div></button>
+        <button type="button" class="kpi-card" data-filter="lacking"><span class="label"><span class="kpi-dot amber"></span>Needs follow-up</span><div class="value" id="w-lack">–</div><div class="hint">Behind today</div></button>
+      </div>
+
+      <section class="ui-section">
+        <h2 class="ui-section-title">Today’s progress</h2>
+        <div class="progress-cols">
+          <div class="ui-card progress-ring-wrap">
+            <svg class="progress-ring" viewBox="0 0 120 120" aria-hidden="true">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--color-border)" stroke-width="10"/>
+              <circle id="today-ring" cx="60" cy="60" r="52" fill="none" stroke="var(--color-primary)" stroke-width="10" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+            </svg>
+            <div id="today-ring-label" style="font-size:22px;font-weight:700;">0/0</div>
+            <div class="text-muted" id="today-ring-sub">Today 0%</div>
           </div>
-        </div>
-        <div class="work-stat-grid" id="work-summary-grid">
-          <div class="work-stat"><span>Given</span><strong id="w-given">–</strong></div>
-          <div class="work-stat"><span>Completed</span><strong id="w-done">–</strong></div>
-          <div class="work-stat"><span>Not done</span><strong id="w-open">–</strong></div>
-          <div class="work-stat"><span>Leftover</span><strong id="w-left">–</strong></div>
-          <div class="work-stat"><span>On track</span><strong id="w-track">–</strong></div>
-          <div class="work-stat"><span>Needs follow-up</span><strong id="w-lack">–</strong></div>
-        </div>
-        <div class="dash-split">
           <div>
-            <h3 class="dash-col-title">On track</h3>
-            <p class="text-muted dash-col-hint">No leftover work. Today’s given tasks are done, or they have nothing open.</p>
-            <div id="on-track-list"></div>
-          </div>
-          <div>
-            <h3 class="dash-col-title">Needs follow-up</h3>
-            <p class="text-muted dash-col-hint">Leftover from earlier days, or today’s work is not finished.</p>
-            <div id="lacking-list"></div>
+            <div class="ui-card" style="margin-bottom:16px;">
+              <h3 class="ui-section-title" style="font-size:16px;">On track</h3>
+              <div id="on-track-list"></div>
+            </div>
+            <div class="ui-card">
+              <h3 class="ui-section-title" style="font-size:16px;">Needs follow-up</h3>
+              <div id="lacking-list"></div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="card dash-report-card">
-        <div class="dash-hero-top">
-          <div>
-            <h2 class="section-title" style="margin:0;">Day report</h2>
-            <p class="text-muted" style="margin:6px 0 0;">See every completed and open Excel task for one day.</p>
-          </div>
-          <div class="dash-report-nav">
-            <button type="button" class="btn btn-secondary btn-sm" id="report-yesterday-btn">Yesterday</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="report-today-btn">Today</button>
-            <input class="form-control" id="report-date" type="date" style="width:auto;">
+      <section class="ui-section ui-card">
+        <div class="flex-between" style="flex-wrap:wrap;gap:12px;">
+          <h2 class="ui-section-title" style="margin:0;">Day report</h2>
+          <div class="seg" role="tablist" aria-label="Report day">
+            <button type="button" id="report-yesterday-btn">Yesterday</button>
+            <button type="button" class="active" id="report-today-btn">Today</button>
+            <button type="button" id="report-pick-btn">Pick date</button>
           </div>
         </div>
-        <div id="day-report-box"><p class="text-muted">Pick a day to open the report.</p></div>
+        <div class="stat-strip" id="day-stat-strip"></div>
+        <div class="ui-tabs" id="day-tabs">
+          <button type="button" data-day-tab="open">Open</button>
+          <button type="button" data-day-tab="done">Completed</button>
+          <button type="button" class="active" data-day-tab="person">By person</button>
+        </div>
+        <div id="day-report-box"></div>
       </section>
 
-      <div class="week-nav" style="margin-top:8px;">
-        <button class="btn btn-secondary btn-sm" id="prev-week-btn">&larr; Previous Week</button>
-        <span class="week-label" id="week-label">This week</span>
-        <button class="btn btn-secondary btn-sm" id="next-week-btn">Next Week &rarr;</button>
-        <button class="btn btn-ghost btn-sm" id="current-week-btn">Current Week</button>
-      </div>
-      <p class="text-muted" style="margin:0 0 12px;">Weekly assigned tasks (separate from Excel lists).</p>
-      <div class="summary-grid" id="summary-grid">
-        <div class="summary-card"><div class="label">Companies</div><div class="value" id="stat-companies">&ndash;</div></div>
-        <div class="summary-card"><div class="label">People</div><div class="value" id="stat-employees">&ndash;</div></div>
-        <div class="summary-card"><div class="label">Weekly tasks</div><div class="value" id="stat-tasks">&ndash;</div></div>
-        <div class="summary-card"><div class="label">Weekly done</div><div class="value success" id="stat-completed">&ndash;</div></div>
-      </div>
+      <section class="ui-section" id="companies">
+        <h2 class="ui-section-title">Companies</h2>
+        <div id="companies-container">
+          <div class="empty-state"><span class="spinner"></span></div>
+        </div>
+      </section>
 
-      <h2 class="section-title">Companies</h2>
-      <div id="companies-container">
-        <div class="empty-state"><span class="spinner"></span></div>
-      </div>
+      <section class="ui-section ui-card">
+        <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+          <h2 class="ui-section-title" style="margin:0;">Weekly tasks</h2>
+          <div class="week-nav" style="margin:0;">
+            <button class="btn btn-secondary btn-sm" id="prev-week-btn">Previous</button>
+            <span class="week-label" id="week-label">This week</span>
+            <button class="btn btn-secondary btn-sm" id="next-week-btn">Next</button>
+            <button class="btn btn-ghost btn-sm" id="current-week-btn">Current week</button>
+          </div>
+        </div>
+        <div class="stat-strip">
+          <span>Companies<strong id="stat-companies">–</strong></span>
+          <span>People<strong id="stat-employees">–</strong></span>
+          <span>Weekly tasks<strong id="stat-tasks">–</strong></span>
+          <span>Weekly done<strong id="stat-completed">–</strong></span>
+        </div>
+        <div class="week-board" id="week-board"></div>
+        <div class="empty-lite" id="week-empty">
+          <p>No weekly tasks in this range.</p>
+          <a class="btn btn-secondary btn-sm" href="dashboard.html#companies" style="margin-top:8px;">Add weekly task</a>
+        </div>
+      </section>
 
       <div class="modal-overlay" id="create-company-modal">
         <div class="modal">
@@ -134,8 +139,19 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/shell.js?v=1"></script>
   <script>
+    mountAdminShell("grid");
+    document.getElementById("theme-toggle-btn-desk").addEventListener("click", () => document.getElementById("theme-toggle-btn").click());
+
     let currentWeekStart = null;
+    let currentWeekEnd = null;
+    let excelBoard = { people: [], companies: {}, rows: [] };
+    let dashboardCompanies = [];
+    let dashFilter = "given";
+    let dayTab = "person";
+    let reportIso = null;
+    let searchQuery = "";
 
     function fmtWeekRange(weekStart, weekEnd) {
       return formatDateRange(weekStart, weekEnd);
@@ -156,9 +172,6 @@
       return d.getFullYear() + "-" + m + "-" + day;
     }
 
-    let excelBoard = { people: [], companies: {}, rows: [] };
-    let dashboardCompanies = [];
-
     function isWorkDone(row) {
       return String((row && row.status) || "").toLowerCase() === "done";
     }
@@ -167,26 +180,58 @@
       return String((row && row.assigned_date) || "").slice(0, 10);
     }
 
-    function personLine(p) {
-      const bits = [];
-      if (p.all_given) bits.push((p.all_done || 0) + "/" + p.all_given + " given");
-      if (p.today_given) bits.push(p.today_done + "/" + p.today_given + " today");
-      else bits.push("no new batch today");
-      if (p.leftover) bits.push(p.leftover + " leftover");
+    function matchesSearch(text) {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return true;
+      return String(text || "").toLowerCase().indexOf(q) >= 0;
+    }
+
+    function filteredPeople() {
+      let people = excelBoard.people || [];
+      people = people.filter((p) => matchesSearch(p.employee_name + " " + p.company_name));
+      if (dashFilter === "completed") return people.filter((p) => p.all_done > 0);
+      if (dashFilter === "open") return people.filter((p) => p.all_open > 0);
+      if (dashFilter === "leftover") return people.filter((p) => p.leftover > 0);
+      if (dashFilter === "on_track") return people.filter((p) => p.on_track);
+      if (dashFilter === "lacking") return people.filter((p) => p.lacking);
+      if (dashFilter === "given") return people.filter((p) => p.all_given > 0);
+      return people;
+    }
+
+    function personRow(p) {
+      const pct = p.all_given ? Math.round((100 * p.all_done) / p.all_given) : 0;
+      const leftover = p.leftover ? `<span class="badge-leftover">${p.leftover} leftover</span>` : "";
       return `
-        <a class="dash-person ${p.lacking ? "is-lack" : "is-ok"}" href="${pageUrl("employee-tasks.html?id=" + p.employee_id)}">
-          <strong>${escapeHtml(p.employee_name)}</strong>
-          <span>${escapeHtml(p.company_name)} · ${escapeHtml(bits.join(" · "))}</span>
-        </a>`;
+        <div class="person-row">
+          <span class="ui-avatar" aria-hidden="true">${escapeHtml(uiInitials(p.employee_name))}</span>
+          <div class="person-meta">
+            <strong>${escapeHtml(p.employee_name)}</strong>
+            <span class="company-tag">${escapeHtml(p.company_name)}</span>
+            <div class="progress-label" style="margin-top:6px;"><span>${p.all_done}/${p.all_given} given</span><span>${p.today_done}/${p.today_given} today</span></div>
+            <div class="progress-track"><div class="progress-fill ${pct >= 100 && p.all_given ? "success" : ""}" style="width:${pct}%"></div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+            ${leftover}
+            <a class="btn btn-secondary btn-sm" href="${pageUrl("employee-tasks.html?id=" + p.employee_id)}">View tasks</a>
+          </div>
+        </div>`;
     }
 
     function renderPeople(id, people, emptyText) {
       const el = document.getElementById(id);
       if (!people.length) {
-        el.innerHTML = `<p class="text-muted">${escapeHtml(emptyText)}</p>`;
+        el.innerHTML = `<div class="empty-lite">${escapeHtml(emptyText)}</div>`;
         return;
       }
-      el.innerHTML = people.map(personLine).join("");
+      el.innerHTML = people.map(personRow).join("");
+    }
+
+    function setRing(done, given) {
+      const pct = given ? done / given : 0;
+      const circ = 326.7;
+      document.getElementById("today-ring").setAttribute("stroke-dashoffset", String(circ * (1 - pct)));
+      document.getElementById("today-ring-label").textContent = done + "/" + given;
+      document.getElementById("today-ring-sub").textContent = "Today " + Math.round(pct * 100) + "%";
     }
 
     function renderWorkSummary(work) {
@@ -201,56 +246,113 @@
       document.getElementById("work-date-label").textContent =
         (s.excel_lists || 0) + " Excel lists · " + (s.excel_people || 0) + " people · today " +
         (s.today_done || 0) + "/" + (s.today_given || 0) + " · " + (work.date || localTodayIso()) + err;
-      const people = work.people || [];
-      renderPeople("on-track-list", work.on_track || [], people.length ? "Nobody is fully on track yet." : "No Excel lists found. Open a company and upload a sheet.");
-      renderPeople("lacking-list", work.lacking || [], people.length ? "Nobody is behind right now." : "No Excel lists found.");
+      setRing(s.today_done || 0, s.today_given || 0);
+      const people = filteredPeople();
+      const onTrack = people.filter((p) => p.on_track);
+      const lacking = people.filter((p) => p.lacking);
+      renderPeople("on-track-list", onTrack, people.length ? "Everyone here is on track." : "No Excel lists yet. Upload a sheet on a company.");
+      renderPeople("lacking-list", lacking, people.length ? "Nobody is behind right now." : "No follow-up items.");
+      const bell = document.getElementById("bell-count");
+      const n = s.lacking || 0;
+      bell.textContent = n;
+      bell.classList.toggle("hidden", !n);
     }
 
-    function workItemHtml(item) {
-      const notes = item.notes ? `<div class="dash-note">${escapeHtml(item.notes)}</div>` : "";
-      return `
-        <div class="dash-work-item">
-          <strong>#${item.row_number} ${escapeHtml(item.title)}</strong>
-          <span>${escapeHtml(item.employee_name)} · ${escapeHtml(item.company_name)}</span>
-          ${notes}
-        </div>`;
+    function noteHtml(item) {
+      const notes = String(item.notes || "").trim();
+      if (!notes) return "—";
+      const linked = notes.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+      return `<div class="note-cell" data-expand-note title="${escapeHtml(notes)}">${linked}</div>`;
+    }
+
+    function statusChip(row) {
+      if (isWorkDone(row)) return `<span class="status-chip done">Done</span>`;
+      const day = workDay(row);
+      const leftover = day && day < (excelBoard.date || localTodayIso());
+      return leftover ? `<span class="status-chip left">Leftover</span>` : `<span class="status-chip open">Open</span>`;
+    }
+
+    function rowTable(rows) {
+      if (!rows.length) return `<div class="empty-lite">Nothing in this view.</div>`;
+      return `<table class="ui-table"><thead><tr><th>#</th><th>Task</th><th>Status</th><th>Notes</th><th>Action</th></tr></thead><tbody>
+        ${rows.map((r) => `
+          <tr>
+            <td>${r.row_number}</td>
+            <td><strong>${escapeHtml(r.title)}</strong><div class="text-muted">${escapeHtml(r.employee_name)} · ${escapeHtml(r.company_name)}</div></td>
+            <td>${statusChip(r)}</td>
+            <td>${noteHtml(r)}</td>
+            <td><button type="button" class="btn btn-secondary btn-sm" data-toggle-row="${r.id}" data-list="${r.work_list_id}" data-status="${r.status}">${isWorkDone(r) ? "Undo" : "Mark done"}</button></td>
+          </tr>`).join("")}
+      </tbody></table>`;
     }
 
     function paintDayReport(iso) {
+      reportIso = iso;
       const box = document.getElementById("day-report-box");
       const dateInput = document.getElementById("report-date");
       dateInput.value = iso;
-      const people = excelBoard.people || [];
-      const rows = excelBoard.rows || [];
-      const dayRows = rows.filter((r) => workDay(r) === iso);
-      const done = dayRows.filter(isWorkDone);
-      const open = dayRows.filter((r) => !isWorkDone(r));
-      const anyDone = rows.filter(isWorkDone);
-      const finished = people.filter((p) => p.today_given > 0 && p.today_done === p.today_given && iso === (excelBoard.date || iso));
-      const lacking = people.filter((p) => p.lacking);
+      document.getElementById("report-today-btn").classList.toggle("active", iso === localTodayIso());
+      document.getElementById("report-yesterday-btn").classList.toggle("active", iso === shiftIso(localTodayIso(), -1));
+      const rows = (excelBoard.rows || []).filter((r) => workDay(r) === iso);
+      const done = rows.filter(isWorkDone);
+      const open = rows.filter((r) => !isWorkDone(r));
       const s = excelBoard.summary || {};
-      box.innerHTML = `
-        <div class="work-stat-grid" style="margin-bottom:16px;">
-          <div class="work-stat"><span>All given</span><strong>${s.all_given || 0}</strong></div>
-          <div class="work-stat"><span>All completed</span><strong>${s.all_done || 0}</strong></div>
-          <div class="work-stat"><span>This day given</span><strong>${dayRows.length}</strong></div>
-          <div class="work-stat"><span>Done this day</span><strong>${done.length}</strong></div>
-        </div>
-        <h3 class="dash-col-title">People with Excel lists</h3>
-        ${people.length ? people.map(personLine).join("") : "<p class=\"text-muted\">No Excel lists found on the company pages yet.</p>"}
-        <h3 class="dash-col-title">Who finished this day's batch</h3>
-        ${iso === excelBoard.date && finished.length ? finished.map(personLine).join("") : "<p class=\"text-muted\">See the rows below for this date.</p>"}
-        <h3 class="dash-col-title">Who still needs to catch up</h3>
-        ${lacking.length ? lacking.map(personLine).join("") : "<p class=\"text-muted\">Nobody is behind.</p>"}
-        <h3 class="dash-col-title">Work given on ${escapeHtml(iso)}</h3>
-        ${dayRows.length ? dayRows.map(workItemHtml).join("") : "<p class=\"text-muted\">No Excel rows were given on this date.</p>"}
-        <h3 class="dash-col-title">Completed on this date</h3>
-        ${done.length ? done.map(workItemHtml).join("") : "<p class=\"text-muted\">No rows assigned this date are marked done.</p>"}
-        <h3 class="dash-col-title">Still open this date</h3>
-        ${open.length ? open.map(workItemHtml).join("") : "<p class=\"text-muted\">No open rows for this date.</p>"}
-        <h3 class="dash-col-title">All completed Excel work</h3>
-        ${anyDone.length ? anyDone.map(workItemHtml).join("") : "<p class=\"text-muted\">No completed Excel rows yet.</p>"}
-      `;
+      document.getElementById("day-stat-strip").innerHTML = `
+        <span>This day given<strong>${rows.length}</strong></span>
+        <span>Done this day<strong>${done.length}</strong></span>
+        <span>All given<strong>${s.all_given || 0}</strong></span>
+        <span>All completed<strong>${s.all_done || 0}</strong></span>`;
+      let html = "";
+      if (dayTab === "person") {
+        const groups = {};
+        rows.forEach((r) => {
+          const key = r.employee_id;
+          if (!groups[key]) groups[key] = { name: r.employee_name, company: r.company_name, rows: [] };
+          groups[key].rows.push(r);
+        });
+        const keys = Object.keys(groups);
+        html = keys.length ? keys.map((k) => {
+          const g = groups[k];
+          const d = g.rows.filter(isWorkDone).length;
+          return `<details class="ui-card" style="margin-bottom:8px;padding:12px;" open>
+            <summary style="cursor:pointer;font-weight:650;">${escapeHtml(g.name)} · ${escapeHtml(g.company)} · ${d}/${g.rows.length}</summary>
+            ${rowTable(g.rows)}
+          </details>`;
+        }).join("") : `<div class="empty-lite">No work given on this date.</div>`;
+      } else if (dayTab === "done") {
+        html = rowTable(done);
+      } else {
+        html = rowTable(open);
+      }
+      box.innerHTML = html;
+      box.querySelectorAll("[data-expand-note]").forEach((el) => {
+        el.addEventListener("click", () => el.classList.toggle("expanded"));
+      });
+      box.querySelectorAll("[data-toggle-row]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = Number(btn.getAttribute("data-toggle-row"));
+          const listId = btn.getAttribute("data-list");
+          const cur = btn.getAttribute("data-status");
+          const next = cur === "done" ? "pending" : "done";
+          try {
+            await apiRequest("/api/work-lists/" + listId + "/rows/" + id, {
+              method: "PUT",
+              body: JSON.stringify({ status: next }),
+            });
+            const row = (excelBoard.rows || []).find((r) => Number(r.id) === id);
+            if (row) row.status = next;
+            showToast(next === "done" ? "Marked done" : "Marked open");
+            hydrateFromBoard();
+            paintDayReport(iso);
+          } catch (err) {
+            showToast(err.message);
+          }
+        });
+      });
+    }
+
+    function hydrateFromBoard() {
+      renderWorkSummary({ date: excelBoard.date, summary: excelBoard.summary, people: excelBoard.people, on_track: excelBoard.people.filter((p) => p.on_track), lacking: excelBoard.people.filter((p) => p.lacking), error: null });
     }
 
     async function hydrateExcel(companies, todayIso) {
@@ -261,16 +363,8 @@
       document.getElementById("work-date-label").textContent = "Loading Excel lists from companies…";
       for (const c of companies) {
         companyExcel[c.id] = {
-          id: c.id,
-          today_given: 0,
-          today_done: 0,
-          leftover: 0,
-          on_track: 0,
-          lacking: 0,
-          excel_people: 0,
-          excel_lists: 0,
-          all_given: 0,
-          all_done: 0,
+          id: c.id, today_given: 0, today_done: 0, leftover: 0, on_track: 0, lacking: 0,
+          excel_people: 0, excel_lists: 0, all_given: 0, all_done: 0,
         };
         let lists = [];
         try {
@@ -290,11 +384,7 @@
               employee_name: w.employee_name || "Employee",
               company_id: c.id,
               company_name: c.name,
-              all_given: 0,
-              all_done: 0,
-              today_given: 0,
-              today_done: 0,
-              leftover: 0,
+              all_given: 0, all_done: 0, today_given: 0, today_done: 0, leftover: 0,
             };
           }
           if (!seenEmp[key]) {
@@ -322,6 +412,7 @@
               company_name: c.name,
               employee_id: w.employee_id,
               company_id: c.id,
+              work_list_id: r.work_list_id || w.id,
             });
             allRows.push(item);
             const done = isWorkDone(r);
@@ -374,16 +465,29 @@
         lacking: people.filter((p) => p.lacking).length,
       };
       excelBoard = { date: todayIso, people, rows: allRows, summary, companies: companyExcel };
-      renderWorkSummary({
-        date: todayIso,
-        summary: summary,
-        people: people,
-        on_track: people.filter((p) => p.on_track),
-        lacking: people.filter((p) => p.lacking),
-      });
+      renderWorkSummary({ date: todayIso, summary, people, on_track: people.filter((p) => p.on_track), lacking: people.filter((p) => p.lacking) });
       dashboardCompanies = companies.map((c) => Object.assign({}, c, { excel: companyExcel[c.id] || c.excel }));
       renderCompanies(dashboardCompanies);
       paintDayReport(todayIso);
+    }
+
+    function paintWeekBoard(weekStart) {
+      const board = document.getElementById("week-board");
+      const empty = document.getElementById("week-empty");
+      if (!weekStart) return;
+      const start = new Date(weekStart + "T12:00:00");
+      const names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      const cells = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        const iso = d.toISOString().slice(0, 10);
+        const count = (excelBoard.rows || []).filter((r) => workDay(r) === iso).length;
+        cells.push(`<div class="week-cell"><strong>${names[i]}</strong><span class="text-muted">${d.getDate()}</span><div style="margin-top:8px;">${count ? count + " Excel" : "—"}</div></div>`);
+      }
+      board.innerHTML = cells.join("");
+      const weekly = Number(document.getElementById("stat-tasks").textContent) || 0;
+      empty.style.display = weekly ? "none" : "block";
     }
 
     async function loadDashboard(weekStart) {
@@ -396,19 +500,17 @@
       try {
         const data = await apiRequest(url);
         currentWeekStart = data.week.week_start;
-
+        currentWeekEnd = data.week.week_end;
         document.getElementById("week-label").textContent = fmtWeekRange(data.week.week_start, data.week.week_end);
-
         document.getElementById("stat-companies").textContent = data.summary.total_companies;
         document.getElementById("stat-employees").textContent = data.summary.total_employees;
         document.getElementById("stat-tasks").textContent = data.summary.total_tasks;
         document.getElementById("stat-completed").textContent = data.summary.completed_tasks;
-
         renderWorkSummary(data.work || {});
         renderCompanies(data.companies);
         dashboardCompanies = data.companies || [];
         await hydrateExcel(dashboardCompanies, localTodayIso());
-
+        paintWeekBoard(data.week.week_start);
         document.getElementById("prev-week-btn").onclick = () => loadDashboard(data.week.prev_week_start);
         document.getElementById("next-week-btn").onclick = () => loadDashboard(data.week.next_week_start);
         document.getElementById("current-week-btn").onclick = () => loadDashboard(null);
@@ -419,18 +521,16 @@
 
     function renderCompanies(companies) {
       const container = document.getElementById("companies-container");
-
-      if (!companies.length) {
+      const list = (companies || []).filter((c) => matchesSearch(c.name));
+      if (!list.length) {
         container.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">&#127970;</div>
+          <div class="empty-lite">
             <p>You haven't created any companies yet.</p>
-            <button class="btn btn-primary" onclick="openModal('create-company-modal')">+ Create Your First Company</button>
+            <button class="btn btn-primary" style="margin-top:8px;" onclick="openModal('create-company-modal')">+ Create company</button>
           </div>`;
         return;
       }
-
-      container.innerHTML = `<div class="grid">${companies.map(renderCompanyCard).join("")}</div>`;
+      container.innerHTML = `<div class="company-grid">${list.map(renderCompanyCard).join("")}</div>`;
     }
 
     function renderCompanyCard(c) {
@@ -440,36 +540,42 @@
       const done = x.today_done || 0;
       const pct = given ? Math.round((100 * done) / given) : 0;
       return `
-        <a class="entity-card" href="company.html?id=${c.id}" style="text-decoration:none;">
-          <div class="entity-card-title">${escapeHtml(c.name)}</div>
-          <div class="entity-card-meta">${c.employee_count} people · ${x.excel_people || 0} with Excel lists · ${x.all_done || 0}/${x.all_given || 0} given done</div>
+        <div class="ui-card company-card">
+          <div class="company-card-top">
+            <span class="ui-avatar lg">${escapeHtml(uiInitials(c.name))}</span>
+            <div>
+              <div class="entity-card-title">${escapeHtml(c.name)}</div>
+              <div class="text-muted">${uiPeopleLabel(c.employee_count)}</div>
+            </div>
+          </div>
           <div>
             <div class="progress-label"><span>Excel today ${done}/${given}</span><span>${pct}%</span></div>
             <div class="progress-track"><div class="progress-fill ${pct >= 100 && given ? "success" : ""}" style="width:${pct}%"></div></div>
           </div>
-          <div class="entity-card-meta">${x.leftover || 0} leftover · ${x.on_track || 0} on track · ${x.lacking || 0} follow-up · weekly ${stats.completed}/${stats.total}</div>
-          <div class="entity-card-actions">
-            <span class="btn btn-secondary btn-sm">Open</span>
+          <div class="mini-stats">
+            <div class="mini-stat"><span>Leftover</span><strong>${x.leftover || 0}</strong></div>
+            <div class="mini-stat"><span>On track</span><strong>${x.on_track || 0}</strong></div>
+            <div class="mini-stat"><span>Follow-up</span><strong>${x.lacking || 0}</strong></div>
+            <div class="mini-stat"><span>Weekly done</span><strong>${stats.completed}/${stats.total}</strong></div>
           </div>
-        </a>`;
+          <a class="btn btn-secondary btn-sm" href="${pageUrl("company.html?id=" + c.id)}">Open</a>
+        </div>`;
     }
 
     document.getElementById("open-create-company-btn").addEventListener("click", () => openModal("create-company-modal"));
-
     document.getElementById("create-company-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errorBox = document.getElementById("create-company-error");
       errorBox.classList.remove("visible");
       const submitBtn = document.getElementById("create-company-submit");
       submitBtn.disabled = true;
-
-      const name = document.getElementById("company-name").value.trim();
-      const description = document.getElementById("company-description").value.trim();
-
       try {
         const company = await apiRequest("/api/companies", {
           method: "POST",
-          body: JSON.stringify({ name, description }),
+          body: JSON.stringify({
+            name: document.getElementById("company-name").value.trim(),
+            description: document.getElementById("company-description").value.trim(),
+          }),
         });
         closeModal("create-company-modal");
         window.location.href = pageUrl("company.html?id=" + company.id);
@@ -481,10 +587,39 @@
       }
     });
 
+    document.querySelectorAll("#kpi-row [data-filter]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dashFilter = btn.getAttribute("data-filter");
+        document.querySelectorAll("#kpi-row [data-filter]").forEach((b) => b.classList.toggle("active", b === btn));
+        hydrateFromBoard();
+        renderCompanies(dashboardCompanies);
+      });
+    });
+
+    document.getElementById("day-tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-day-tab]");
+      if (!btn) return;
+      dayTab = btn.getAttribute("data-day-tab");
+      document.querySelectorAll("#day-tabs [data-day-tab]").forEach((b) => b.classList.toggle("active", b === btn));
+      paintDayReport(reportIso || localTodayIso());
+    });
+
     document.getElementById("report-today-btn").addEventListener("click", () => paintDayReport(localTodayIso()));
     document.getElementById("report-yesterday-btn").addEventListener("click", () => paintDayReport(shiftIso(localTodayIso(), -1)));
+    document.getElementById("report-pick-btn").addEventListener("click", () => document.getElementById("report-date").showPicker ? document.getElementById("report-date").showPicker() : document.getElementById("report-date").focus());
     document.getElementById("report-date").addEventListener("change", (e) => {
       if (e.target.value) paintDayReport(e.target.value);
+    });
+    document.getElementById("global-search").addEventListener("input", (e) => {
+      searchQuery = e.target.value;
+      hydrateFromBoard();
+      renderCompanies(dashboardCompanies);
+    });
+    document.getElementById("notify-btn").addEventListener("click", () => {
+      dashFilter = "lacking";
+      document.querySelectorAll("#kpi-row [data-filter]").forEach((b) => b.classList.toggle("active", b.getAttribute("data-filter") === "lacking"));
+      hydrateFromBoard();
+      document.getElementById("lacking-list").scrollIntoView({ behavior: "smooth", block: "center" });
     });
 
     loadDashboard(null);

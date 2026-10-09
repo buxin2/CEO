@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel lists · My Management System</title>
+  <link rel="stylesheet" href="css/style.css?v=17">
+  <link rel="stylesheet" href="css/admin-ui.css?v=1">
+</head>
+<body>
+  <div class="mobile-navbar">
+    <button class="hamburger-btn" id="mobile-nav-toggle" aria-label="Open menu">☰</button>
+    <div class="brand">My Management System</div>
+    <button type="button" class="icon-btn" id="theme-toggle-btn" aria-label="Toggle color theme">◐</button>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content">
+      <div class="topbar">
+        <h1 class="topbar-title">Excel lists</h1>
+        <button class="btn btn-primary" id="jump-upload">Upload on company</button>
+      </div>
+      <div class="filter-bar">
+        <select class="form-control" id="f-company" aria-label="Filter company"><option value="">All companies</option></select>
+        <select class="form-control" id="f-person" aria-label="Filter person"><option value="">All people</option></select>
+        <input class="form-control" type="date" id="f-date" aria-label="Filter date">
+        <select class="form-control" id="f-status" aria-label="Filter status">
+          <option value="">All status</option>
+          <option value="pending">Open</option>
+          <option value="done">Completed</option>
+          <option value="leftover">Leftover</option>
+        </select>
+      </div>
+      <div class="bulk-bar">
+        <button type="button" class="btn btn-secondary btn-sm" id="bulk-done">Mark selected done</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="bulk-open">Mark selected open</button>
+        <span class="text-muted" id="sel-count">0 selected</span>
+      </div>
+      <div class="ui-card">
+        <div id="lists-table"><div class="empty-state"><span class="spinner"></span></div></div>
+      </div>
+    </main>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/shell.js?v=1"></script>
+  <script>
+    mountAdminShell("list");
+    let allRows = [];
+    const selected = {};
+
+    function todayIso() {
+      const d = new Date();
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+
+    function filtered() {
+      const c = document.getElementById("f-company").value;
+      const p = document.getElementById("f-person").value;
+      const d = document.getElementById("f-date").value;
+      const s = document.getElementById("f-status").value;
+      return allRows.filter((r) => {
+        if (c && String(r.company_id) !== c) return false;
+        if (p && String(r.employee_id) !== p) return false;
+        const day = String(r.assigned_date || "").slice(0, 10);
+        if (d && day !== d) return false;
+        const done = String(r.status).toLowerCase() === "done";
+        if (s === "done" && !done) return false;
+        if (s === "pending" && done) return false;
+        if (s === "leftover" && !(day && day < todayIso() && !done)) return false;
+        return true;
+      });
+    }
+
+    function paint() {
+      const rows = filtered();
+      if (!rows.length) {
+        document.getElementById("lists-table").innerHTML = `<div class="empty-lite"><p>No Excel rows match these filters.</p></div>`;
+        return;
+      }
+      document.getElementById("lists-table").innerHTML = `<table class="ui-table"><thead><tr>
+        <th><input type="checkbox" id="chk-all" aria-label="Select all"></th>
+        <th>#</th><th>Task</th><th>Person</th><th>Company</th><th>Date</th><th>Status</th>
+      </tr></thead><tbody>${rows.map((r) => {
+        const done = String(r.status).toLowerCase() === "done";
+        const day = String(r.assigned_date || "").slice(0, 10);
+        const leftover = day && day < todayIso() && !done;
+        const chip = done ? "done" : leftover ? "left" : "open";
+        const label = done ? "Done" : leftover ? "Leftover" : "Open";
+        return `<tr>
+          <td><input type="checkbox" data-row="${r.id}" data-list="${r.work_list_id}" ${selected[r.id] ? "checked" : ""}></td>
+          <td>${r.row_number || ""}</td>
+          <td>${escapeHtml(r.title)}</td>
+          <td>${escapeHtml(r.employee_name)}</td>
+          <td>${escapeHtml(r.company_name)}</td>
+          <td>${escapeHtml(day || "—")}</td>
+          <td><span class="status-chip ${chip}">${label}</span></td>
+        </tr>`;
+      }).join("")}</tbody></table>`;
+      document.getElementById("chk-all").addEventListener("change", (e) => {
+        document.querySelectorAll("[data-row]").forEach((cb) => {
+          cb.checked = e.target.checked;
+          selected[cb.getAttribute("data-row")] = e.target.checked ? { id: cb.getAttribute("data-row"), list: cb.getAttribute("data-list") } : null;
+        });
+        updateSel();
+      });
+      document.querySelectorAll("[data-row]").forEach((cb) => {
+        cb.addEventListener("change", () => {
+          selected[cb.getAttribute("data-row")] = cb.checked ? { id: cb.getAttribute("data-row"), list: cb.getAttribute("data-list") } : null;
+          updateSel();
+        });
+      });
+      updateSel();
+    }
+
+    function updateSel() {
+      const n = Object.keys(selected).filter((k) => selected[k]).length;
+      document.getElementById("sel-count").textContent = n + " selected";
+    }
+
+    async function bulk(status) {
+      const items = Object.keys(selected).map((k) => selected[k]).filter(Boolean);
+      for (const it of items) {
+        await apiRequest("/api/work-lists/" + it.list + "/rows/" + it.id, {
+          method: "PUT",
+          body: JSON.stringify({ status }),
+        });
+        const row = allRows.find((r) => String(r.id) === String(it.id));
+        if (row) row.status = status;
+      }
+      showToast("Updated " + items.length + " rows");
+      paint();
+    }
+
+    document.getElementById("bulk-done").addEventListener("click", () => bulk("done"));
+    document.getElementById("bulk-open").addEventListener("click", () => bulk("pending"));
+    ["f-company", "f-person", "f-date", "f-status"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", paint);
+    });
+    document.getElementById("jump-upload").addEventListener("click", () => {
+      window.location.href = pageUrl("dashboard.html#companies");
+    });
+
+    (async function load() {
+      try {
+        const dash = await apiRequest("/api/dashboard");
+        const companies = dash.companies || [];
+        const cSel = document.getElementById("f-company");
+        const pSel = document.getElementById("f-person");
+        const people = {};
+        for (const c of companies) {
+          cSel.appendChild(new Option(c.name, c.id));
+          const data = await apiRequest("/api/companies/" + c.id + "/work-lists");
+          for (const w of (data.work_lists || [])) {
+            people[w.employee_id] = w.employee_name;
+            const rd = await apiRequest("/api/work-lists/" + w.id + "/rows");
+            (rd.rows || []).forEach((r) => {
+              allRows.push(Object.assign({}, r, {
+                company_id: c.id,
+                company_name: c.name,
+                employee_id: w.employee_id,
+                employee_name: w.employee_name,
+                work_list_id: r.work_list_id || w.id,
+              }));
+            });
+          }
+        }
+        Object.keys(people).forEach((id) => pSel.appendChild(new Option(people[id], id)));
+        paint();
+      } catch (err) {
+        document.getElementById("lists-table").innerHTML = `<div class="empty-lite">${escapeHtml(err.message)}</div>`;
+      }
+    })();
+  </script>
+</body>
+</html>
