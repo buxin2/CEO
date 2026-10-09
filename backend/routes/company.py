@@ -9,6 +9,7 @@ from services.worklist_service import (
     delete_work_list,
     list_work_lists,
     progress_for_work,
+    update_row_for_company,
     update_work_list,
 )
 from utils import task_link_for_token, create_group_for_company, group_link_for_token
@@ -268,3 +269,18 @@ def api_work_list_rows(work_list_id):
     item = work.to_dict()
     item["progress"] = progress_for_work(work)
     return jsonify({"work_list": item, "rows": [r.to_dict() for r in q.all()]})
+
+
+@company_bp.route("/api/work-lists/<int:work_list_id>/rows/<int:row_id>", methods=["PUT"])
+@login_required
+def api_update_work_row(work_list_id, row_id):
+    from models import WorkList
+    work = WorkList.query.get(work_list_id)
+    if not work:
+        return jsonify({"error": "Task list not found."}), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        row = update_row_for_company(work.company_id, work_list_id, row_id, data)
+        return jsonify(row.to_dict())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Company &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css?v=13">
+  <link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -115,7 +115,7 @@
         <div class="page-header" style="margin-bottom:12px;">
           <div>
             <h2 class="section-title" style="margin:0;">Excel task lists</h2>
-            <p class="page-subtitle">Upload a sheet of numbered tasks. Each day the app gives that employee the next set. Open Today, Monday, Tuesday, or Pending, and watch progress.</p>
+            <p class="page-subtitle">Each day is its own list. Open Monday, Tuesday, or Today. Previous is leftover unfinished work.</p>
           </div>
           <button type="button" class="btn btn-primary btn-sm" id="open-upload-excel-btn">Upload Excel</button>
         </div>
@@ -457,7 +457,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js?v=3"></script>
-  <script src="js/work-list-ui.js?v=2"></script>
+  <script src="js/work-list-ui.js?v=4"></script>
   <script>
     const COMPANY_ID = getQueryParam("id");
     if (!COMPANY_ID) {
@@ -1120,8 +1120,9 @@
       const today = localTodayIso();
       const progress = workMergedProgress(rows, [w], w.progress, today);
       const prev = workListState[w.id] && workListState[w.id].view;
+      const editing = !!(workListState[w.id] && workListState[w.id].editing);
       const view = workDefaultView(progress, today, prev);
-      workListState[w.id] = { view, rows, list: w };
+      workListState[w.id] = { view, rows, list: w, editing };
       const visible = workFilterRows(rows, view, today);
       host.innerHTML = `
         <div class="card-inner" style="margin-bottom:12px;">
@@ -1130,17 +1131,24 @@
           <div class="flex gap-8 flex-wrap" style="margin-bottom:8px;">
             <label class="text-muted">Per day <input class="form-control" style="width:72px;display:inline-block;" type="number" min="1" max="50" value="${w.daily_quota}" data-quota="${w.id}"></label>
             <button type="button" class="btn btn-secondary btn-sm" data-save-quota="${w.id}">Save</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-work-toggle-edit="${w.id}">${editing ? "Done" : "Edit"}</button>
             <button type="button" class="btn btn-danger btn-sm" data-del-list="${w.id}">Delete</button>
           </div>
-          ${workProgressHtml(progress)}
-          <h3 class="section-title" style="margin:8px 0 4px;">${escapeHtml(workHeading(view, today))}</h3>
-          ${workDayTabsHtml(progress, view, today)}
-          ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editable: false })).join("") : workEmptyMessage(view)}
+          ${workDeskHtml(progress, view, today, rows)}
+          ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editing })).join("") : workEmptyMessage(view)}
         </div>`;
       bindWorkDayTabs(host, (next) => {
         workListState[w.id].view = next;
         paintWorkListBlock(host, w, rows);
-      });
+      }, view);
+      const editBtn = host.querySelector("[data-work-toggle-edit]");
+      if (editBtn) {
+        editBtn.addEventListener("click", () => {
+          workListState[w.id].editing = !workListState[w.id].editing;
+          paintWorkListBlock(host, w, rows);
+        });
+      }
+      bindWorkAdminEdits(host, w.id, rows, () => paintWorkListBlock(host, w, rows));
     }
 
     async function loadWorkLists() {

@@ -319,10 +319,7 @@ def assigned_rows_for_employee(employee):
     return rows, lists, _progress_from_assigned(lists, rows)
 
 
-def update_row_for_employee(employee, row_id, data):
-    row = WorkListRow.query.get(row_id)
-    if not row or not row.work_list or row.work_list.employee_id != employee.id:
-        raise ValueError("Task not found.")
+def _apply_row_update(row, data):
     if row.assigned_date is None:
         raise ValueError("This task has not been given yet.")
     if "notes" in data:
@@ -342,3 +339,22 @@ def update_row_for_employee(employee, row_id, data):
         row.data_json = json.dumps(fields)
     db.session.commit()
     return row
+
+
+def update_row_for_employee(employee, row_id, data):
+    row = WorkListRow.query.get(row_id)
+    if not row or not row.work_list or row.work_list.employee_id != employee.id:
+        raise ValueError("Task not found.")
+    return _apply_row_update(row, data)
+
+
+def update_row_for_company(company_id, work_list_id, row_id, data):
+    row = WorkListRow.query.get(row_id)
+    if (
+        not row
+        or not row.work_list
+        or row.work_list.company_id != company_id
+        or row.work_list_id != work_list_id
+    ):
+        raise ValueError("Task not found.")
+    return _apply_row_update(row, data)

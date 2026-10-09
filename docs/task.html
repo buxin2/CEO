@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Weekly Tasks</title>
-  <link rel="stylesheet" href="css/style.css?v=13">
+  <link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
   <div class="public-page">
@@ -17,7 +17,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/work-list-ui.js?v=2"></script>
+  <script src="js/work-list-ui.js?v=4"></script>
   <script>
     const TOKEN = getQueryParam("token");
     let lastPublicData = null;
@@ -57,6 +57,13 @@
           ? `<a class="btn btn-secondary public-group-btn" href="${escapeHtml(data.group_link)}">&#128172; Company Group</a>`
           : "";
 
+        const weekProgress = stats.total
+          ? `<div class="public-progress-card">
+            <div class="progress-label"><span>${stats.completed} / ${stats.total} weekly tasks</span><span>${stats.completion_pct}%</span></div>
+            <div class="progress-track"><div class="progress-fill ${stats.completion_pct >= 100 ? "success" : ""}" style="width:${stats.completion_pct}%"></div></div>
+          </div>`
+          : "";
+
         body.innerHTML = `
           <div class="public-header">
             <div class="company-name">${escapeHtml(data.company_name)}</div>
@@ -64,10 +71,8 @@
             <div class="week-range">${formatDateRange(data.week.week_start, data.week.week_end)}</div>
             ${groupBtn ? `<div class="public-header-actions">${groupBtn}</div>` : ""}
           </div>
-          <div class="public-progress-card">
-            <div class="progress-label"><span>${stats.completed} / ${stats.total} completed</span><span>${stats.completion_pct}%</span></div>
-            <div class="progress-track"><div class="progress-fill ${stats.completion_pct >= 100 ? "success" : ""}" style="width:${stats.completion_pct}%"></div></div>
-          </div>
+          ${weekProgress}
+          <div id="excel-task-list"></div>
           <div class="public-earnings-card">
             <h3 class="section-title">Earnings Today</h3>
             <p class="text-muted public-earnings-prompt">How much did you earn for the company today?</p>
@@ -77,7 +82,6 @@
             </form>
             <div id="earnings-today-summary" class="public-earnings-summary"></div>
           </div>
-          <div id="excel-task-list"></div>
           <div id="task-list">${tasksHtml}</div>
         `;
 
@@ -138,18 +142,14 @@
         const progress = workMergedProgress(rows, lists, data.work_progress, today);
         workView = workDefaultView(progress, today, workView);
         const visible = workFilterRows(rows, workView, today);
-        const quota = progress.daily_quota || 5;
         box.innerHTML = `
-          ${workProgressHtml(progress)}
-          <h3 class="section-title" style="margin:8px 0;">${escapeHtml(workHeading(workView, today))}</h3>
-          <p class="text-muted">Up to ${quota} new tasks each day. Open Previous for leftover work, a day to review it, or Pending for everything unfinished.</p>
-          ${workDayTabsHtml(progress, workView, today)}
+          ${workDeskHtml(progress, workView, today, rows)}
           ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editable: true })).join("") : workEmptyMessage(workView)}
         `;
         bindWorkDayTabs(box, (next) => {
           workView = next;
           paintExcelSection(lastPublicData || data);
-        });
+        }, workView);
         bindWorkRowButtons();
       }
 

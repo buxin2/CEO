@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Employee Tasks &middot; My Management System</title>
-  <link rel="stylesheet" href="css/style.css?v=13">
+  <link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
   <div class="mobile-navbar">
@@ -72,7 +72,7 @@
 
       <div class="card" id="excel-lists-card" style="margin-bottom:20px;">
         <h2 class="section-title">Excel tasks</h2>
-        <p class="text-muted">Today’s batch first. Open Monday, Tuesday, and other days, or Pending for unfinished work. Progress is below.</p>
+        <p class="text-muted">Open a day to review only that day's work. Previous is leftover unfinished work. Edit to mark completed or not done.</p>
         <div id="excel-lists-box"><p class="text-muted">Loading…</p></div>
       </div>
 
@@ -123,7 +123,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/work-list-ui.js?v=2"></script>
+  <script src="js/work-list-ui.js?v=4"></script>
   <script>
     const EMPLOYEE_ID = getQueryParam("id");
     if (!EMPLOYEE_ID) {
@@ -318,20 +318,30 @@
       const today = localTodayIso();
       const progress = workMergedProgress(rows, [w], w.progress, today);
       const prev = empWorkState[w.id] && empWorkState[w.id].view;
+      const editing = !!(empWorkState[w.id] && empWorkState[w.id].editing);
       const view = workDefaultView(progress, today, prev);
-      empWorkState[w.id] = { view, rows, list: w };
+      empWorkState[w.id] = { view, rows, list: w, editing };
       const visible = workFilterRows(rows, view, today);
       host.innerHTML = `
-        <p><strong>${escapeHtml(w.filename)}</strong> · ${w.daily_quota} tasks/day</p>
-        ${workProgressHtml(progress)}
-        <h3 class="section-title" style="margin:8px 0 4px;">${escapeHtml(workHeading(view, today))}</h3>
-        ${workDayTabsHtml(progress, view, today)}
-        ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editable: false })).join("") : workEmptyMessage(view)}
+        <div class="flex gap-8 flex-wrap" style="margin-bottom:8px;align-items:center;">
+          <p style="margin:0;"><strong>${escapeHtml(w.filename)}</strong> · ${w.daily_quota} tasks/day</p>
+          <button type="button" class="btn btn-secondary btn-sm" data-work-toggle-edit="${w.id}">${editing ? "Done" : "Edit"}</button>
+        </div>
+        ${workDeskHtml(progress, view, today, rows)}
+        ${visible.length ? visible.map((r) => workRowCardHtml(r, today, { editing })).join("") : workEmptyMessage(view)}
       `;
       bindWorkDayTabs(host, (next) => {
         empWorkState[w.id].view = next;
         paintEmpWorkBlock(host, w, rows);
-      });
+      }, view);
+      const editBtn = host.querySelector("[data-work-toggle-edit]");
+      if (editBtn) {
+        editBtn.addEventListener("click", () => {
+          empWorkState[w.id].editing = !empWorkState[w.id].editing;
+          paintEmpWorkBlock(host, w, rows);
+        });
+      }
+      bindWorkAdminEdits(host, w.id, rows, () => paintEmpWorkBlock(host, w, rows));
     }
 
     async function loadExcelLists() {
