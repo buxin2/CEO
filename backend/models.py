@@ -104,6 +104,7 @@ class Employee(db.Model):
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), default="")
+    phone = db.Column(db.String(32), default="")
     position = db.Column(db.String(255), default="")
     unique_token = db.Column(db.String(64), unique=True, nullable=False, index=True, default=generate_token)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -119,6 +120,7 @@ class Employee(db.Model):
             "company_id": self.company_id,
             "name": self.name,
             "email": self.email,
+            "phone": self.phone or "",
             "position": self.position,
             "unique_token": self.unique_token,
             "created_at": self.created_at.isoformat() if self.created_at else None,

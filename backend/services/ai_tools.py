@@ -176,6 +176,7 @@ TOOL_DEFINITIONS = [
                     "name": {"type": "string"},
                     "position": {"type": "string"},
                     "email": {"type": "string"},
+                    "phone": {"type": "string", "description": "Phone number used as the employee system ID for sign-in."},
                 },
                 "required": ["name"],
             },
@@ -867,6 +868,7 @@ def execute_tool(name, arguments, context):
             name=name_val,
             position=(args.get("position") or "").strip(),
             email=(args.get("email") or "").strip(),
+            phone=(args.get("phone") or "").strip(),
         )
         db.session.add(employee)
         db.session.commit()

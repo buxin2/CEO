@@ -53,6 +53,7 @@ def api_update_employee(employee_id):
     data = request.get_json(silent=True) or {}
     name = data.get("name")
     email = data.get("email")
+    phone = data.get("phone")
     position = data.get("position")
 
     if name is not None:
@@ -62,6 +63,11 @@ def api_update_employee(employee_id):
         employee.name = name
     if email is not None:
         employee.email = email.strip()
+    if phone is not None:
+        phone = phone.strip()
+        if not phone:
+            return jsonify({"error": "System ID (phone number) is required so they can sign in."}), 400
+        employee.phone = phone
     if position is not None:
         employee.position = position.strip()
 

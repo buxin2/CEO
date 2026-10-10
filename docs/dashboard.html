@@ -26,6 +26,7 @@
         <input class="form-control" id="report-date" type="date" aria-label="Report date" style="width:auto;">
         <button type="button" class="icon-btn" id="notify-btn" aria-label="Follow-up alerts"><span id="bell-count" class="bell-count hidden">0</span>🔔</button>
         <button type="button" class="icon-btn" id="theme-toggle-btn-desk" aria-label="Toggle color theme">◐</button>
+        <button type="button" class="btn btn-secondary" id="copy-signin-link-btn">Copy employee sign-in</button>
         <button class="btn btn-primary" id="open-create-company-btn">+ Create Company</button>
       </div>
       <p class="page-subtitle" id="work-date-label" style="margin-top:-16px;margin-bottom:24px;">Loading Excel work…</p>
@@ -566,6 +567,9 @@
         </div>`;
     }
 
+    document.getElementById("copy-signin-link-btn").addEventListener("click", () => {
+      copyToClipboard(employeeSignInLink()).then(() => showToast("Employee sign-in link copied"));
+    });
     document.getElementById("open-create-company-btn").addEventListener("click", () => openModal("create-company-modal"));
     document.getElementById("create-company-form").addEventListener("submit", async (e) => {
       e.preventDefault();

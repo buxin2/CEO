@@ -385,6 +385,7 @@ def run_schema_migrations():
     _migrate_store_customer_google(engine)
     _default_product_shipping_off(engine)
     _ensure_work_list_tables(engine)
+    _add_column(engine, "employees", "phone", "phone VARCHAR(32) DEFAULT ''", "phone VARCHAR(32) DEFAULT ''")
 
     db.session.commit()
     logger.info("Schema migrations complete.")

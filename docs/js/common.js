@@ -50,6 +50,10 @@ function taskLinkForToken(token) {
   return new URL(pageUrl("task.html?token=" + encodeURIComponent(token)), window.location.href).href;
 }
 
+function employeeSignInLink() {
+  return new URL(pageUrl("employee-signin.html"), window.location.href).href;
+}
+
 function groupLinkForToken(token) {
   return new URL(pageUrl("group.html?token=" + encodeURIComponent(token)), window.location.href).href;
 }

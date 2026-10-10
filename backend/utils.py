@@ -14,6 +14,11 @@ def task_link_for_token(token):
     return frontend_url(f"task.html?token={token}")
 
 
+def employee_signin_link():
+    """Shared sign-in page for all employees (name + phone / system ID)."""
+    return frontend_url("employee-signin.html")
+
+
 def group_link_for_token(token):
     """Company group chat link served by the static frontend."""
     return frontend_url(f"group.html?token={token}")

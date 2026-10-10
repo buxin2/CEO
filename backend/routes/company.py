@@ -154,12 +154,15 @@ def api_create_employee(company_id):
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     email = (data.get("email") or "").strip()
+    phone = (data.get("phone") or "").strip()
     position = (data.get("position") or "").strip()
 
     if not name:
         return jsonify({"error": "Employee name is required."}), 400
+    if not phone:
+        return jsonify({"error": "System ID (phone number) is required so they can sign in."}), 400
 
-    employee = Employee(company_id=company.id, name=name, email=email, position=position)
+    employee = Employee(company_id=company.id, name=name, email=email, phone=phone, position=position)
     db.session.add(employee)
     db.session.commit()
 

@@ -5,9 +5,17 @@ from flask import Blueprint, jsonify, request
 
 from models import db, Employee, Task, Earning, get_week_bounds
 from services.worklist_service import assigned_rows_for_employee, update_row_for_employee
-from utils import group_link_for_token, create_group_for_company
+from utils import group_link_for_token, create_group_for_company, task_link_for_token
 
 public_bp = Blueprint("public", __name__)
+
+
+def _normalize_name(value):
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _normalize_phone(value):
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
 
 
 def _parse_amount(value):
@@ -18,6 +26,34 @@ def _parse_amount(value):
     if amount <= 0:
         return None, "Amount must be greater than zero."
     return amount, None
+
+
+@public_bp.route("/api/public/employee-signin", methods=["POST"])
+def api_public_employee_signin():
+    data = request.get_json(silent=True) or {}
+    name = _normalize_name(data.get("name"))
+    phone = _normalize_phone(data.get("phone") or data.get("system_id"))
+    if not name or not phone:
+        return jsonify({"error": "Enter your name and your phone number (system ID)."}), 400
+
+    matches = []
+    for employee in Employee.query.filter(Employee.phone.isnot(None)).all():
+        if not (employee.phone or "").strip():
+            continue
+        if _normalize_name(employee.name) == name and _normalize_phone(employee.phone) == phone:
+            matches.append(employee)
+
+    if len(matches) != 1:
+        return jsonify({"error": "Name and system ID do not match. Check with your manager."}), 404
+
+    employee = matches[0]
+    return jsonify({
+        "ok": True,
+        "employee_name": employee.name,
+        "company_name": employee.company.name,
+        "task_link": task_link_for_token(employee.unique_token),
+        "token": employee.unique_token,
+    })
 
 
 @public_bp.route("/api/public/tasks/<token>", methods=["GET"])

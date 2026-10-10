@@ -602,6 +602,32 @@ body.sidebar-collapsed .nav-chevron {
   margin: 0 0 4px;
 }
 
+.employee-signin-card {
+  max-width: 420px;
+}
+
+.ceo-brand {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.ceo-photo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--color-primary-light);
+  display: block;
+  margin: 0 auto 12px;
+  background: var(--color-primary-light);
+}
+
+.ceo-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 .zones-table .countries-cell {
   max-width: 280px;
 }

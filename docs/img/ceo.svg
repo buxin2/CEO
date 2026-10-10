@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="CEO Abdoukadr">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <circle cx="120" cy="120" r="120" fill="url(#g)"/>
+  <circle cx="120" cy="92" r="38" fill="#eef0fe"/>
+  <path d="M48 210c12-44 40-68 72-68s60 24 72 68" fill="#eef0fe"/>
+</svg>

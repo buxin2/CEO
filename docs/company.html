@@ -156,7 +156,10 @@
       <div id="tab-people" class="company-tab-panel hidden">
       <div class="page-header">
         <h2 class="section-title" style="margin:0;">Employees</h2>
-        <button class="btn btn-primary" id="open-add-employee-btn">+ Add Employee</button>
+        <div class="flex gap-8">
+          <button class="btn btn-secondary" type="button" id="copy-signin-link-btn">Copy employee sign-in</button>
+          <button class="btn btn-primary" id="open-add-employee-btn">+ Add Employee</button>
+        </div>
       </div>
 
       <div class="search-input-wrap">
@@ -198,8 +201,12 @@
           </div>
           <form id="add-employee-form">
             <div class="form-group">
-              <label class="form-label" for="employee-name">Name</label>
+              <label class="form-label" for="employee-name">Name (username)</label>
               <input class="form-control" id="employee-name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="employee-phone">System ID (phone number)</label>
+              <input class="form-control" id="employee-phone" inputmode="tel" required placeholder="They will sign in with this number">
             </div>
             <div class="form-group">
               <label class="form-label" for="employee-email">Email</label>
@@ -224,7 +231,7 @@
             <h3>Employee Added</h3>
             <button class="modal-close" onclick="closeModal('new-employee-link-modal')">&times;</button>
           </div>
-          <p class="text-muted" style="margin-bottom:10px;">Share this personal task link with the employee:</p>
+          <p class="text-muted" style="margin-bottom:10px;">Send every employee this one sign-in page. They enter their name and phone number to open only their tasks.</p>
           <input class="form-control" id="new-employee-link-input" readonly>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeModal('new-employee-link-modal')">Close</button>
@@ -266,8 +273,12 @@
           <form id="edit-employee-form">
             <input type="hidden" id="edit-employee-id">
             <div class="form-group">
-              <label class="form-label" for="edit-employee-name">Name</label>
+              <label class="form-label" for="edit-employee-name">Name (username)</label>
               <input class="form-control" id="edit-employee-name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-employee-phone">System ID (phone number)</label>
+              <input class="form-control" id="edit-employee-phone" inputmode="tel" required>
             </div>
             <div class="form-group">
               <label class="form-label" for="edit-employee-email">Email</label>
@@ -766,7 +777,7 @@
       return `
         <div class="entity-card">
           <div class="entity-card-title">${escapeHtml(e.name)}</div>
-          <div class="entity-card-meta">${escapeHtml(e.position || "No position set")}</div>
+          <div class="entity-card-meta">${escapeHtml(e.phone ? "ID " + e.phone : "No system ID")} · ${escapeHtml(e.position || "No position set")}</div>
           <div>
             <div class="progress-label"><span>${stats.completed}/${stats.total} completed</span><span>${stats.completion_pct}%</span></div>
             <div class="progress-track"><div class="progress-fill ${stats.completion_pct >= 100 ? "success" : ""}" style="width:${stats.completion_pct}%"></div></div>
@@ -873,6 +884,7 @@
       if (!emp) return;
       document.getElementById("edit-employee-id").value = emp.id;
       document.getElementById("edit-employee-name").value = emp.name;
+      document.getElementById("edit-employee-phone").value = emp.phone || "";
       document.getElementById("edit-employee-email").value = emp.email || "";
       document.getElementById("edit-employee-position").value = emp.position || "";
       document.getElementById("edit-employee-error").classList.remove("visible");
@@ -890,6 +902,9 @@
       }
     }
 
+    document.getElementById("copy-signin-link-btn").addEventListener("click", () => {
+      copyToClipboard(employeeSignInLink()).then(() => showToast("Employee sign-in link copied"));
+    });
     document.getElementById("open-add-employee-btn").addEventListener("click", () => openModal("add-employee-modal"));
 
     document.getElementById("add-employee-form").addEventListener("submit", async (e) => {
@@ -898,19 +913,20 @@
       errorBox.classList.remove("visible");
 
       const name = document.getElementById("employee-name").value.trim();
+      const phone = document.getElementById("employee-phone").value.trim();
       const email = document.getElementById("employee-email").value.trim();
       const position = document.getElementById("employee-position").value.trim();
 
       try {
         const employee = await apiRequest(`/api/companies/${COMPANY_ID}/employees`, {
           method: "POST",
-          body: JSON.stringify({ name, email, position }),
+          body: JSON.stringify({ name, phone, email, position }),
         });
         closeModal("add-employee-modal");
         document.getElementById("add-employee-form").reset();
         loadCompany();
 
-        document.getElementById("new-employee-link-input").value = employee.task_link;
+        document.getElementById("new-employee-link-input").value = employeeSignInLink();
         openModal("new-employee-link-modal");
       } catch (err) {
         errorBox.textContent = err.message;
@@ -920,7 +936,7 @@
 
     document.getElementById("copy-new-employee-link-btn").addEventListener("click", () => {
       const val = document.getElementById("new-employee-link-input").value;
-      copyToClipboard(val).then(() => showToast("Task link copied!"));
+      copyToClipboard(val).then(() => showToast("Employee sign-in link copied"));
     });
 
     document.getElementById("edit-employee-form").addEventListener("submit", async (e) => {
@@ -930,13 +946,14 @@
 
       const id = document.getElementById("edit-employee-id").value;
       const name = document.getElementById("edit-employee-name").value.trim();
+      const phone = document.getElementById("edit-employee-phone").value.trim();
       const email = document.getElementById("edit-employee-email").value.trim();
       const position = document.getElementById("edit-employee-position").value.trim();
 
       try {
         await apiRequest(`/api/employees/${id}`, {
           method: "PUT",
-          body: JSON.stringify({ name, email, position }),
+          body: JSON.stringify({ name, phone, email, position }),
         });
         closeModal("edit-employee-modal");
         loadCompany();

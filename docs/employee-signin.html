@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Employee sign-in · CEO Abdoukadr</title>
+  <link rel="stylesheet" href="css/style.css?v=18">
+  <link rel="stylesheet" href="css/admin-ui.css?v=2">
+</head>
+<body>
+  <div class="login-page employee-signin-page">
+    <div class="login-card employee-signin-card">
+      <div class="ceo-brand">
+        <img src="img/ceo.jpg" alt="CEO Abdoukadr" class="ceo-photo" id="ceo-photo">
+        <div class="ceo-name">CEO Abdoukadr</div>
+        <p class="login-subtitle">Enter the name and system ID your manager saved for you. You will only see your own tasks.</p>
+      </div>
+
+      <form id="employee-signin-form">
+        <div class="form-group">
+          <label class="form-label" for="employee-name">Your name</label>
+          <input class="form-control" id="employee-name" name="name" autocomplete="name" required placeholder="The name your manager created">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="employee-phone">System ID (your phone number)</label>
+          <input class="form-control" id="employee-phone" name="phone" inputmode="tel" autocomplete="tel" required placeholder="The phone number saved as your ID">
+        </div>
+        <div class="form-error" id="signin-error"></div>
+        <button type="submit" class="btn btn-primary btn-block" id="signin-btn">Open my tasks</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    const photo = document.getElementById("ceo-photo");
+    photo.addEventListener("error", () => {
+      photo.src = "img/ceo.svg";
+    });
+
+    const form = document.getElementById("employee-signin-form");
+    const errorBox = document.getElementById("signin-error");
+    const btn = document.getElementById("signin-btn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBox.classList.remove("visible");
+      btn.disabled = true;
+      btn.textContent = "Checking…";
+      try {
+        const data = await apiRequest("/api/public/employee-signin", {
+          method: "POST",
+          body: JSON.stringify({
+            name: document.getElementById("employee-name").value.trim(),
+            phone: document.getElementById("employee-phone").value.trim(),
+          }),
+        });
+        const url = data.task_link || pageUrl("task.html?token=" + encodeURIComponent(data.token));
+        window.location.href = url;
+      } catch (err) {
+        errorBox.textContent = err.message || "Name and system ID do not match.";
+        errorBox.classList.add("visible");
+        btn.disabled = false;
+        btn.textContent = "Open my tasks";
+      }
+    });
+  </script>
+</body>
+</html>
