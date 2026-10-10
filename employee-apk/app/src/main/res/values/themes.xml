@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.EmployeeTasks" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:statusBarColor">#4F46E5</item>
+        <item name="android:navigationBarColor">#F6F7F9</item>
+        <item name="android:windowBackground">#F6F7F9</item>
+    </style>
+</resources>
